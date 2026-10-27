@@ -70,14 +70,16 @@ class PipelineOrchestrator:
             length=target_len,
             width=target_wid,
             thickness=settings.DEFAULT_PLATE_THICKNESS_MM,
-            bore_dia=target_bore
+            bore_dia=target_bore,
+            hull_points=topology.outer_hull_points
         )
 
         mesh, stl_bytes = self.cad_generator.compile_mesh_in_memory(
             length=target_len,
             width=target_wid,
             thickness=settings.DEFAULT_PLATE_THICKNESS_MM,
-            bore_dia=target_bore
+            bore_dia=target_bore,
+            hull_points=topology.outer_hull_points
         )
 
         # Step 5: Self-Healing Verification Loop

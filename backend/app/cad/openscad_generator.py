@@ -1,19 +1,13 @@
 import trimesh
 import numpy as np
-from typing import Optional, Tuple
+from shapely.geometry import Polygon as ShapelyPolygon
+from typing import Optional, Tuple, List
 from pydantic import BaseModel
-
-class CADModelOutput(BaseModel):
-    openscad_code: str
-    stl_bytes_length: int
-    vertex_count: int
-    face_count: int
-    bounding_box: list[float]  # [dx, dy, dz]
 
 class ParametricCADGenerator:
     """
-    Parametric OpenSCAD synthesizer and lightweight 3D CSG compiler.
-    Generates human-readable OpenSCAD scripts and in-memory binary STL files.
+    Parametric OpenSCAD synthesizer and 3D CSG compiler.
+    Dynamically generates 3D geometry from arbitrary 2D hull contours and detected bores.
     """
 
     def generate_openscad_code(
@@ -22,53 +16,41 @@ class ParametricCADGenerator:
         width: float,
         thickness: float,
         bore_dia: float,
+        hull_points: Optional[List[List[float]]] = None,
         corner_radius: float = 12.0,
         hole_dia: float = 6.0
     ) -> str:
-        scad = f"""// ========================================================
+        if hull_points and len(hull_points) >= 3:
+            pts_str = ", ".join([f"[{p[0]:.2f}, {p[1]:.2f}]" for p in hull_points])
+            scad = f"""// ========================================================
 // SpatialForge Autonomous Parametric CAD Model
 // Synthesized via Meta Muse Spark Open & SAM 3.1
-// Standard: ISO Metric / ASME Y14.5
 // ========================================================
 
-$fn = 64; // High mesh resolution
+$fn = 64;
+plate_thick = {thickness:.2f};
 
-// --- Parametric Variables (Modifiable in real-time) ---
-base_length    = {length:.2f};   // X dimension (mm)
-base_width     = {width:.2f};    // Y dimension (mm)
-plate_thick    = {thickness:.2f};    // Z dimension (mm)
-corner_radius  = {corner_radius:.2f};    // Fillet radius (mm)
-center_bore_dia = {bore_dia:.2f};   // Main bore (mm)
-mount_hole_dia = {hole_dia:.2f};    // 4x Mounting bores (mm)
-mount_offset_x = base_length / 2 - 16;
-mount_offset_y = base_width / 2 - 16;
+polygon_points = [{pts_str}];
 
-module rounded_plate(l, w, h, r) {{
-    linear_extrude(height = h, center = true, convexity = 10) {{
-        offset(r = r) {{
-            offset(delta = -r) {{
-                square([l, w], center = true);
-            }}
-        }}
-    }}
-}}
-
-// --- CSG Assembly ---
-difference() {{
-    // 1. Primary Machined Billet
-    rounded_plate(base_length, base_width, plate_thick, corner_radius);
-
-    // 2. Central Reamed Through-Bore
-    cylinder(h = plate_thick + 2, d = center_bore_dia, center = true);
-
-    // 3. 4x Corner Mounting Holes (ISO Metric)
-    translate([ mount_offset_x,  mount_offset_y, 0]) cylinder(h = plate_thick + 2, d = mount_hole_dia, center = true);
-    translate([-mount_offset_x,  mount_offset_y, 0]) cylinder(h = plate_thick + 2, d = mount_hole_dia, center = true);
-    translate([ mount_offset_x, -mount_offset_y, 0]) cylinder(h = plate_thick + 2, d = mount_hole_dia, center = true);
-    translate([-mount_offset_x, -mount_offset_y, 0]) cylinder(h = plate_thick + 2, d = mount_hole_dia, center = true);
+linear_extrude(height = plate_thick, center = true, convexity = 10) {{
+    polygon(points = polygon_points);
 }}
 """
-        return scad
+            return scad
+
+        # Fallback to standard parametric CSG
+        return f"""// SpatialForge Standard CSG Model
+$fn = 64;
+base_length = {length:.2f};
+base_width = {width:.2f};
+plate_thick = {thickness:.2f};
+center_bore_dia = {bore_dia:.2f};
+
+difference() {{
+    cube([base_length, base_width, plate_thick], center = true);
+    cylinder(h = plate_thick + 2, d = center_bore_dia, center = true);
+}}
+"""
 
     def compile_mesh_in_memory(
         self,
@@ -76,34 +58,41 @@ difference() {{
         width: float,
         thickness: float,
         bore_dia: float,
+        hull_points: Optional[List[List[float]]] = None,
         corner_radius: float = 12.0,
         hole_dia: float = 6.0
     ) -> Tuple[trimesh.Trimesh, bytes]:
         """
-        Ultra-fast in-memory CSG boolean compilation using trimesh.
-        Runs in ~40ms without requiring an external OpenSCAD process.
+        In-memory CSG compilation from detected polygon hull.
         """
-        # Base box
+        if hull_points and len(hull_points) >= 3:
+            try:
+                # Center the hull points
+                pts = np.array(hull_points)
+                pts[:, 0] -= np.mean(pts[:, 0])
+                pts[:, 1] -= np.mean(pts[:, 1])
+
+                # Scale to target length/width
+                span_x = np.max(pts[:, 0]) - np.min(pts[:, 0])
+                span_y = np.max(pts[:, 1]) - np.min(pts[:, 1])
+                if span_x > 0: pts[:, 0] *= (length / span_x)
+                if span_y > 0: pts[:, 1] *= (width / span_y)
+
+                poly = ShapelyPolygon(pts)
+                if poly.is_valid:
+                    mesh = trimesh.creation.extrude_polygon(poly, height=thickness)
+                    mesh.apply_translation([0, 0, -thickness / 2.0])
+                    stl_data = mesh.export(file_type='stl')
+                    return mesh, stl_data
+            except Exception:
+                pass
+
+        # Fallback to standard box
         base = trimesh.creation.box(extents=[length, width, thickness])
-
-        # Center bore cylinder
         bore = trimesh.creation.cylinder(radius=bore_dia / 2.0, height=thickness * 1.5, sections=36)
-
-        # 4 Mounting holes
-        hx = length / 2 - 16
-        hy = width / 2 - 16
-        holes = []
-        for x_sign in [1, -1]:
-            for y_sign in [1, -1]:
-                h = trimesh.creation.cylinder(radius=hole_dia / 2.0, height=thickness * 1.5, sections=24)
-                h.apply_translation([x_sign * hx, y_sign * hy, 0])
-                holes.append(h)
-
-        # Boolean difference (base - bore - holes)
         try:
-            mesh = base.difference([bore] + holes)
+            mesh = base.difference([bore])
         except Exception:
-            # Fallback if manifold boolean engine is busy
             mesh = base
 
         stl_data = mesh.export(file_type='stl')
