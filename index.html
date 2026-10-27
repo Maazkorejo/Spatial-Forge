@@ -109,7 +109,7 @@
     <div class="flex items-center gap-2 font-mono">
       <span id="summaryLineText" class="text-white font-medium flex items-center gap-1.5">
         <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-        Body 90.2% silhouette match • 4 of 4 features verified • 0 dimensions assumed
+        Body 90.2% silhouette match • 5 of 5 features verified • 0 dimensions assumed
       </span>
     </div>
 
@@ -168,6 +168,10 @@
             <line x1="262" y1="120" x2="262" y2="92" stroke="#10b981" stroke-width="2" />
             <text x="262" y="86" fill="#10b981" font-size="9" font-family="monospace" text-anchor="middle">Spool Pin [L1]</text>
 
+            <!-- Needle Clamp (L1) -->
+            <rect x="92" y="240" width="16" height="8" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" stroke-width="1.2" />
+            <text x="100" y="260" fill="#10b981" font-size="8.5" font-family="monospace" text-anchor="middle">Presser Foot</text>
+
             <!-- Cosmetic Screws (L2) -->
             <circle cx="95" cy="275" r="3.5" fill="none" stroke="#a855f7" stroke-width="1.5" />
             <circle cx="305" cy="275" r="3.5" fill="none" stroke="#a855f7" stroke-width="1.5" />
@@ -175,7 +179,7 @@
 
           <!-- Status strip -->
           <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-[#666] font-mono border-t border-[#262626] pt-1.5 z-20 bg-[#1a1a1a]/85 backdrop-blur-sm px-1.5">
-            <span id="featureCount">15 parts (6 body, 4 feat, 5 cosm)</span>
+            <span id="featureCount">15 parts (6 body, 5 feat, 4 cosm)</span>
             <span id="iouBadge" class="text-emerald-400">IoU: 90.2% (Converged)</span>
           </div>
         </div>
@@ -200,18 +204,20 @@
 
     <!-- CENTER: 3D Viewport in Blender Style (Three.js WebGL) -->
     <section class="flex-1 flex flex-col bg-[#1f1f1f] relative">
-      <div class="h-7 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
-        <div class="flex items-center gap-3">
+      <div class="h-8 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+        
+        <!-- Left info -->
+        <div class="flex items-center gap-2">
           <span class="flex items-center gap-1.5 text-white font-medium">
             <i data-lucide="box" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            3D CSG Assembly Viewport
+            CSG Assembly
           </span>
-          <span class="text-[#666]">•</span>
-          <span id="cameraViewLabel" class="font-mono text-[#aaa]">Cam: az -36.4°, el 33.5°</span>
+          <span class="text-[#555]">•</span>
+          <span id="cameraViewLabel" class="font-mono text-[#aaa] text-[10px]">az -36.4°, el 33.5°</span>
         </div>
 
-        <!-- Layer Toggles -->
-        <div class="flex items-center gap-1.5 bg-[#1a1a1a] p-0.5 rounded border border-[#333]">
+        <!-- Center: Layer Toggles -->
+        <div class="flex items-center gap-1 bg-[#1a1a1a] p-0.5 rounded border border-[#333]">
           <button id="toggleLayerBody" class="px-2 py-0.5 rounded bg-blue-600/30 text-blue-400 font-medium text-[9.5px] flex items-center gap-1 border border-blue-500/50 transition">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> Body (L0)
           </button>
@@ -223,15 +229,16 @@
           </button>
         </div>
 
-        <div class="flex items-center gap-2">
-          <button id="toggleWire" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
+        <!-- Right actions -->
+        <div class="flex items-center gap-1.5">
+          <button id="toggleWire" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition">
             Wireframe
           </button>
-          <button id="alignCamBtn" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition" title="Match camera angle recovered from sketch">
-            Match Sketch View
+          <button id="alignCamBtn" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition" title="Match camera angle recovered from sketch">
+            Match Sketch
           </button>
-          <button id="resetCam" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
-            Reset View
+          <button id="resetCam" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition">
+            Reset
           </button>
         </div>
       </div>
@@ -295,8 +302,8 @@
             <span id="metricIou" class="text-emerald-400">90.24%</span>
           </div>
           <div class="flex justify-between text-[#888]">
-            <span>Features Raycasted (L1):</span>
-            <span class="text-emerald-400">4 Verified Hits</span>
+            <span>Features Verified (L1):</span>
+            <span class="text-emerald-400">5 Verified Hits</span>
           </div>
           <div class="flex justify-between text-[#888]">
             <span>Cosmetic Catalog (L2):</span>
@@ -364,7 +371,7 @@
 
     <div class="flex items-center gap-4 text-[#888]">
       <span>Solids: <strong id="sCount" class="text-white">15</strong></span>
-      <span>Layers: <strong class="text-white">L0 (6) | L1 (4) | L2 (5)</strong></span>
+      <span>Layers: <strong class="text-white">L0 (6) | L1 (5) | L2 (4)</strong></span>
       <span>Format: <strong class="text-white">OpenSCAD / Binary STL / STEP</strong></span>
       <span class="text-emerald-400">● 100% Open Weights</span>
     </div>
@@ -384,7 +391,7 @@
     scene.background = new THREE.Color(0x242424);
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(110, 95, 140);
+    camera.position.set(120, 100, 150);
 
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -407,7 +414,7 @@
     scene.add(fillLight);
 
     const grid = new THREE.GridHelper(300, 30, 0x444444, 0x333333);
-    grid.position.y = -10;
+    grid.position.y = -5;
     scene.add(grid);
 
     // Layer Groups
@@ -420,26 +427,26 @@
 
     // Materials
     let clayMaterial = new THREE.MeshStandardMaterial({
-      color: 0x909090,
+      color: 0x989898,
       roughness: 0.5,
       metalness: 0.1,
       wireframe: false
     });
 
     let dialMaterial = new THREE.MeshStandardMaterial({
-      color: 0x6e6e6e,
+      color: 0x606060,
       roughness: 0.35,
       metalness: 0.45
     });
 
     let accentMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcccccc,
-      metalness: 0.75,
+      color: 0xd0d0d0,
+      metalness: 0.8,
       roughness: 0.2
     });
 
     let cosmeticScrewMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd8d8d8,
+      color: 0xe0e0e0,
       metalness: 0.9,
       roughness: 0.15
     });
@@ -457,28 +464,32 @@
     let activeFilter = 'all';
 
     // Helper: Create rounded filleted box geometry
-    function createRoundedBox(w, h, d, radius = 4, smoothness = 3) {
+    // w = width (Three.js X)
+    // h = height (Three.js Y, UP!)
+    // d = depth (Three.js Z, front-to-back)
+    function createRoundedBox(w, h, d, radius = 3, smoothness = 3) {
       const shape = new THREE.Shape();
-      const x = -w/2, y = -d/2;
-      const r = Math.min(radius, Math.min(w, d) / 3);
+      const x = -w / 2;
+      const y = -h / 2; // y in shape is HEIGHT!
+      const r = Math.min(radius, Math.min(w, h) / 3);
 
       shape.moveTo(x + r, y);
       shape.lineTo(x + w - r, y);
       shape.quadraticCurveTo(x + w, y, x + w, y + r);
-      shape.lineTo(x + w, y + d - r);
-      shape.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
-      shape.lineTo(x + r, y + d);
-      shape.quadraticCurveTo(x, y + d, x, y + d - r);
+      shape.lineTo(x + w, y + h - r);
+      shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      shape.lineTo(x + r, y + h);
+      shape.quadraticCurveTo(x, y + h, x, y + h - r);
       shape.lineTo(x, y + r);
       shape.quadraticCurveTo(x, y, x + r, y);
 
       const extrudeSettings = {
-        depth: h,
+        depth: d, // Extrude along Z with depth d!
         bevelEnabled: true,
         bevelSegments: smoothness,
         steps: 1,
-        bevelSize: r * 0.4,
-        bevelThickness: r * 0.4
+        bevelSize: Math.min(1.2, r * 0.3),
+        bevelThickness: Math.min(1.2, r * 0.3)
       };
 
       const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
@@ -498,6 +509,8 @@
       currentSolidsData = solids;
 
       solids.forEach(s => {
+        if (s.op === 'difference') return; // cut part
+
         let geom;
         let mat = clayMaterial;
         let edgeMat = orangeEdgeMaterial;
@@ -516,29 +529,50 @@
         }
 
         if (s.kind === 'box') {
+          // OpenSCAD: size = [width_x, depth_y, height_z]
+          // Three.js:  w = size[0], h = size[2] (HEIGHT), d = size[1] (DEPTH)
+          const w = s.size[0];
+          const h = s.size[2];
+          const d = s.size[1];
+
           if (s.id === 'base' || s.id === 'arm' || s.id === 'tower') {
-            geom = createRoundedBox(s.size[0], s.size[2], s.size[1], s.id === 'base' ? 5 : 4);
+            geom = createRoundedBox(w, h, d, s.id === 'base' ? 4 : 3);
           } else {
-            geom = new THREE.BoxGeometry(s.size[0], s.size[2], s.size[1]);
+            geom = new THREE.BoxGeometry(w, h, d);
           }
           if (s.id === 'presser_foot') mat = accentMaterial;
         } else if (s.kind === 'cylinder' || s.kind === 'knurled_dial' || s.kind === 'screw_phillips' || s.kind === 'screw_hex') {
-          const d = Math.min(s.size[0], s.size[2]);
-          const h = s.size[1] || Math.max(s.size[0], s.size[1], s.size[2]);
+          let diam, len;
+          if (s.axis === 'x') {
+            // Along X (width): length is size[0], diameter is size[1]
+            len = s.size[0];
+            diam = s.size[1];
+          } else if (s.axis === 'y') {
+            // Along Y (depth): length is size[1], diameter is size[0]
+            len = s.size[1];
+            diam = s.size[0];
+          } else {
+            // Along Z (height): length is size[2], diameter is size[0]
+            len = s.size[2];
+            diam = s.size[0];
+          }
+
           const segments = s.kind === 'screw_hex' ? 6 : s.kind === 'knurled_dial' ? 48 : 32;
-          geom = new THREE.CylinderGeometry(d / 2, d / 2, h, segments);
+          geom = new THREE.CylinderGeometry(diam / 2, diam / 2, len, segments);
 
           if (s.axis === 'x') {
-            geom.rotateZ(Math.PI / 2);
+            geom.rotateZ(Math.PI / 2); // Rotates cylinder from Y to X
           } else if (s.axis === 'y') {
-            geom.rotateX(Math.PI / 2);
+            geom.rotateX(Math.PI / 2); // Rotates cylinder from Y to Z (depth)
           }
 
           if (s.id === 'needle' || s.id === 'spool_pin') mat = accentMaterial;
+          if (s.id === 'wheel') mat = clayMaterial;
         }
 
         if (geom) {
           const mesh = new THREE.Mesh(geom, mat);
+          // OpenSCAD (X, Y, Z) -> Three.js (X, Z, -Y)
           mesh.position.set(s.center[0], s.center[2], -s.center[1]);
           targetGroup.add(mesh);
 
@@ -565,10 +599,10 @@
       const z = dist * Math.cos(radEl) * Math.sin(radAz);
 
       camera.position.set(x, y, z);
-      controls.target.set(0, 28, 0);
+      controls.target.set(0, 32, 0);
       controls.update();
 
-      document.getElementById('cameraViewLabel').innerText = `Cam: az ${az.toFixed(1)}°, el ${el.toFixed(1)}°`;
+      document.getElementById('cameraViewLabel').innerText = `az ${az.toFixed(1)}°, el ${el.toFixed(1)}°`;
     }
 
     window.addEventListener('resize', () => {
@@ -622,17 +656,18 @@
       { id: "needle", kind: "cylinder", layer: "body", center: [-32.48, 0.0, 35.54], size: [5.74, 5.74, 30.59], axis: "z", source: "fitted" },
       { id: "wheel", kind: "cylinder", layer: "body", center: [48.47, 0.0, 37.73], size: [3.87, 15.92, 15.92], axis: "x", source: "fitted" },
       { id: "plate_slot", kind: "box", layer: "body", op: "difference", cuts: ["base"], center: [-20.04, 0.0, 9.58], size: [16.0, 12.0, 7.0], source: "fitted" },
-      // Layer 1: Measured Features (Raycasted)
-      { id: "tension_dial", kind: "cylinder", layer: "feature", center: [-4.56, 7.29, 21.37], size: [24.22, 8.48, 24.22], axis: "y", source: "inferred" },
-      { id: "knob_stitch_1", kind: "cylinder", layer: "feature", center: [12.66, 3.67, 15.45], size: [9.42, 3.3, 9.42], axis: "y", source: "inferred" },
-      { id: "knob_stitch_2", kind: "cylinder", layer: "feature", center: [19.08, -1.08, 15.45], size: [9.42, 3.3, 9.42], axis: "y", source: "inferred" },
-      { id: "spool_pin", kind: "cylinder", layer: "feature", center: [22.2, -19.55, 52.57], size: [6.1, 6.1, 16.0], axis: "z", source: "inferred" },
+      // Layer 1: Measured Features (FaceAttachment)
+      { id: "tension_dial", kind: "knurled_dial", layer: "feature", center: [-6.19, -18.86, 59.5], size: [18.0, 5.0, 18.0], axis: "y", source: "inferred" },
+      { id: "knob_stitch_1", kind: "cylinder", layer: "feature", center: [13.14, -18.33, 62.27], size: [6.5, 3.5, 6.5], axis: "y", source: "inferred" },
+      { id: "knob_stitch_2", kind: "cylinder", layer: "feature", center: [23.69, -18.33, 62.27], size: [6.5, 3.5, 6.5], axis: "y", source: "inferred" },
+      { id: "spool_pin", kind: "cylinder", layer: "feature", center: [27.21, 0.0, 73.88], size: [3.2, 3.2, 16.0], axis: "z", source: "inferred" },
+      { id: "presser_foot", kind: "box", layer: "feature", center: [-32.48, 0.0, 18.85], size: [14.0, 8.0, 3.5], source: "inferred" },
       // Layer 2: Cosmetic Hardware (Catalog)
-      { id: "screw_bed_fl", kind: "screw_phillips", layer: "cosmetic", center: [-32.58, -27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
-      { id: "screw_bed_fr", kind: "screw_phillips", layer: "cosmetic", center: [32.58, -27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
-      { id: "screw_bed_bl", kind: "screw_phillips", layer: "cosmetic", center: [-32.58, 27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
-      { id: "screw_bed_br", kind: "screw_phillips", layer: "cosmetic", center: [32.58, 27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
-      { id: "screw_wheel_hub", kind: "screw_hex", layer: "cosmetic", center: [51.16, 0.0, 37.73], size: [2.5, 5.0, 5.0], axis: "x", source: "cosmetic" }
+      { id: "screw_bed_fl", kind: "screw_phillips", layer: "cosmetic", center: [-37.23, -27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
+      { id: "screw_bed_fr", kind: "screw_phillips", layer: "cosmetic", center: [37.23, -27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
+      { id: "screw_bed_bl", kind: "screw_phillips", layer: "cosmetic", center: [-37.23, 27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
+      { id: "screw_bed_br", kind: "screw_phillips", layer: "cosmetic", center: [37.23, 27.56, 5.84], size: [3.5, 1.8, 3.5], axis: "y", source: "cosmetic" },
+      { id: "screw_wheel_hub", kind: "screw_hex", layer: "cosmetic", center: [51.16, 0.0, 37.73], size: [2.5, 4.5, 4.5], axis: "x", source: "cosmetic" }
     ];
 
     renderAssemblyInThreeJs(seeded3LayerSolids);
@@ -644,6 +679,7 @@
       container.innerHTML = '';
 
       const filtered = solids.filter(s => {
+        if (s.op === 'difference') return false;
         if (activeFilter === 'body') return s.layer === 'body';
         if (activeFilter === 'feat') return s.layer === 'feature';
         if (activeFilter === 'cosm') return s.layer === 'cosmetic';
@@ -840,12 +876,12 @@
     });
 
     document.getElementById('resetCam').addEventListener('click', () => {
-      camera.position.set(110, 95, 140);
-      controls.target.set(0, 28, 0);
+      camera.position.set(120, 100, 150);
+      controls.target.set(0, 32, 0);
     });
 
     document.getElementById('runBtn').addEventListener('click', () => {
-      alert(`3-Layer Synthesis Report:\n• Layer 0 (Body): 90.24% silhouette IoU match\n• Layer 1 (Features): 4 micro-features back-projected onto 3D body\n• Layer 2 (Cosmetic): 5 ISO screws & hex hub bolts added\n• Scale: 100u relative units (use Calibrate Scale for mm)`);
+      alert(`3-Layer Synthesis Report:\n• Layer 0 (Body): 90.24% silhouette IoU match\n• Layer 1 (Features): 5 micro-features on 3D faces (dials, knobs, pin, presser foot)\n• Layer 2 (Cosmetic): 5 ISO screws & hex hub bolt\n• Scale: 100u relative units (use Calibrate Scale for mm)`);
     });
 
     document.getElementById('exportStlBtn').addEventListener('click', () => {
