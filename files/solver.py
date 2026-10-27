@@ -16,6 +16,14 @@ from schema import Assembly, Part
 FACE = {"right": (0, 1), "left": (0, -1), "back": (1, 1), "front": (1, -1),
         "top": (2, 1), "bottom": (2, -1)}
 AX = {"x": 0, "y": 1, "z": 2}
+IN_PLANE = {
+    "front": (0, 2),  # (x, z)
+    "back":  (0, 2),  # (x, z)
+    "top":   (0, 1),  # (x, y)
+    "bottom":(0, 1),  # (x, y)
+    "left":  (1, 2),  # (y, z)
+    "right": (1, 2),  # (y, z)
+}
 
 Overrides = Optional[dict]  # {(part_id, field): value}
 
@@ -29,6 +37,9 @@ class Solid:
     center: np.ndarray
     size: np.ndarray          # full AABB extents
     axis: Optional[str]
+    layer: str = "body"
+    source: str = "inferred"
+    evidence: Optional[dict] = None
 
     def aabb(self):
         h = self.size / 2
@@ -42,11 +53,12 @@ def _val(p: Part, f: str, ov: Overrides) -> float:
 
 
 def _size(p: Part, ov: Overrides) -> np.ndarray:
-    if p.kind == "box":
+    if p.kind in ("box", "rocker_switch"):
         return np.array([_val(p, "width_x", ov), _val(p, "depth_y", ov), _val(p, "height_z", ov)])
-    d = _val(p, "diameter", ov)
     if p.kind == "sphere":
+        d = _val(p, "diameter", ov)
         return np.array([d, d, d])
+    d = _val(p, "diameter", ov)
     L = _val(p, "length", ov)
     return {"x": np.array([L, d, d]), "y": np.array([d, L, d]), "z": np.array([d, d, L])}[p.axis]
 
@@ -57,9 +69,10 @@ def resolve(asm: Assembly, ov: Overrides = None) -> dict[str, Solid]:
         size = _size(p, ov)
         c = np.zeros(3)
         pl = p.placement
-        if pl is None:
+        on = p.on
+        if pl is None and on is None:
             c[:] = (0.0, 0.0, size[2] / 2)
-        else:
+        elif pl is not None:
             par = solids[pl.parent]
             n, s = FACE[pl.face]
             aligns = (pl.align_x, pl.align_y, pl.align_z)
@@ -76,7 +89,32 @@ def resolve(asm: Assembly, ov: Overrides = None) -> dict[str, Solid]:
                     else:
                         c[a] = par.center[a] + par.size[a] / 2 - size[a] / 2
                     c[a] += offs[a]
-        solids[p.id] = Solid(p.id, p.kind, p.op, list(p.cuts), c, size, p.axis)
+        elif on is not None:
+            par = solids[on.part]
+            n, s = FACE[on.face]
+            # Normal axis
+            c[n] = par.center[n] + s * (par.size[n] / 2 + size[n] / 2 - on.embed * size[n])
+            # In-plane normalized axes (u, v)
+            ax_u, ax_v = IN_PLANE[on.face]
+            c[ax_u] = (par.center[ax_u] - par.size[ax_u] / 2) + on.u * par.size[ax_u]
+            c[ax_v] = (par.center[ax_v] - par.size[ax_v] / 2) + on.v * par.size[ax_v]
+
+        ev_dict = p.evidence.model_dump() if p.evidence is not None else None
+        first_dim = next(iter(p.dims().values()), None)
+        src = first_dim.source if first_dim is not None else ("cosmetic" if p.layer == "cosmetic" else "inferred")
+
+        solids[p.id] = Solid(
+            id=p.id,
+            kind=p.kind,
+            op=p.op,
+            cuts=list(p.cuts),
+            center=c,
+            size=size,
+            axis=p.axis,
+            layer=p.layer,
+            source=src,
+            evidence=ev_dict
+        )
     return solids
 
 
