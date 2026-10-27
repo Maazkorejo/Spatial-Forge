@@ -6,6 +6,7 @@ import base64
 
 from app.core.config import settings
 from app.agent.orchestrator import PipelineOrchestrator
+from app.agent.relational_pipeline import RelationalPipelineEngine
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -13,7 +14,7 @@ app = FastAPI(
     description="SpatialForge: Autonomous Physical Blueprint-to-CAD Agent"
 )
 
-# Enable CORS for local Next.js frontend
+# Enable CORS for local Next.js / browser frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 orchestrator = PipelineOrchestrator()
+relational_engine = RelationalPipelineEngine()
 
 @app.get("/")
 def root():
@@ -30,7 +32,7 @@ def root():
         "status": "online",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "stack": ["Meta SAM 3.1", "Muse Spark Open", "OpenSCAD", "RapidOCR"]
+        "stack": ["Meta SAM 3.1", "Muse Spark Open", "Relational CSG DSL", "scipy Analysis-by-Synthesis"]
     }
 
 @app.get("/health")
@@ -40,15 +42,17 @@ def health():
 @app.post(f"{settings.API_V1_STR}/synthesize")
 async def synthesize_blueprint(file: UploadFile = File(...)):
     """
-    Main synthesis endpoint. Ingests a 2D technical blueprint/sketch,
-    runs perception, micro-OCR, DRC audit, parametric CAD compilation,
-    and self-healing verification in < 2 seconds.
+    Main synthesis endpoint. Ingests a 2D technical blueprint or 3D concept sketch,
+    runs the Relational CSG pipeline with camera estimation and render-and-compare optimization.
     """
     try:
         contents = await file.read()
-        result = await orchestrator.execute_pipeline(contents)
+        # Run Relational Analysis-by-Synthesis
+        result = relational_engine.process_image(contents)
         return result
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.websocket("/ws/stream")
