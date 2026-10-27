@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpatialForge — Blender Edition</title>
+  <title>SpatialForge — Autonomous CAD Agent</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -17,7 +17,7 @@
 
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #1d1d1d;
+      background-color: #181818;
       color: #cccccc;
       user-select: none;
     }
@@ -25,381 +25,327 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
-    /* Authentic Blender Dark UI Palette */
-    .blender-bg-dark { background-color: #181818; }
-    .blender-bg-panel { background-color: #282828; }
-    .blender-bg-header { background-color: #303030; }
-    .blender-bg-input { background-color: #1e1e1e; }
-    .blender-bg-active { background-color: #4772b3; }
-    .blender-border { border-color: #3d3d3d; }
-    
-    /* Blender orange selection color */
-    .blender-orange { color: #ea7600; }
-    .blender-border-orange { border-color: #ea7600; }
-    .blender-active-tab {
-      background-color: #3d3d3d;
-      color: #ffffff;
-    }
+    /* Blender Charcoal Theme */
+    .blender-bg-base { background-color: #181818; }
+    .blender-bg-panel { background-color: #242424; }
+    .blender-bg-header { background-color: #2b2b2b; }
+    .blender-bg-card { background-color: #2c2c2c; }
+    .blender-border { border-color: #383838; }
 
-    /* Custom Blender number input styling */
-    .blender-input {
+    /* Blender Orange Accents */
+    .blender-orange { color: #ea7600; }
+    .blender-bg-orange { background-color: #ea7600; }
+    .blender-border-orange { border-color: #ea7600; }
+
+    /* Custom range slider */
+    input[type=range] {
+      -webkit-appearance: none;
       background: #191919;
-      border: 1px solid #383838;
-      border-radius: 3px;
-      color: #e6e6e6;
-      font-size: 11px;
-      padding: 2px 6px;
+      height: 4px;
+      border-radius: 2px;
       outline: none;
-      transition: all 0.15s;
     }
-    .blender-input:focus {
-      border-color: #4772b3;
-      background: #111111;
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ea7600;
+      cursor: pointer;
+      border: 1px solid #ffffff;
     }
   </style>
 </head>
-<body class="h-screen flex flex-col text-[11px] overflow-hidden">
+<body class="h-screen flex flex-col text-[11px] overflow-hidden bg-[#181818]">
 
-  <!-- TOP 1: BLENDER APP MENU BAR -->
-  <div class="h-6 bg-[#202020] border-b border-[#181818] px-2 flex items-center justify-between text-xs text-[#a0a0a0]">
-    <div class="flex items-center gap-3">
-      <!-- Blender logo icon -->
-      <div class="flex items-center gap-1.5 font-semibold text-white text-xs pr-2 border-r border-[#333]">
-        <div class="w-4 h-4 rounded-full bg-[#ea7600] flex items-center justify-center text-white text-[9px] font-bold">
-          S
+  <!-- TOP BAR: Minimal Blender Header (Only SpatialForge features) -->
+  <header class="h-9 bg-[#242424] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-xs flex-shrink-0">
+    <!-- Left: App Identity -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-5 h-5 rounded-sm bg-[#ea7600] flex items-center justify-center text-white font-bold text-[10px]">
+        S
+      </div>
+      <span class="font-semibold text-white tracking-tight">SpatialForge</span>
+      <span class="text-[#666]">/</span>
+      <span class="font-mono text-[#999] text-[11px]">bracket_revB.png</span>
+      <span class="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#ea7600] border border-[#333]">
+        Meta SAM 3.1 + Muse Spark Open
+      </span>
+    </div>
+
+    <!-- Right: Core Actions -->
+    <div class="flex items-center gap-2">
+      <button id="runBtn" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#ea7600] hover:bg-[#d66c00] text-white font-medium text-[11px] transition active:scale-95 shadow-sm">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span>Run Synthesis</span>
+      </button>
+
+      <button id="exportStlBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3e3e3e] text-white border border-[#444] transition">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-[#aaa]"></i>
+        <span>Export STL</span>
+      </button>
+
+      <button id="codeModalBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3e3e3e] text-[#ccc] border border-[#444] transition">
+        <i data-lucide="code" class="w-3 h-3 text-[#aaa]"></i>
+        <span>OpenSCAD</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="flex-1 flex overflow-hidden">
+
+    <!-- LEFT PANEL: 2D Blueprint Perception (40% width) -->
+    <section class="w-[42%] border-r border-[#1c1c1c] flex flex-col bg-[#1b1b1b]">
+      <!-- Sub-header -->
+      <div class="h-7 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+        <div class="flex items-center gap-1.5 text-white font-medium">
+          <i data-lucide="scan" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+          <span>2D Perception (Meta SAM 3.1)</span>
         </div>
-        <span>SpatialForge</span>
-      </div>
 
-      <div class="flex items-center gap-2.5 text-[11px]">
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">File</span>
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">Edit</span>
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">Render</span>
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">SAM Perception</span>
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">Window</span>
-        <span class="hover:text-white cursor-pointer px-1 py-0.5 rounded hover:bg-[#333]">Help</span>
-      </div>
-    </div>
-
-    <!-- Right top scene indicators -->
-    <div class="flex items-center gap-3 text-[11px]">
-      <span class="text-[#888]">Scene: <strong class="text-white">Scene</strong></span>
-      <span class="text-[#888]">ViewLayer: <strong class="text-white">ViewLayer</strong></span>
-    </div>
-  </div>
-
-  <!-- TOP 2: BLENDER WORKSPACE TABS -->
-  <div class="h-7 bg-[#282828] border-b border-[#1d1d1d] px-2 flex items-center justify-between text-[11px]">
-    <div class="flex items-center gap-1 overflow-x-auto">
-      <button class="px-3 py-1 rounded-t-sm blender-active-tab font-medium text-white">Layout</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">Modeling</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">Sculpting</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">Geometry Nodes</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">SAM 3.1 Perception</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">DRC Feasibility</button>
-      <button class="px-3 py-1 rounded-t-sm text-[#888] hover:text-[#ddd] hover:bg-[#333]">Scripting</button>
-    </div>
-
-    <!-- Quick action: Export -->
-    <button id="exportStlTop" class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#3e3e3e] hover:bg-[#4a4a4a] text-white border border-[#4e4e4e] transition">
-      <i data-lucide="download" class="w-3 h-3 text-[#ea7600]"></i>
-      <span>Export STL</span>
-    </button>
-  </div>
-
-  <!-- MAIN BLENDER WORKSPACE -->
-  <div class="flex-1 flex overflow-hidden">
-
-    <!-- VERTICAL TOOL STRIP (BLENDER LEFT TOOLBAR) -->
-    <div class="w-9 bg-[#262626] border-r border-[#181818] flex flex-col items-center py-2 gap-1.5 z-20 flex-shrink-0">
-      <button class="w-7 h-7 rounded bg-[#4772b3] text-white flex items-center justify-center hover:bg-[#5883c4] title='Select Box'">
-        <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i>
-      </button>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Cursor">
-        <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
-      </button>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Move">
-        <i data-lucide="move" class="w-3.5 h-3.5"></i>
-      </button>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Rotate">
-        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
-      </button>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Scale">
-        <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
-      </button>
-      <div class="w-5 h-[1px] bg-[#333] my-1"></div>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Annotate">
-        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-      </button>
-      <button class="w-7 h-7 rounded hover:bg-[#383838] text-[#a0a0a0] hover:text-white flex items-center justify-center" title="Measure Ruler">
-        <i data-lucide="ruler" class="w-3.5 h-3.5"></i>
-      </button>
-    </div>
-
-    <!-- CENTER: 3D VIEWPORT -->
-    <div class="flex-1 flex flex-col bg-[#1c1c1c] relative overflow-hidden">
-      
-      <!-- 3D Viewport Header -->
-      <div class="h-7 bg-[#282828]/90 border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#a0a0a0] z-10">
         <div class="flex items-center gap-3">
-          <span class="flex items-center gap-1 font-semibold text-white">
+          <label class="flex items-center gap-1.5 cursor-pointer text-[#aaa] hover:text-white">
+            <input type="checkbox" id="toggleMasks" checked class="rounded border-[#444] bg-[#1a1a1a] accent-[#ea7600] w-3 h-3">
+            <span>Show Masks</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2D Canvas Area -->
+      <div class="flex-1 p-4 flex items-center justify-center bg-[#151515] relative overflow-hidden">
+        <div class="w-full max-w-sm aspect-square bg-[#1a1a1a] border border-[#2e2e2e] rounded p-4 relative shadow-md">
+          <svg viewBox="0 0 400 400" class="w-full h-full select-none">
+            <!-- Subtle Grid -->
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255, 255, 255, 0.03)" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect width="400" height="400" fill="url(#grid)" />
+
+            <!-- Dimension callout lines -->
+            <line x1="70" y1="45" x2="330" y2="45" stroke="#777777" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="175" y="38" fill="#aaaaaa" font-size="11" font-family="monospace">120.0 mm</text>
+
+            <line x1="355" y1="70" x2="355" y2="330" stroke="#777777" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="360" y="205" fill="#aaaaaa" font-size="11" font-family="monospace">84.0 mm</text>
+
+            <!-- Outer Hull SAM Mask (Orange) -->
+            <rect id="maskHull" x="70" y="70" width="260" height="260" rx="16" 
+                  fill="rgba(234, 118, 0, 0.12)" stroke="#ea7600" stroke-width="1.8" class="transition"/>
+
+            <!-- Center Bore (Orange highlight) -->
+            <circle id="maskBore" cx="200" cy="200" r="38" 
+                    fill="rgba(234, 118, 0, 0.18)" stroke="#ea7600" stroke-width="1.8" class="transition"/>
+            <text x="175" y="204" fill="#ea7600" font-size="11" font-family="monospace">DIA 44.0</text>
+
+            <!-- 4 Corner Mounting Holes (M6) -->
+            <circle cx="105" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="295" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="105" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="295" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <text x="75" y="90" fill="#888888" font-size="10" font-family="monospace">4x M6</text>
+          </svg>
+
+          <!-- Status tag -->
+          <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-[#666] font-mono border-t border-[#262626] pt-1.5">
+            <span>6 features isolated</span>
+            <span class="text-emerald-400">Zero-Hallucination OCR</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- File upload strip -->
+      <div class="h-9 px-3 border-t border-[#202020] bg-[#222222] flex items-center justify-between text-[#888]">
+        <span>Input: Paper sketch, technical scan, or PDF</span>
+        <label class="text-[#ddd] hover:text-white cursor-pointer underline text-[10.5px]">
+          Upload File
+          <input type="file" id="fileUpload" class="hidden" accept="image/*,.pdf">
+        </label>
+      </div>
+    </section>
+
+    <!-- CENTER: 3D Viewport in Blender Style (Three.js WebGL) -->
+    <section class="flex-1 flex flex-col bg-[#1f1f1f] relative">
+      <!-- 3D Header -->
+      <div class="h-7 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-1.5 text-white font-medium">
             <i data-lucide="box" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            Object Mode
+            3D Viewport (Synthesized CSG)
           </span>
-          <span class="hover:text-white cursor-pointer">View</span>
-          <span class="hover:text-white cursor-pointer">Select</span>
-          <span class="hover:text-white cursor-pointer">Add</span>
-          <span class="hover:text-white cursor-pointer">Object</span>
+          <span class="text-[#666]">•</span>
+          <span class="font-mono text-[#aaa]">Solid Clay</span>
         </div>
 
-        <!-- Shading Modes (Wireframe, Solid, Material, Rendered) -->
+        <!-- Shading toggle -->
         <div class="flex items-center gap-2">
-          <div class="flex items-center bg-[#1e1e1e] rounded-full p-0.5 border border-[#383838]">
-            <button id="shadeWire" class="w-5 h-5 rounded-full flex items-center justify-center text-[#888] hover:text-white" title="Wireframe">
-              <i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>
-            </button>
-            <button id="shadeSolid" class="w-5 h-5 rounded-full bg-[#4772b3] flex items-center justify-center text-white" title="Solid">
-              <i data-lucide="circle" class="w-3.5 h-3.5 fill-current"></i>
-            </button>
-            <button id="shadeMat" class="w-5 h-5 rounded-full flex items-center justify-center text-[#888] hover:text-white" title="Material Preview">
-              <i data-lucide="disc" class="w-3.5 h-3.5"></i>
-            </button>
-          </div>
-          <button id="resetView" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#444] text-[#ccc] text-[10px]">
-            View Numpad 1
+          <button id="toggleWire" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
+            Wireframe
+          </button>
+          <button id="resetCam" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
+            Reset Camera
           </button>
         </div>
       </div>
 
-      <!-- Viewport Canvas Area -->
-      <div id="blenderViewport" class="flex-1 relative bg-[#242424]">
+      <!-- 3D Viewport Canvas -->
+      <div id="threeContainer" class="flex-1 relative bg-[#242424] overflow-hidden">
         <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
 
-        <!-- Top-Right 3D Orientation Gizmo Representation -->
-        <div class="absolute top-4 right-4 w-16 h-16 rounded-full bg-[#1e1e1e]/80 border border-[#333] flex items-center justify-center pointer-events-none text-[10px] font-mono font-bold shadow-lg">
-          <span class="text-rose-500 absolute top-1">Z</span>
-          <span class="text-emerald-500 absolute right-2">Y</span>
-          <span class="text-blue-500 absolute bottom-1">X</span>
-          <span class="text-slate-400 text-[9px]">•</span>
+        <!-- Blender Top-Right Orientation Indicator -->
+        <div class="absolute top-3 right-3 w-12 h-12 rounded-full bg-[#1e1e1e]/80 border border-[#333] flex items-center justify-center pointer-events-none text-[9px] font-mono font-bold shadow">
+          <span class="text-rose-500 absolute top-0.5">Z</span>
+          <span class="text-emerald-500 absolute right-1">Y</span>
+          <span class="text-blue-500 absolute bottom-0.5">X</span>
         </div>
 
-        <!-- Top-Left View Info (Blender standard) -->
-        <div class="absolute top-3 left-4 text-[#888] font-mono text-[10px] space-y-0.5 pointer-events-none">
-          <div>User Perspective</div>
-          <div>(1) Collection | <span class="text-[#ea7600] font-semibold">Mounting_Bracket_Parametric</span></div>
-        </div>
-
-        <!-- Bottom-Left Split: Blueprint Picture-in-Picture (2D SAM Input) -->
-        <div class="absolute bottom-4 left-4 w-64 h-52 bg-[#1e1e1e]/95 border border-[#383838] rounded-md shadow-2xl flex flex-col overflow-hidden">
-          <div class="h-6 bg-[#2a2a2a] px-2 flex items-center justify-between text-[#888] border-b border-[#333]">
-            <span class="flex items-center gap-1 font-medium text-white text-[10px]">
-              <i data-lucide="image" class="w-3 h-3 text-[#ea7600]"></i>
-              Image Editor (SAM 3.1)
-            </span>
-            <span class="font-mono text-[9px] text-emerald-400">IoU 99.9%</span>
-          </div>
-
-          <div class="flex-1 p-2 flex items-center justify-center bg-[#151515] relative overflow-hidden">
-            <svg viewBox="0 0 200 200" class="w-full h-full">
-              <rect x="25" y="25" width="150" height="150" rx="10" fill="none" stroke="#ea7600" stroke-width="2"/>
-              <circle cx="100" cy="100" r="28" fill="rgba(234, 118, 0, 0.2)" stroke="#ea7600" stroke-width="2"/>
-              <circle cx="50" cy="50" r="8" fill="none" stroke="#4772b3" stroke-width="1.5"/>
-              <circle cx="150" cy="50" r="8" fill="none" stroke="#4772b3" stroke-width="1.5"/>
-              <circle cx="50" cy="150" r="8" fill="none" stroke="#4772b3" stroke-width="1.5"/>
-              <circle cx="150" cy="150" r="8" fill="none" stroke="#4772b3" stroke-width="1.5"/>
-              <text x="75" y="104" fill="#ea7600" font-size="8" font-family="monospace">Ø44.0</text>
-            </svg>
-            <div class="absolute bottom-1 right-2 text-[9px] font-mono text-[#666]">bracket_draft.png</div>
-          </div>
+        <!-- Viewport Navigation Hint -->
+        <div class="absolute bottom-2 left-3 text-[9.5px] font-mono text-[#666] pointer-events-none">
+          Left Click: Orbit | Right Click: Pan | Scroll: Zoom
         </div>
       </div>
+    </section>
 
-    </div>
+    <!-- RIGHT PANEL: Parameters, DRC Audit & Verification (280px) -->
+    <aside class="w-72 bg-[#242424] border-l border-[#1c1c1c] flex flex-col flex-shrink-0 overflow-y-auto">
 
-    <!-- RIGHT PANEL: BLENDER OUTLINER & PROPERTIES -->
-    <div class="w-80 bg-[#282828] border-l border-[#181818] flex flex-col flex-shrink-0">
-
-      <!-- TOP HALF: OUTLINER (Scene Graph) -->
-      <div class="h-48 border-b border-[#1c1c1c] flex flex-col">
-        <!-- Outliner Header -->
-        <div class="h-6 bg-[#2a2a2a] px-2 flex items-center justify-between text-[#888] border-b border-[#202020]">
-          <span class="font-semibold text-white flex items-center gap-1.5">
-            <i data-lucide="layers" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            Outliner
+      <!-- Section 1: Parametric CAD Variables -->
+      <div class="p-3 border-b border-[#202020] space-y-2.5">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+            Parametric Variables
           </span>
-          <div class="flex items-center gap-1.5 text-[10px]">
-            <i data-lucide="search" class="w-3 h-3 hover:text-white cursor-pointer"></i>
-            <i data-lucide="filter" class="w-3 h-3 hover:text-white cursor-pointer"></i>
-          </div>
+          <span class="text-[9px] font-mono text-[#ea7600]">LIVE</span>
         </div>
 
-        <!-- Tree View -->
-        <div class="flex-1 p-2 overflow-y-auto space-y-1 text-[#ccc] font-mono text-[10.5px]">
-          <div class="flex items-center gap-1.5 text-white">
-            <i data-lucide="folder" class="w-3 h-3 text-[#ea7600]"></i>
-            <span>Scene Collection</span>
+        <!-- Sliders -->
+        <div class="space-y-2 pt-1 text-[#aaa]">
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Base Length (X)</span>
+              <span id="valLen" class="text-white font-mono">120 mm</span>
+            </div>
+            <input id="sliderLen" type="range" min="80" max="160" value="120" class="w-full">
           </div>
 
-          <div class="pl-4 space-y-1">
-            <div class="flex items-center justify-between text-[#999] hover:text-white cursor-pointer">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="camera" class="w-3 h-3"></i> Camera
-              </span>
-              <i data-lucide="eye" class="w-3 h-3 text-[#666]"></i>
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Base Width (Y)</span>
+              <span id="valWid" class="text-white font-mono">84 mm</span>
             </div>
+            <input id="sliderWid" type="range" min="60" max="120" value="84" class="w-full">
+          </div>
 
-            <div class="flex items-center justify-between text-[#999] hover:text-white cursor-pointer">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="sun" class="w-3 h-3"></i> Sun (Key Light)
-              </span>
-              <i data-lucide="eye" class="w-3 h-3 text-[#666]"></i>
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Thickness (Z)</span>
+              <span id="valThick" class="text-white font-mono">16 mm</span>
             </div>
+            <input id="sliderThick" type="range" min="8" max="32" value="16" class="w-full">
+          </div>
 
-            <!-- Active Object -->
-            <div class="flex items-center justify-between bg-[#383838] px-1.5 py-0.5 rounded text-white border border-[#4a4a4a]">
-              <span class="flex items-center gap-1.5 text-[#ea7600]">
-                <i data-lucide="box" class="w-3 h-3"></i> Mounting_Bracket
-              </span>
-              <div class="flex items-center gap-1">
-                <span class="text-[9px] bg-[#ea7600]/20 text-[#ea7600] px-1 rounded">SAM</span>
-                <i data-lucide="eye" class="w-3 h-3 text-white"></i>
-              </div>
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Center Bore Ø</span>
+              <span id="valBore" class="text-white font-mono">44 mm</span>
             </div>
-
-            <div class="pl-4 flex items-center gap-1.5 text-[#777]">
-              <i data-lucide="wrench" class="w-2.5 h-2.5 text-[#4772b3]"></i>
-              <span class="text-[9.5px]">DRC_Feasibility_Check</span>
-            </div>
+            <input id="sliderBore" type="range" min="20" max="55" value="44" class="w-full">
           </div>
         </div>
       </div>
 
-      <!-- BOTTOM HALF: PROPERTIES PANEL -->
-      <div class="flex-1 flex flex-col bg-[#242424] overflow-hidden">
-        
-        <!-- Tab icon strip (Blender Style) -->
-        <div class="h-7 bg-[#282828] border-b border-[#1e1e1e] flex items-center px-2 gap-2 text-[#888]">
-          <i data-lucide="sliders" class="w-3.5 h-3.5 hover:text-white cursor-pointer"></i>
-          <i data-lucide="file-text" class="w-3.5 h-3.5 hover:text-white cursor-pointer"></i>
-          <i data-lucide="box" class="w-3.5 h-3.5 text-[#ea7600] cursor-pointer"></i>
-          <i data-lucide="wrench" class="w-3.5 h-3.5 text-[#4772b3] cursor-pointer"></i>
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 hover:text-white cursor-pointer"></i>
+      <!-- Section 2: ASME Y14.5 Manufacturing DRC Audit -->
+      <div class="p-3 border-b border-[#202020] space-y-2">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+            Manufacturing DRC Audit
+          </span>
+          <span id="drcBadge" class="text-emerald-400 font-mono text-[9.5px]">● PASSED</span>
         </div>
 
-        <!-- Property inputs -->
-        <div class="flex-1 p-3 overflow-y-auto space-y-3">
-          
-          <!-- Transform box -->
-          <div class="bg-[#2c2c2c] p-2.5 rounded border border-[#353535] space-y-2">
-            <div class="font-semibold text-white flex items-center justify-between">
-              <span>Transform</span>
-              <span class="text-[9px] text-[#888]">Cartesian (m)</span>
-            </div>
-
-            <!-- Location -->
-            <div class="space-y-1">
-              <div class="flex items-center justify-between text-[#888]">
-                <span>Location X</span>
-                <input type="text" value="0.000 m" class="blender-input w-24 text-right" readonly>
-              </div>
-              <div class="flex items-center justify-between text-[#888]">
-                <span>Location Y</span>
-                <input type="text" value="0.000 m" class="blender-input w-24 text-right" readonly>
-              </div>
-              <div class="flex items-center justify-between text-[#888]">
-                <span>Location Z</span>
-                <input type="text" value="0.000 m" class="blender-input w-24 text-right" readonly>
-              </div>
-            </div>
+        <div class="space-y-1.5 pt-1 text-[10.5px]">
+          <div class="flex justify-between text-[#888]">
+            <span>Min Wall Clearance:</span>
+            <span class="text-[#ddd] font-mono">2.1 mm (Safe)</span>
           </div>
-
-          <!-- Parametric Geometry Nodes / OpenSCAD Agent Properties -->
-          <div class="bg-[#2c2c2c] p-2.5 rounded border border-[#353535] space-y-2.5">
-            <div class="font-semibold text-white flex items-center justify-between">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="cpu" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-                SpatialForge Agent Properties
-              </span>
-            </div>
-
-            <div class="space-y-2 pt-1">
-              <!-- Length -->
-              <div>
-                <div class="flex justify-between text-[#aaa] mb-1">
-                  <span>Base Length</span>
-                  <span id="labelLen" class="text-white font-mono">120 mm</span>
-                </div>
-                <input id="inputLen" type="range" min="80" max="160" value="120" class="w-full h-1 bg-[#181818] rounded appearance-none cursor-pointer accent-[#ea7600]">
-              </div>
-
-              <!-- Thickness -->
-              <div>
-                <div class="flex justify-between text-[#aaa] mb-1">
-                  <span>Plate Thickness</span>
-                  <span id="labelThick" class="text-white font-mono">16 mm</span>
-                </div>
-                <input id="inputThick" type="range" min="8" max="32" value="16" class="w-full h-1 bg-[#181818] rounded appearance-none cursor-pointer accent-[#ea7600]">
-              </div>
-
-              <!-- Bore -->
-              <div>
-                <div class="flex justify-between text-[#aaa] mb-1">
-                  <span>Center Bore Ø</span>
-                  <span id="labelBore" class="text-white font-mono">44 mm</span>
-                </div>
-                <input id="inputBore" type="range" min="20" max="55" value="44" class="w-full h-1 bg-[#181818] rounded appearance-none cursor-pointer accent-[#ea7600]">
-              </div>
-            </div>
+          <div class="flex justify-between text-[#888]">
+            <span>Standard Tooling:</span>
+            <span class="text-[#ddd] font-mono">ISO M6x1.0</span>
           </div>
-
-          <!-- DRC Audit Status -->
-          <div class="bg-[#2c2c2c] p-2.5 rounded border border-[#353535] space-y-1.5">
-            <div class="font-semibold text-white flex items-center justify-between">
-              <span>Manufacturing Audit</span>
-              <span class="text-emerald-400 font-mono text-[10px]">● Pass</span>
-            </div>
-            <div class="text-[10px] text-[#888] space-y-0.5">
-              <div>Wall clearance: <span class="text-[#ddd]">2.1 mm (Safe)</span></div>
-              <div>Standard tap: <span class="text-[#ddd]">4x M6 ISO</span></div>
-              <div>Model volume: <span class="text-[#ddd]">115.6 cm³</span></div>
-            </div>
+          <div class="flex justify-between text-[#888]">
+            <span>Material:</span>
+            <span class="text-[#ddd] font-mono">Aluminum 6061-T6</span>
           </div>
-
+          <div class="flex justify-between text-[#888]">
+            <span>Est. Mass:</span>
+            <span id="valMass" class="text-[#ea7600] font-mono">312.4 g</span>
+          </div>
         </div>
-
       </div>
 
-    </div>
+      <!-- Section 3: Self-Healing Verification Loop -->
+      <div class="p-3 space-y-2 flex-1">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="repeat" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+            Self-Healing Loop
+          </span>
+          <span class="text-emerald-400 font-mono text-[9.5px]">Converged</span>
+        </div>
 
-  </div>
+        <div class="bg-[#1c1c1c] p-2 rounded border border-[#2e2e2e] space-y-1 font-mono text-[10px] text-[#aaa]">
+          <div class="flex justify-between">
+            <span>Projection IoU:</span>
+            <span class="text-emerald-400">99.96%</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Variance Delta:</span>
+            <span class="text-white">0.04%</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Convergence:</span>
+            <span class="text-white">1 Iteration</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Pipeline Latency:</span>
+            <span class="text-[#ea7600]">1.4s</span>
+          </div>
+        </div>
+      </div>
 
-  <!-- BOTTOM STATUS BAR (Blender standard footer) -->
-  <footer class="h-6 bg-[#202020] border-t border-[#181818] px-3 flex items-center justify-between text-[10.5px] text-[#777] font-mono">
+    </aside>
+
+  </main>
+
+  <!-- BOTTOM STATUS BAR (Blender 24px Strip) -->
+  <footer class="h-6 bg-[#202020] border-t border-[#181818] px-3 flex items-center justify-between text-[10px] text-[#777] font-mono flex-shrink-0">
     <div class="flex items-center gap-3">
-      <span><strong class="text-[#aaa]">Select:</strong> Left Mouse</span>
-      <span><strong class="text-[#aaa]">Rotate:</strong> Middle Mouse</span>
-      <span><strong class="text-[#aaa]">Pan:</strong> Shift + Middle</span>
+      <span><strong class="text-[#aaa]">SpatialForge:</strong> Ready</span>
+      <span>•</span>
+      <span><strong class="text-[#aaa]">ASME Y14.5:</strong> Verified</span>
     </div>
 
     <div class="flex items-center gap-4 text-[#888]">
       <span>Vertices: <strong class="text-white">2,410</strong></span>
-      <span>Edges: <strong class="text-white">4,820</strong></span>
       <span>Faces: <strong class="text-white">2,410</strong></span>
-      <span>Objects: <strong class="text-white">1/3</strong></span>
-      <span>Memory: <strong class="text-white">32.4 MB</strong></span>
-      <span class="text-[#ea7600]">Meta SAM 3.1: Active</span>
+      <span>Format: <strong class="text-white">Binary STL / OpenSCAD</strong></span>
+      <span class="text-emerald-400">● 100% Free Open Weights</span>
     </div>
   </footer>
 
-  <!-- SCRIPT FOR THREE.JS IN BLENDER STYLE -->
+  <!-- THREE.JS LOGIC -->
   <script>
     lucide.createIcons();
 
-    const container = document.getElementById('blenderViewport');
+    const container = document.getElementById('threeContainer');
     const canvas = document.getElementById('threeCanvas');
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x282828);
+    scene.background = new THREE.Color(0x242424);
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(120, 100, 130);
@@ -412,8 +358,8 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
 
-    // Blender-style Viewport Lights (MatCap / Studio)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    // Blender Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -424,39 +370,32 @@
     fillLight.position.set(-80, 50, -80);
     scene.add(fillLight);
 
-    // Blender Grid Floor
+    // Blender Floor Grid
     const grid = new THREE.GridHelper(260, 26, 0x444444, 0x333333);
     grid.position.y = -15;
     scene.add(grid);
 
-    // Coordinate Axes (Red X, Green Y)
-    const axes = new THREE.AxesHelper(30);
-    axes.position.set(-80, -14.9, -80);
-    scene.add(axes);
-
-    // Mechanical Group
+    // CAD Group
     const cadGroup = new THREE.Group();
     scene.add(cadGroup);
 
-    // Blender Solid Grey Clay Material
+    // Blender Solid Clay Material
     let cadMaterial = new THREE.MeshStandardMaterial({
-      color: 0x909090, // Classic Blender clay solid
+      color: 0x909090,
       roughness: 0.5,
       metalness: 0.1,
       wireframe: false
     });
 
-    // Blender Orange Selection Outline Edges
+    // Orange Selection Edges
     const orangeEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xea7600, linewidth: 2 });
 
-    function buildModel(len = 120, thick = 16, bore = 44) {
+    function buildModel(len = 120, width = 84, thick = 16, bore = 44) {
       while (cadGroup.children.length > 0) {
         cadGroup.remove(cadGroup.children[0]);
       }
 
-      const width = 84;
       const radius = 12;
-
       const shape = new THREE.Shape();
       const x = -len / 2;
       const y = -width / 2;
@@ -471,12 +410,12 @@
       shape.lineTo(x, y + radius);
       shape.quadraticCurveTo(x, y, x + radius, y);
 
-      // Bore
+      // Center Bore
       const centerHole = new THREE.Path();
       centerHole.absarc(0, 0, bore / 2, 0, Math.PI * 2, true);
       shape.holes.push(centerHole);
 
-      // 4 Holes
+      // 4 Mounting Bores
       const cx = len / 2 - 16;
       const cy = width / 2 - 16;
       const r = 6;
@@ -501,7 +440,7 @@
       const mesh = new THREE.Mesh(geometry, cadMaterial);
       cadGroup.add(mesh);
 
-      // Edges (Blender orange selection highlight)
+      // Orange contour edges
       const edges = new THREE.EdgesGeometry(geometry);
       const line = new THREE.LineSegments(edges, orangeEdgeMaterial);
       cadGroup.add(line);
@@ -509,14 +448,14 @@
 
     buildModel();
 
-    // Window resize
+    // Window Resize
     window.addEventListener('resize', () => {
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    // Render loop
+    // Animate
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
@@ -524,50 +463,79 @@
     }
     animate();
 
-    // Properties sliders
-    const inputLen = document.getElementById('inputLen');
-    const inputThick = document.getElementById('inputThick');
-    const inputBore = document.getElementById('inputBore');
+    // Slider Listeners
+    const sLen = document.getElementById('sliderLen');
+    const sWid = document.getElementById('sliderWid');
+    const sThick = document.getElementById('sliderThick');
+    const sBore = document.getElementById('sliderBore');
 
-    function updateFromBlenderProps() {
-      const l = parseFloat(inputLen.value);
-      const t = parseFloat(inputThick.value);
-      const b = parseFloat(inputBore.value);
+    function updateFromSliders() {
+      const l = parseFloat(sLen.value);
+      const w = parseFloat(sWid.value);
+      const t = parseFloat(sThick.value);
+      const b = parseFloat(sBore.value);
 
-      document.getElementById('labelLen').innerText = `${l} mm`;
-      document.getElementById('labelThick').innerText = `${t} mm`;
-      document.getElementById('labelBore').innerText = `${b} mm`;
+      document.getElementById('valLen').innerText = `${l} mm`;
+      document.getElementById('valWid').innerText = `${w} mm`;
+      document.getElementById('valThick').innerText = `${t} mm`;
+      document.getElementById('valBore').innerText = `${b} mm`;
 
-      buildModel(l, t, b);
+      // Approximate mass
+      const vol = (l * w * t - (Math.PI * (b/2)**2 * t)) / 1000.0;
+      document.getElementById('valMass').innerText = `${Math.max(1, Math.round(vol * 2.7))} g`;
+
+      buildModel(l, w, t, b);
     }
 
-    inputLen.addEventListener('input', updateFromBlenderProps);
-    inputThick.addEventListener('input', updateFromBlenderProps);
-    inputBore.addEventListener('input', updateBlenderProps);
+    sLen.addEventListener('input', updateFromSliders);
+    sWid.addEventListener('input', updateFromSliders);
+    sThick.addEventListener('input', updateFromSliders);
+    sBore.addEventListener('input', updateFromSliders);
 
-    // Shading mode buttons
-    const shadeWire = document.getElementById('shadeWire');
-    const shadeSolid = document.getElementById('shadeSolid');
-
-    shadeWire.addEventListener('click', () => {
-      cadMaterial.wireframe = true;
-      shadeWire.className = "w-5 h-5 rounded-full bg-[#4772b3] flex items-center justify-center text-white";
-      shadeSolid.className = "w-5 h-5 rounded-full flex items-center justify-center text-[#888] hover:text-white";
+    // Toggle Wireframe
+    let isWire = false;
+    document.getElementById('toggleWire').addEventListener('click', () => {
+      isWire = !isWire;
+      cadMaterial.wireframe = isWire;
+      document.getElementById('toggleWire').classList.toggle('bg-[#ea7600]');
+      document.getElementById('toggleWire').classList.toggle('text-white');
     });
 
-    shadeSolid.addEventListener('click', () => {
-      cadMaterial.wireframe = false;
-      shadeSolid.className = "w-5 h-5 rounded-full bg-[#4772b3] flex items-center justify-center text-white";
-      shadeWire.className = "w-5 h-5 rounded-full flex items-center justify-center text-[#888] hover:text-white";
-    });
-
-    document.getElementById('resetView').addEventListener('click', () => {
+    // Reset Camera
+    document.getElementById('resetCam').addEventListener('click', () => {
       camera.position.set(120, 100, 130);
       controls.target.set(0, 0, 0);
     });
 
-    document.getElementById('exportStlTop').addEventListener('click', () => {
-      alert("Blender Export: 'Mounting_Bracket.stl' successfully exported!");
+    // Toggle 2D Masks
+    const toggleMasks = document.getElementById('toggleMasks');
+    toggleMasks.addEventListener('change', (e) => {
+      const show = e.target.checked;
+      document.getElementById('maskHull').setAttribute('stroke', show ? '#ea7600' : '#444');
+      document.getElementById('maskHull').setAttribute('fill', show ? 'rgba(234, 118, 0, 0.12)' : 'none');
+      document.getElementById('maskBore').setAttribute('stroke', show ? '#ea7600' : '#444');
+      document.getElementById('maskBore').setAttribute('fill', show ? 'rgba(234, 118, 0, 0.18)' : 'none');
+    });
+
+    // Actions
+    document.getElementById('runBtn').addEventListener('click', () => {
+      const btn = document.getElementById('runBtn');
+      btn.innerText = "Synthesizing...";
+      btn.classList.add('animate-pulse');
+      setTimeout(() => {
+        btn.innerHTML = `<i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>Run Synthesis</span>`;
+        btn.classList.remove('animate-pulse');
+        lucide.createIcons();
+        alert("✅ Synthesis Complete (1.4s): Self-Healing loop converged with 99.96% IoU alignment.");
+      }, 1000);
+    });
+
+    document.getElementById('exportStlBtn').addEventListener('click', () => {
+      alert("Exporting 'bracket_revB.stl' (Binary STL, ready for 3D printing / CNC)");
+    });
+
+    document.getElementById('codeModalBtn').addEventListener('click', () => {
+      alert(`// SpatialForge OpenSCAD Source:\nbase_length = ${sLen.value};\nbase_width = ${sWid.value};\nplate_thick = ${sThick.value};\ncenter_bore_dia = ${sBore.value};\n\ndifference() {\n  rounded_plate(base_length, base_width, plate_thick, 12);\n  cylinder(h = plate_thick + 2, d = center_bore_dia, center = true);\n}`);
     });
   </script>
 </body>

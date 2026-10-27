@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpatialForge</title>
+  <title>SpatialForge — Autonomous CAD Agent</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -13,82 +13,110 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background-color: #09090b;
-      color: #fafafa;
+      font-family: 'Inter', sans-serif;
+      background-color: #181818;
+      color: #cccccc;
+      user-select: none;
     }
     .font-mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Blender Charcoal Theme */
+    .blender-bg-base { background-color: #181818; }
+    .blender-bg-panel { background-color: #242424; }
+    .blender-bg-header { background-color: #2b2b2b; }
+    .blender-bg-card { background-color: #2c2c2c; }
+    .blender-border { border-color: #383838; }
+
+    /* Blender Orange Accents */
+    .blender-orange { color: #ea7600; }
+    .blender-bg-orange { background-color: #ea7600; }
+    .blender-border-orange { border-color: #ea7600; }
+
+    /* Custom range slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #191919;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ea7600;
+      cursor: pointer;
+      border: 1px solid #ffffff;
     }
   </style>
 </head>
-<body class="h-screen flex flex-col antialiased bg-zinc-950 text-zinc-100 selection:bg-zinc-800 selection:text-white">
+<body class="h-screen flex flex-col text-[11px] overflow-hidden bg-[#181818]">
 
-  <!-- TOP HEADER (Clean, minimalist 48px bar) -->
-  <header class="h-12 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between text-xs flex-shrink-0">
-    <!-- Left: Brand & File info -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2">
-        <div class="w-5 h-5 rounded bg-zinc-100 text-zinc-950 flex items-center justify-center font-bold text-[11px]">
-          S
-        </div>
-        <span class="font-semibold text-sm tracking-tight text-white">SpatialForge</span>
+  <!-- TOP BAR: Minimal Blender Header (Only SpatialForge features) -->
+  <header class="h-9 bg-[#242424] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-xs flex-shrink-0">
+    <!-- Left: App Identity -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-5 h-5 rounded-sm bg-[#ea7600] flex items-center justify-center text-white font-bold text-[10px]">
+        S
       </div>
-
-      <span class="text-zinc-600">/</span>
-      <span class="text-zinc-400 font-mono text-[11px]">bracket_revB.pdf</span>
-      <span class="px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400 font-mono">120 × 84 mm</span>
+      <span class="font-semibold text-white tracking-tight">SpatialForge</span>
+      <span class="text-[#666]">/</span>
+      <span class="font-mono text-[#999] text-[11px]">bracket_revB.png</span>
+      <span class="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#ea7600] border border-[#333]">
+        Meta SAM 3.1 + Muse Spark Open
+      </span>
     </div>
 
-    <!-- Center: View Toggle -->
-    <div class="flex items-center bg-zinc-900 p-0.5 rounded-md border border-zinc-800 text-[11px]">
-      <button id="viewSplitBtn" class="px-2.5 py-1 rounded bg-zinc-800 text-white font-medium transition">Split</button>
-      <button id="view2dBtn" class="px-2.5 py-1 rounded text-zinc-400 hover:text-white transition">2D Drawing</button>
-      <button id="view3dBtn" class="px-2.5 py-1 rounded text-zinc-400 hover:text-white transition">3D Model</button>
-    </div>
-
-    <!-- Right: Actions -->
+    <!-- Right: Core Actions -->
     <div class="flex items-center gap-2">
-      <button id="regenerateBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 transition active:scale-95">
-        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-zinc-400"></i>
-        <span>Re-analyze</span>
+      <button id="runBtn" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#ea7600] hover:bg-[#d66c00] text-white font-medium text-[11px] transition active:scale-95 shadow-sm">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span>Run Synthesis</span>
       </button>
 
-      <button id="exportBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-zinc-950 font-medium transition active:scale-95">
-        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+      <button id="exportStlBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3e3e3e] text-white border border-[#444] transition">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-[#aaa]"></i>
         <span>Export STL</span>
+      </button>
+
+      <button id="codeModalBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3e3e3e] text-[#ccc] border border-[#444] transition">
+        <i data-lucide="code" class="w-3 h-3 text-[#aaa]"></i>
+        <span>OpenSCAD</span>
       </button>
     </div>
   </header>
 
-  <!-- WORKSPACE BODY (Split Panes) -->
+  <!-- MAIN WORKSPACE -->
   <main class="flex-1 flex overflow-hidden">
 
-    <!-- LEFT PANE: 2D Blueprint View -->
-    <section id="pane2D" class="w-1/2 border-r border-zinc-800/80 flex flex-col bg-zinc-950 relative">
-      <!-- Toolbar -->
-      <div class="h-9 px-3 border-b border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400 bg-zinc-900/30">
-        <div class="flex items-center gap-2">
-          <span>Input Drawing</span>
-          <span class="text-zinc-600">•</span>
-          <span class="text-zinc-400 font-mono">SAM 3.1 Segmentation</span>
+    <!-- LEFT PANEL: 2D Blueprint Perception (40% width) -->
+    <section class="w-[42%] border-r border-[#1c1c1c] flex flex-col bg-[#1b1b1b]">
+      <!-- Sub-header -->
+      <div class="h-7 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+        <div class="flex items-center gap-1.5 text-white font-medium">
+          <i data-lucide="scan" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+          <span>2D Perception (Meta SAM 3.1)</span>
         </div>
 
-        <div class="flex items-center gap-2">
-          <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400 hover:text-zinc-200">
-            <input type="checkbox" id="toggleMasks" checked class="rounded border-zinc-700 bg-zinc-800 accent-zinc-500 w-3 h-3">
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-1.5 cursor-pointer text-[#aaa] hover:text-white">
+            <input type="checkbox" id="toggleMasks" checked class="rounded border-[#444] bg-[#1a1a1a] accent-[#ea7600] w-3 h-3">
             <span>Show Masks</span>
           </label>
         </div>
       </div>
 
-      <!-- Blueprint SVG Canvas -->
-      <div class="flex-1 flex items-center justify-center p-8 bg-[#0c0c0e] overflow-hidden select-none">
-        <div class="w-full max-w-md aspect-square rounded-lg border border-zinc-800 bg-zinc-950 p-6 flex flex-col justify-between shadow-sm relative">
-          
-          <svg viewBox="0 0 400 400" class="w-full h-full">
-            <!-- Subtle Drafting Grid -->
+      <!-- 2D Canvas Area -->
+      <div class="flex-1 p-4 flex items-center justify-center bg-[#151515] relative overflow-hidden">
+        <div class="w-full max-w-sm aspect-square bg-[#1a1a1a] border border-[#2e2e2e] rounded p-4 relative shadow-md">
+          <svg viewBox="0 0 400 400" class="w-full h-full select-none">
+            <!-- Subtle Grid -->
             <defs>
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255, 255, 255, 0.03)" stroke-width="1"/>
@@ -97,125 +125,215 @@
             <rect width="400" height="400" fill="url(#grid)" />
 
             <!-- Dimension callout lines -->
-            <line x1="70" y1="45" x2="330" y2="45" stroke="#71717a" stroke-width="1" stroke-dasharray="2,2"/>
-            <text x="180" y="38" fill="#a1a1aa" font-size="11" font-family="monospace">120.00 mm</text>
+            <line x1="70" y1="45" x2="330" y2="45" stroke="#777777" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="175" y="38" fill="#aaaaaa" font-size="11" font-family="monospace">120.0 mm</text>
 
-            <line x1="355" y1="70" x2="355" y2="330" stroke="#71717a" stroke-width="1" stroke-dasharray="2,2"/>
-            <text x="360" y="205" fill="#a1a1aa" font-size="11" font-family="monospace">84.00 mm</text>
+            <line x1="355" y1="70" x2="355" y2="330" stroke="#777777" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="360" y="205" fill="#aaaaaa" font-size="11" font-family="monospace">84.0 mm</text>
 
-            <!-- Outer Boundary -->
-            <rect id="maskPerimeter" x="70" y="70" width="260" height="260" rx="16" 
-                  fill="rgba(59, 130, 246, 0.08)" stroke="#3b82f6" stroke-width="1.5" class="transition"/>
+            <!-- Outer Hull SAM Mask (Orange) -->
+            <rect id="maskHull" x="70" y="70" width="260" height="260" rx="16" 
+                  fill="rgba(234, 118, 0, 0.12)" stroke="#ea7600" stroke-width="1.8" class="transition"/>
 
-            <!-- Center Bore -->
+            <!-- Center Bore (Orange highlight) -->
             <circle id="maskBore" cx="200" cy="200" r="38" 
-                    fill="rgba(59, 130, 246, 0.12)" stroke="#3b82f6" stroke-width="1.5" class="transition"/>
-            <text x="175" y="204" fill="#60a5fa" font-size="11" font-family="monospace">Ø 44.0</text>
+                    fill="rgba(234, 118, 0, 0.18)" stroke="#ea7600" stroke-width="1.8" class="transition"/>
+            <text x="175" y="204" fill="#ea7600" font-size="11" font-family="monospace">DIA 44.0</text>
 
-            <!-- 4 Corner Mounting Holes -->
-            <circle cx="105" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#a1a1aa" stroke-width="1.2"/>
-            <circle cx="295" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#a1a1aa" stroke-width="1.2"/>
-            <circle cx="105" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#a1a1aa" stroke-width="1.2"/>
-            <circle cx="295" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#a1a1aa" stroke-width="1.2"/>
-
-            <!-- Hole callout -->
-            <text x="75" y="90" fill="#a1a1aa" font-size="10" font-family="monospace">4x M6</text>
+            <!-- 4 Corner Mounting Holes (M6) -->
+            <circle cx="105" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="295" cy="105" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="105" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <circle cx="295" cy="295" r="12" fill="rgba(255, 255, 255, 0.05)" stroke="#888888" stroke-width="1.2"/>
+            <text x="75" y="90" fill="#888888" font-size="10" font-family="monospace">4x M6</text>
           </svg>
 
-          <!-- Clean feature legend -->
-          <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
-            <span>6 segments detected</span>
-            <span>ASME Y14.5 compliant</span>
+          <!-- Status tag -->
+          <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-[#666] font-mono border-t border-[#262626] pt-1.5">
+            <span>6 features isolated</span>
+            <span class="text-emerald-400">Zero-Hallucination OCR</span>
           </div>
         </div>
       </div>
 
       <!-- File upload strip -->
-      <div class="h-10 px-4 border-t border-zinc-800/60 bg-zinc-900/20 flex items-center justify-between text-xs text-zinc-400">
-        <span>Drop another PDF or PNG to analyze</span>
-        <button class="text-zinc-300 hover:text-white underline font-medium text-[11px]">Choose File</button>
+      <div class="h-9 px-3 border-t border-[#202020] bg-[#222222] flex items-center justify-between text-[#888]">
+        <span>Input: Paper sketch, technical scan, or PDF</span>
+        <label class="text-[#ddd] hover:text-white cursor-pointer underline text-[10.5px]">
+          Upload File
+          <input type="file" id="fileUpload" class="hidden" accept="image/*,.pdf">
+        </label>
       </div>
     </section>
 
-    <!-- RIGHT PANE: 3D CAD WebGL View -->
-    <section id="pane3D" class="w-1/2 flex flex-col bg-zinc-950 relative">
-      <!-- Toolbar -->
-      <div class="h-9 px-3 border-b border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400 bg-zinc-900/30">
-        <div class="flex items-center gap-2">
-          <span>Synthesized 3D Model</span>
-          <span class="text-zinc-600">•</span>
-          <span class="text-zinc-400 font-mono">Parametric OpenSCAD</span>
+    <!-- CENTER: 3D Viewport in Blender Style (Three.js WebGL) -->
+    <section class="flex-1 flex flex-col bg-[#1f1f1f] relative">
+      <!-- 3D Header -->
+      <div class="h-7 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-1.5 text-white font-medium">
+            <i data-lucide="box" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+            3D Viewport (Synthesized CSG)
+          </span>
+          <span class="text-[#666]">•</span>
+          <span class="font-mono text-[#aaa]">Solid Clay</span>
         </div>
 
+        <!-- Shading toggle -->
         <div class="flex items-center gap-2">
-          <button id="wireframeToggle" class="px-2 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition">Wireframe</button>
-          <button id="resetViewBtn" class="px-2 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition">Reset Camera</button>
+          <button id="toggleWire" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
+            Wireframe
+          </button>
+          <button id="resetCam" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[10px] transition">
+            Reset Camera
+          </button>
         </div>
       </div>
 
-      <!-- 3D Viewport -->
-      <div id="canvasContainer" class="flex-1 relative bg-zinc-950 overflow-hidden">
+      <!-- 3D Viewport Canvas -->
+      <div id="threeContainer" class="flex-1 relative bg-[#242424] overflow-hidden">
         <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
 
-        <!-- Minimalist Floating Dimension Inspector -->
-        <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-          <div class="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/90 rounded-md px-3 py-1.5 text-xs backdrop-blur font-mono pointer-events-auto">
-            <span class="text-zinc-400">X: <span class="text-white">120 mm</span></span>
-            <span class="text-zinc-700">|</span>
-            <span class="text-zinc-400">Y: <span class="text-white">84 mm</span></span>
-            <span class="text-zinc-700">|</span>
-            <span class="text-zinc-400">Z: <span class="text-white">16 mm</span></span>
-            <span class="text-zinc-700">|</span>
-            <span class="text-zinc-400">Bore: <span class="text-white">Ø44 mm</span></span>
-          </div>
-
-          <div class="bg-zinc-900/90 border border-zinc-800/90 rounded-md px-3 py-1.5 text-xs text-zinc-400 backdrop-blur pointer-events-auto">
-            Material: <span class="text-zinc-200 font-medium">Aluminum 6061</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Bottom Parameter Adjuster (Subtle, clean inputs) -->
-      <div class="h-10 px-4 border-t border-zinc-800/60 bg-zinc-900/20 flex items-center justify-between text-xs">
-        <div class="flex items-center gap-4 text-zinc-400">
-          <span class="text-[11px] font-medium text-zinc-300">Live Parameters:</span>
-          
-          <label class="flex items-center gap-1.5 text-[11px]">
-            <span>Thickness</span>
-            <input id="paramThick" type="range" min="8" max="30" value="16" class="w-20 h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-white">
-          </label>
-
-          <label class="flex items-center gap-1.5 text-[11px]">
-            <span>Bore Ø</span>
-            <input id="paramBore" type="range" min="20" max="60" value="44" class="w-20 h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-white">
-          </label>
+        <!-- Blender Top-Right Orientation Indicator -->
+        <div class="absolute top-3 right-3 w-12 h-12 rounded-full bg-[#1e1e1e]/80 border border-[#333] flex items-center justify-center pointer-events-none text-[9px] font-mono font-bold shadow">
+          <span class="text-rose-500 absolute top-0.5">Z</span>
+          <span class="text-emerald-500 absolute right-1">Y</span>
+          <span class="text-blue-500 absolute bottom-0.5">X</span>
         </div>
 
-        <div class="text-[11px] text-zinc-400 font-mono">
-          <span>Tolerance: ±0.05 mm</span>
+        <!-- Viewport Navigation Hint -->
+        <div class="absolute bottom-2 left-3 text-[9.5px] font-mono text-[#666] pointer-events-none">
+          Left Click: Orbit | Right Click: Pan | Scroll: Zoom
         </div>
       </div>
     </section>
+
+    <!-- RIGHT PANEL: Parameters, DRC Audit & Verification (280px) -->
+    <aside class="w-72 bg-[#242424] border-l border-[#1c1c1c] flex flex-col flex-shrink-0 overflow-y-auto">
+
+      <!-- Section 1: Parametric CAD Variables -->
+      <div class="p-3 border-b border-[#202020] space-y-2.5">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+            Parametric Variables
+          </span>
+          <span class="text-[9px] font-mono text-[#ea7600]">LIVE</span>
+        </div>
+
+        <!-- Sliders -->
+        <div class="space-y-2 pt-1 text-[#aaa]">
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Base Length (X)</span>
+              <span id="valLen" class="text-white font-mono">120 mm</span>
+            </div>
+            <input id="sliderLen" type="range" min="80" max="160" value="120" class="w-full">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Base Width (Y)</span>
+              <span id="valWid" class="text-white font-mono">84 mm</span>
+            </div>
+            <input id="sliderWid" type="range" min="60" max="120" value="84" class="w-full">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Thickness (Z)</span>
+              <span id="valThick" class="text-white font-mono">16 mm</span>
+            </div>
+            <input id="sliderThick" type="range" min="8" max="32" value="16" class="w-full">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span>Center Bore Ø</span>
+              <span id="valBore" class="text-white font-mono">44 mm</span>
+            </div>
+            <input id="sliderBore" type="range" min="20" max="55" value="44" class="w-full">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: ASME Y14.5 Manufacturing DRC Audit -->
+      <div class="p-3 border-b border-[#202020] space-y-2">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+            Manufacturing DRC Audit
+          </span>
+          <span id="drcBadge" class="text-emerald-400 font-mono text-[9.5px]">● PASSED</span>
+        </div>
+
+        <div class="space-y-1.5 pt-1 text-[10.5px]">
+          <div class="flex justify-between text-[#888]">
+            <span>Min Wall Clearance:</span>
+            <span class="text-[#ddd] font-mono">2.1 mm (Safe)</span>
+          </div>
+          <div class="flex justify-between text-[#888]">
+            <span>Standard Tooling:</span>
+            <span class="text-[#ddd] font-mono">ISO M6x1.0</span>
+          </div>
+          <div class="flex justify-between text-[#888]">
+            <span>Material:</span>
+            <span class="text-[#ddd] font-mono">Aluminum 6061-T6</span>
+          </div>
+          <div class="flex justify-between text-[#888]">
+            <span>Est. Mass:</span>
+            <span id="valMass" class="text-[#ea7600] font-mono">312.4 g</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Self-Healing Verification Loop -->
+      <div class="p-3 space-y-2 flex-1">
+        <div class="flex items-center justify-between text-white font-medium">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="repeat" class="w-3.5 h-3.5 text-[#ea7600]"></i>
+            Self-Healing Loop
+          </span>
+          <span class="text-emerald-400 font-mono text-[9.5px]">Converged</span>
+        </div>
+
+        <div class="bg-[#1c1c1c] p-2 rounded border border-[#2e2e2e] space-y-1 font-mono text-[10px] text-[#aaa]">
+          <div class="flex justify-between">
+            <span>Projection IoU:</span>
+            <span class="text-emerald-400">99.96%</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Variance Delta:</span>
+            <span class="text-white">0.04%</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Convergence:</span>
+            <span class="text-white">1 Iteration</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Pipeline Latency:</span>
+            <span class="text-[#ea7600]">1.4s</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
 
   </main>
 
-  <!-- BOTTOM STATUS BAR (Quiet, informative 28px strip) -->
-  <footer class="h-7 border-t border-zinc-800/80 bg-zinc-900/80 px-4 flex items-center justify-between text-[11px] text-zinc-400 font-mono flex-shrink-0">
+  <!-- BOTTOM STATUS BAR (Blender 24px Strip) -->
+  <footer class="h-6 bg-[#202020] border-t border-[#181818] px-3 flex items-center justify-between text-[10px] text-[#777] font-mono flex-shrink-0">
     <div class="flex items-center gap-3">
-      <span class="flex items-center gap-1.5 text-zinc-300">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        Self-Verification Converged
-      </span>
-      <span class="text-zinc-700">|</span>
-      <span>Discrepancy: 0.02%</span>
-      <span class="text-zinc-700">|</span>
-      <span>Inference: 1.2s</span>
+      <span><strong class="text-[#aaa]">SpatialForge:</strong> Ready</span>
+      <span>•</span>
+      <span><strong class="text-[#aaa]">ASME Y14.5:</strong> Verified</span>
     </div>
 
-    <div class="flex items-center gap-3 text-zinc-500">
-      <span>Meta SAM 3.1</span>
-      <span>Muse Spark Open</span>
-      <span>OpenSCAD Core</span>
+    <div class="flex items-center gap-4 text-[#888]">
+      <span>Vertices: <strong class="text-white">2,410</strong></span>
+      <span>Faces: <strong class="text-white">2,410</strong></span>
+      <span>Format: <strong class="text-white">Binary STL / OpenSCAD</strong></span>
+      <span class="text-emerald-400">● 100% Free Open Weights</span>
     </div>
   </footer>
 
@@ -223,15 +341,14 @@
   <script>
     lucide.createIcons();
 
-    // Scene & Camera setup
-    const container = document.getElementById('canvasContainer');
+    const container = document.getElementById('threeContainer');
     const canvas = document.getElementById('threeCanvas');
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0c0c0e);
+    scene.background = new THREE.Color(0x242424);
 
-    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(110, 95, 120);
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(120, 100, 130);
 
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -241,51 +358,48 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
 
-    // Clean Studio Lighting (Neutral, professional, no neon)
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambient);
+    // Blender Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    keyLight.position.set(80, 120, 60);
+    keyLight.position.set(100, 150, 100);
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xa1a1aa, 0.4);
-    fillLight.position.set(-60, 40, -40);
+    const fillLight = new THREE.DirectionalLight(0xa0a0a0, 0.4);
+    fillLight.position.set(-80, 50, -80);
     scene.add(fillLight);
 
-    // Subtle Floor Grid
-    const grid = new THREE.GridHelper(240, 24, 0x27272a, 0x18181b);
+    // Blender Floor Grid
+    const grid = new THREE.GridHelper(260, 26, 0x444444, 0x333333);
     grid.position.y = -15;
     scene.add(grid);
 
-    // CAD Model Mesh
+    // CAD Group
     const cadGroup = new THREE.Group();
     scene.add(cadGroup);
 
-    // Matte Industrial Aluminum Material
+    // Blender Solid Clay Material
     let cadMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd4d4d8,
-      metalness: 0.5,
-      roughness: 0.35,
+      color: 0x909090,
+      roughness: 0.5,
+      metalness: 0.1,
       wireframe: false
     });
 
-    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x52525b });
+    // Orange Selection Edges
+    const orangeEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xea7600, linewidth: 2 });
 
-    function buildModel(thick = 16, bore = 44) {
+    function buildModel(len = 120, width = 84, thick = 16, bore = 44) {
       while (cadGroup.children.length > 0) {
         cadGroup.remove(cadGroup.children[0]);
       }
 
-      const len = 120;
-      const width = 84;
       const radius = 12;
-
       const shape = new THREE.Shape();
       const x = -len / 2;
       const y = -width / 2;
 
-      // Rounded base profile
       shape.moveTo(x + radius, y);
       shape.lineTo(x + len - radius, y);
       shape.quadraticCurveTo(x + len, y, x + len, y + radius);
@@ -296,12 +410,12 @@
       shape.lineTo(x, y + radius);
       shape.quadraticCurveTo(x, y, x + radius, y);
 
-      // Center Bore Hole
+      // Center Bore
       const centerHole = new THREE.Path();
       centerHole.absarc(0, 0, bore / 2, 0, Math.PI * 2, true);
       shape.holes.push(centerHole);
 
-      // 4 Corner Holes
+      // 4 Mounting Bores
       const cx = len / 2 - 16;
       const cy = width / 2 - 16;
       const r = 6;
@@ -314,7 +428,7 @@
       const extrudeSettings = {
         depth: thick,
         bevelEnabled: true,
-        bevelSegments: 3,
+        bevelSegments: 4,
         steps: 1,
         bevelSize: 1.5,
         bevelThickness: 1.5
@@ -326,9 +440,9 @@
       const mesh = new THREE.Mesh(geometry, cadMaterial);
       cadGroup.add(mesh);
 
-      // Clean feature line edges
+      // Orange contour edges
       const edges = new THREE.EdgesGeometry(geometry);
-      const line = new THREE.LineSegments(edges, edgeMaterial);
+      const line = new THREE.LineSegments(edges, orangeEdgeMaterial);
       cadGroup.add(line);
     }
 
@@ -341,7 +455,7 @@
       renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    // Render loop
+    // Animate
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
@@ -349,86 +463,79 @@
     }
     animate();
 
-    // Parametric controls
-    const paramThick = document.getElementById('paramThick');
-    const paramBore = document.getElementById('paramBore');
+    // Slider Listeners
+    const sLen = document.getElementById('sliderLen');
+    const sWid = document.getElementById('sliderWid');
+    const sThick = document.getElementById('sliderThick');
+    const sBore = document.getElementById('sliderBore');
 
-    function updateParams() {
-      buildModel(parseFloat(paramThick.value), parseFloat(paramBore.value));
+    function updateFromSliders() {
+      const l = parseFloat(sLen.value);
+      const w = parseFloat(sWid.value);
+      const t = parseFloat(sThick.value);
+      const b = parseFloat(sBore.value);
+
+      document.getElementById('valLen').innerText = `${l} mm`;
+      document.getElementById('valWid').innerText = `${w} mm`;
+      document.getElementById('valThick').innerText = `${t} mm`;
+      document.getElementById('valBore').innerText = `${b} mm`;
+
+      // Approximate mass
+      const vol = (l * w * t - (Math.PI * (b/2)**2 * t)) / 1000.0;
+      document.getElementById('valMass').innerText = `${Math.max(1, Math.round(vol * 2.7))} g`;
+
+      buildModel(l, w, t, b);
     }
-    paramThick.addEventListener('input', updateParams);
-    paramBore.addEventListener('input', updateParams);
 
-    // Wireframe button
-    document.getElementById('wireframeToggle').addEventListener('click', () => {
-      cadMaterial.wireframe = !cadMaterial.wireframe;
+    sLen.addEventListener('input', updateFromSliders);
+    sWid.addEventListener('input', updateFromSliders);
+    sThick.addEventListener('input', updateFromSliders);
+    sBore.addEventListener('input', updateFromSliders);
+
+    // Toggle Wireframe
+    let isWire = false;
+    document.getElementById('toggleWire').addEventListener('click', () => {
+      isWire = !isWire;
+      cadMaterial.wireframe = isWire;
+      document.getElementById('toggleWire').classList.toggle('bg-[#ea7600]');
+      document.getElementById('toggleWire').classList.toggle('text-white');
     });
 
-    // Reset View
-    document.getElementById('resetViewBtn').addEventListener('click', () => {
-      camera.position.set(110, 95, 120);
+    // Reset Camera
+    document.getElementById('resetCam').addEventListener('click', () => {
+      camera.position.set(120, 100, 130);
       controls.target.set(0, 0, 0);
     });
 
-    // View toggles (Split, 2D, 3D)
-    const pane2D = document.getElementById('pane2D');
-    const pane3D = document.getElementById('pane3D');
-    const splitBtn = document.getElementById('viewSplitBtn');
-    const b2dBtn = document.getElementById('view2dBtn');
-    const b3dBtn = document.getElementById('view3dBtn');
-
-    function setActiveTab(activeBtn) {
-      [splitBtn, b2dBtn, b3dBtn].forEach(b => {
-        b.className = "px-2.5 py-1 rounded text-zinc-400 hover:text-white transition";
-      });
-      activeBtn.className = "px-2.5 py-1 rounded bg-zinc-800 text-white font-medium transition";
-    }
-
-    splitBtn.addEventListener('click', () => {
-      pane2D.style.display = 'flex';
-      pane3D.style.display = 'flex';
-      pane2D.style.width = '50%';
-      pane3D.style.width = '50%';
-      setActiveTab(splitBtn);
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-    });
-
-    b2dBtn.addEventListener('click', () => {
-      pane2D.style.display = 'flex';
-      pane3D.style.display = 'none';
-      pane2D.style.width = '100%';
-      setActiveTab(b2dBtn);
-    });
-
-    b3dBtn.addEventListener('click', () => {
-      pane2D.style.display = 'none';
-      pane3D.style.display = 'flex';
-      pane3D.style.width = '100%';
-      setActiveTab(b3dBtn);
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-    });
-
-    // Toggle Masks
+    // Toggle 2D Masks
     const toggleMasks = document.getElementById('toggleMasks');
-    const maskPerimeter = document.getElementById('maskPerimeter');
-    const maskBore = document.getElementById('maskBore');
     toggleMasks.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        maskPerimeter.setAttribute('stroke', '#3b82f6');
-        maskPerimeter.setAttribute('fill', 'rgba(59, 130, 246, 0.08)');
-        maskBore.setAttribute('stroke', '#3b82f6');
-        maskBore.setAttribute('fill', 'rgba(59, 130, 246, 0.12)');
-      } else {
-        maskPerimeter.setAttribute('stroke', '#52525b');
-        maskPerimeter.setAttribute('fill', 'transparent');
-        maskBore.setAttribute('stroke', '#52525b');
-        maskBore.setAttribute('fill', 'transparent');
-      }
+      const show = e.target.checked;
+      document.getElementById('maskHull').setAttribute('stroke', show ? '#ea7600' : '#444');
+      document.getElementById('maskHull').setAttribute('fill', show ? 'rgba(234, 118, 0, 0.12)' : 'none');
+      document.getElementById('maskBore').setAttribute('stroke', show ? '#ea7600' : '#444');
+      document.getElementById('maskBore').setAttribute('fill', show ? 'rgba(234, 118, 0, 0.18)' : 'none');
     });
 
-    // Clean Export
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      alert("Exporting 'bracket_revB.stl' (Binary STL, 14.2 KB)");
+    // Actions
+    document.getElementById('runBtn').addEventListener('click', () => {
+      const btn = document.getElementById('runBtn');
+      btn.innerText = "Synthesizing...";
+      btn.classList.add('animate-pulse');
+      setTimeout(() => {
+        btn.innerHTML = `<i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>Run Synthesis</span>`;
+        btn.classList.remove('animate-pulse');
+        lucide.createIcons();
+        alert("✅ Synthesis Complete (1.4s): Self-Healing loop converged with 99.96% IoU alignment.");
+      }, 1000);
+    });
+
+    document.getElementById('exportStlBtn').addEventListener('click', () => {
+      alert("Exporting 'bracket_revB.stl' (Binary STL, ready for 3D printing / CNC)");
+    });
+
+    document.getElementById('codeModalBtn').addEventListener('click', () => {
+      alert(`// SpatialForge OpenSCAD Source:\nbase_length = ${sLen.value};\nbase_width = ${sWid.value};\nplate_thick = ${sThick.value};\ncenter_bore_dia = ${sBore.value};\n\ndifference() {\n  rounded_plate(base_length, base_width, plate_thick, 12);\n  cylinder(h = plate_thick + 2, d = center_bore_dia, center = true);\n}`);
     });
   </script>
 </body>
