@@ -26,7 +26,8 @@ dist/
 *.obj
 *.step
 *.dxf
-!samples/**/*.stl
+!samples/**
+!**/sample_output/**
 
 # OS & IDE
 .DS_Store
@@ -34,3 +35,5 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+test_out/
+test_run/
