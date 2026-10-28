@@ -1,8 +1,10 @@
 import json
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, Response, FileResponse
+from pydantic import BaseModel
+from typing import Optional
 import os
 import base64
 
@@ -56,7 +58,10 @@ def health():
     return {"status": "healthy"}
 
 @app.post(f"{settings.API_V1_STR}/synthesize")
-async def synthesize_blueprint(file: UploadFile = File(...)):
+async def synthesize_blueprint(
+    file: UploadFile = File(...),
+    requested_class: Optional[str] = Form(None)
+):
     """
     Main synthesis endpoint. Ingests a 2D technical blueprint or 3D concept sketch,
     runs the Relational CSG pipeline with camera estimation and render-and-compare optimization.
@@ -64,26 +69,65 @@ async def synthesize_blueprint(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         # Run Relational Analysis-by-Synthesis with spatialforge_v2
-        result = relational_engine.process_image(contents)
+        result = relational_engine.process_image(contents, requested_class=requested_class)
         return result
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+class CorrectionLog(BaseModel):
+    image_hash: Optional[str] = "sketch"
+    template_class: Optional[str] = None
+    part_id: Optional[str] = None
+    parameter: Optional[str] = None
+    original_val: Optional[float] = None
+    corrected_val: Optional[float] = None
+    scale_anchor_mm: Optional[float] = None
+
+@app.post(f"{settings.API_V1_STR}/log_correction")
+async def log_correction(payload: CorrectionLog):
+    """
+    Logs human corrections (slider adjustments, anchor calibrations)
+    to feed few-shot prompts and benchmark datasets.
+    """
+    import datetime
+    log_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "corrections")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "corrections.jsonl")
+    entry = payload.dict()
+    entry["timestamp"] = datetime.datetime.utcnow().isoformat()
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    return {"status": "logged"}
+
 @app.get(f"{settings.API_V1_STR}/sample_cad")
-def get_sample_cad():
+def get_sample_cad(template: str = "stacked_housing"):
     """
     Returns pre-generated spatialforge_v2 sample CAD outputs (STEP, STL, GLB, JSON, meshes, overlays).
     """
-    import os
-    sample_dir = os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2", "sample_output")
+    samples_dir = os.path.join(os.path.dirname(__file__), "..", "..", "samples")
+    sample_v2_dir = os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2", "sample_output")
     res = {}
-    for f in ["model.stl", "model.glb", "model.step", "model.json", "sample_meshes.json", "overlay.png", "shaded.png", "views.png"]:
-        p = os.path.join(sample_dir, f)
-        if os.path.exists(p):
+
+    file_map = {
+        "model.stl": "stacked_housing.stl" if template == "stacked_housing" else "model.stl",
+        "model.glb": "stacked_housing.glb" if template == "stacked_housing" else "model.glb",
+        "model.step": "model.step",
+        "model.json": "stacked_housing_model.json" if template == "stacked_housing" else "model.json",
+        "sample_meshes.json": "stacked_housing_meshes.json" if template == "stacked_housing" else "sample_meshes.json",
+        "overlay.png": "overlay.png",
+        "shaded.png": "shaded.png",
+        "views.png": "views.png"
+    }
+
+    for target_key, actual_file in file_map.items():
+        p1 = os.path.join(samples_dir, actual_file)
+        p2 = os.path.join(sample_v2_dir, actual_file)
+        p = p1 if os.path.exists(p1) else (p2 if os.path.exists(p2) else None)
+        if p and os.path.exists(p):
             with open(p, "rb") as fh:
-                res[f] = base64.b64encode(fh.read()).decode("utf-8")
+                res[target_key] = base64.b64encode(fh.read()).decode("utf-8")
     return res
 
 @app.websocket("/ws/stream")

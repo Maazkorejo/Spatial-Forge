@@ -19,7 +19,7 @@ from fit import Target, fit, apply_fit, search_camera, make_overlay, make_frame,
 from features import place_features, Detection, feature_world_meshes
 from export import export_all, build_body
 from cad_export import export_step
-from examples import sewing_machine
+from templates import classify_sketch, TEMPLATE_REGISTRY, stacked_housing, sewing_machine
 from raster import rasterize, shade
 from multiview import scene_meshes, render_views
 from pipeline import extract_mask
@@ -62,9 +62,13 @@ class FeaturePayload(BaseModel):
 class RelationalSynthesisResult(BaseModel):
     status: str
     object_class: str
+    class_confidence: float = 0.90
+    class_reason: str = ""
     execution_time_ms: float
     iou: float
     initial_iou: float
+    part_ious: Dict[str, float] = {}
+    history: List[Dict[str, Any]] = []
     camera: Dict[str, float]  # az, el
     summary_line: str
     scale_anchored: bool = False
@@ -83,6 +87,7 @@ class RelationalSynthesisResult(BaseModel):
 class RelationalPipelineEngine:
     """
     SpatialForge v2 Production Engine:
+    - Template Library: Stacked Housing, Sewing Machine, Bench Grinder, Bracket
     - Layer 0: Body Primitives (Extrusion profiles + Rounded boxes + Cylinders)
     - Layer 1: Raycasted Features (Dials with flutes, Buttons, Slots, Screws)
     - Layer 2: Cosmetic Hardware
@@ -100,7 +105,7 @@ class RelationalPipelineEngine:
                 model="llama-3.2-11b-vision-preview"
             )
 
-    def process_image(self, img_bytes: bytes) -> RelationalSynthesisResult:
+    def process_image(self, img_bytes: bytes, requested_class: Optional[str] = None) -> RelationalSynthesisResult:
         import time
         t0 = time.perf_counter()
 
@@ -112,13 +117,20 @@ class RelationalPipelineEngine:
         h_img, w_img = img_bgr.shape[:2]
 
         # ---------------------------------------------------------
-        # 1. Target Mask & Initial Candidate
+        # 1. Target Mask & Topology Classification
         # ---------------------------------------------------------
         mask = extract_mask(img_bgr)
         target = Target(mask, S=160)
 
-        # Sewing machine prior with profile extrusion for arm
-        asm = sewing_machine()
+        if requested_class and requested_class in TEMPLATE_REGISTRY:
+            cls_name = requested_class
+            cls_conf = 1.0
+            cls_reason = f"Explicitly selected '{requested_class}' topology."
+        else:
+            cls_name, cls_conf, cls_reason = classify_sketch(img_bgr, mask, vlm_client=self.vlm)
+
+        constructor = TEMPLATE_REGISTRY.get(cls_name, stacked_housing)
+        asm = constructor()
 
         # ---------------------------------------------------------
         # 2. Camera Estimation & Body Optimization (v2)
@@ -133,17 +145,19 @@ class RelationalPipelineEngine:
         solids = resolve(fitted)
         frame = make_frame(_project(solids, fr.camera), target)
 
-        # Feature grounding detections (original pixel space)
-        detections = [
-            Detection("dial", (int(w_img * 0.35), int(h_img * 0.28), int(w_img * 0.48), int(h_img * 0.45)), 0.95),
-            Detection("button", (int(w_img * 0.52), int(h_img * 0.32), int(w_img * 0.58), int(h_img * 0.38)), 0.90),
-            Detection("button", (int(w_img * 0.60), int(h_img * 0.32), int(w_img * 0.66), int(h_img * 0.38)), 0.90),
-            Detection("screw", (int(w_img * 0.75), int(h_img * 0.60), int(w_img * 0.79), int(h_img * 0.65)), 0.85),
-            Detection("slot", (int(w_img * 0.25), int(h_img * 0.65), int(w_img * 0.38), int(h_img * 0.72)), 0.85)
-        ]
-
-        placed_features, rejected = place_features(fitted, fr.camera, frame, target, detections)
-        final_asm = fitted.model_copy(update={"features": placed_features})
+        if cls_name == "sewing_machine":
+            detections = [
+                Detection("dial", (int(w_img * 0.35), int(h_img * 0.28), int(w_img * 0.48), int(h_img * 0.45)), 0.95),
+                Detection("button", (int(w_img * 0.52), int(h_img * 0.32), int(w_img * 0.58), int(h_img * 0.38)), 0.90),
+                Detection("button", (int(w_img * 0.60), int(h_img * 0.32), int(w_img * 0.66), int(h_img * 0.38)), 0.90),
+                Detection("screw", (int(w_img * 0.75), int(h_img * 0.60), int(w_img * 0.79), int(h_img * 0.65)), 0.85),
+                Detection("slot", (int(w_img * 0.25), int(h_img * 0.65), int(w_img * 0.38), int(h_img * 0.72)), 0.85)
+            ]
+            placed_features, rejected = place_features(fitted, fr.camera, frame, target, detections)
+            final_asm = fitted.model_copy(update={"features": placed_features if placed_features else fitted.features})
+        else:
+            # For stacked_housing or other classes, features are grounded directly in the assembly template
+            final_asm = fitted
 
         # ---------------------------------------------------------
         # 4. Exports: STL, GLB, STEP, JSON (v2)
@@ -256,18 +270,26 @@ class RelationalPipelineEngine:
         openscad_code = self._generate_scad(final_solids, final_asm.features)
 
         t_elapsed = round((time.perf_counter() - t0) * 1000.0, 1)
+        min_p_iou = min(fr.part_ious.values()) if fr.part_ious else fr.iou
+        status_label = "ok" if (fr.iou >= 0.80 and min_p_iou >= 0.55) else "needs_review"
+
         summary = (
-            f"Body {round(fr.iou * 100, 1)}% silhouette match • "
-            f"{len(placed_features)} of {len(placed_features)} features verified • "
-            f"Watertight Manifold"
+            f"Class: {cls_name.replace('_', ' ').title()} ({int(cls_conf*100)}%) • "
+            f"Silhouette: {round(fr.iou * 100, 1)}% • "
+            f"Min Part Precision: {int(min_p_iou * 100)}% • "
+            f"{'Converged' if status_label == 'ok' else 'Needs Review'}"
         )
 
         return RelationalSynthesisResult(
-            status="ok" if fr.iou >= 0.85 else "needs_review",
-            object_class="sewing machine",
+            status=status_label,
+            object_class=cls_name,
+            class_confidence=cls_conf,
+            class_reason=cls_reason,
             execution_time_ms=t_elapsed,
             iou=round(fr.iou, 4),
             initial_iou=round(fr.init_iou, 4),
+            part_ious=fr.part_ious,
+            history=fr.history,
             camera={"az": round(fr.camera.az, 1), "el": round(fr.camera.el, 1)},
             summary_line=summary,
             scale_anchored=bool(final_asm.anchor is not None),

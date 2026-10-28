@@ -86,10 +86,17 @@
       </div>
       <span class="font-semibold text-white tracking-tight">SpatialForge</span>
       <span class="text-[#666]">/</span>
-      <span id="currentFileName" class="font-mono text-[#999] text-[11px]">sewing_machine_sketch.jpg</span>
-      <span id="objBadge" class="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#ea7600] border border-[#333]">
-        spatialforge_v2 (Extruded Profile + Raycast Features)
-      </span>
+      <span id="currentFileName" class="font-mono text-[#999] text-[11px]">sketch.jpg</span>
+      <div class="flex items-center gap-1.5 bg-[#1b1b1b] border border-[#333] px-2 py-0.5 rounded">
+        <span class="text-[9px] text-[#777] font-mono">TOPOLOGY:</span>
+        <select id="templateSelector" class="bg-transparent text-white font-mono text-[9.5px] outline-none cursor-pointer">
+          <option value="stacked_housing" class="bg-[#242424]">Stacked Housing (Compact Cube)</option>
+          <option value="sewing_machine" class="bg-[#242424]">Sewing Machine (Cantilever Arm)</option>
+          <option value="bench_grinder" class="bg-[#242424]">Bench Grinder (Twin Wheels)</option>
+          <option value="bracket_flange" class="bg-[#242424]">Bracket / Flange (L-Plate)</option>
+        </select>
+        <span id="classConfBadge" class="text-[8.5px] font-mono px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">92%</span>
+      </div>
     </div>
 
     <!-- Actions & Exports -->
@@ -715,7 +722,19 @@
           let src = "inferred";
           let minVal = 10, maxVal = 120;
 
-          if (p.width_x) {
+          // Check p.dims first for fitted dimensions
+          if (p.dims && Object.keys(p.dims).length > 0) {
+            const dKeys = Object.keys(p.dims);
+            const priKey = dKeys.find(k => k.includes('width') || k.includes('length') || k.includes('diam') || k.includes('radius')) || dKeys[0];
+            const dObj = p.dims[priKey];
+            if (dObj) {
+              primVal = typeof dObj === 'object' && dObj.value !== undefined ? dObj.value : Number(dObj);
+              src = (typeof dObj === 'object' && dObj.source) ? dObj.source : 'fitted';
+              minVal = (typeof dObj === 'object' && dObj.min) ? dObj.min : primVal * 0.5;
+              maxVal = (typeof dObj === 'object' && dObj.max) ? dObj.max : primVal * 1.5;
+              primName = priKey.replace('_', ' ').toUpperCase();
+            }
+          } else if (p.width_x) {
             primVal = p.width_x.value;
             src = p.width_x.source;
             minVal = p.width_x.min || primVal * 0.5;
@@ -817,6 +836,7 @@
         const slider = row.querySelector('input');
         slider.addEventListener('input', (e) => {
           const val = parseFloat(e.target.value);
+          logCorrection(it.id, it.dimLabel, it.val, val);
           row.querySelector(`#label_${it.id}`).innerText = `${(val * globalScaleMmPerUnit).toFixed(1)} ${unit}`;
         });
 
@@ -908,6 +928,57 @@
       alignCameraToSketch(-32.0, 28.0);
     }
 
+    // Template Selector Change Handler
+    const templateSelector = document.getElementById('templateSelector');
+    if (templateSelector) {
+      templateSelector.addEventListener('change', async (e) => {
+        const selected = e.target.value;
+        pipelineStatus.innerText = 'Switching template to ' + selected + '...';
+        try {
+          const resp = await fetch('http://127.0.0.1:8085/api/v1/sample_cad?template=' + selected);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data['sample_meshes.json']) {
+              const meshes = JSON.parse(atob(data['sample_meshes.json']));
+              renderMeshesFromV2(meshes);
+            }
+            if (data['model.json']) {
+              const modelJson = JSON.parse(atob(data['model.json']));
+              currentParts = modelJson.parts || [];
+              currentFeatures = modelJson.features || [];
+              populateSlidersFromModelJson(modelJson);
+            }
+            if (data['model.step']) currentStepBase64 = data['model.step'];
+            if (data['model.stl']) currentStlBase64 = data['model.stl'];
+            if (data['model.glb']) currentGlbBase64 = data['model.glb'];
+            pipelineStatus.innerText = 'Template switched to ' + selected;
+          }
+        } catch (err) {
+          console.error('Error switching template:', err);
+        }
+      });
+    }
+
+    // Log Correction Helper
+    async function logCorrection(partId, paramName, origVal, newVal) {
+      try {
+        await fetch('http://127.0.0.1:8085/api/v1/log_correction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_class: templateSelector ? templateSelector.value : 'stacked_housing',
+            part_id: partId,
+            parameter: paramName,
+            original_val: origVal,
+            corrected_val: newVal,
+            scale_anchor_mm: globalScaleMmPerUnit !== 1.0 ? 280.0 : null
+          })
+        });
+      } catch (e) {
+        console.warn('Logging correction failed:', e);
+      }
+    }
+
     loadInitialSampleData();
 
     // -----------------------------------------------------------------
@@ -967,6 +1038,8 @@
       try {
         const formData = new FormData();
         formData.append("file", file);
+        const tSel = document.getElementById('templateSelector');
+        if (tSel && tSel.value) { formData.append("requested_class", tSel.value); }
 
         const response = await fetch("http://127.0.0.1:8085/api/v1/synthesize", {
           method: "POST",

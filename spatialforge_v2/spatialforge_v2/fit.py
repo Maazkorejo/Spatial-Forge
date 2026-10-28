@@ -224,6 +224,38 @@ class FitResult:
     rendered: Optional[np.ndarray] = None
     n_evals: int = 0
     notes: list = field(default_factory=list)
+    part_ious: dict = field(default_factory=dict)
+    history: list = field(default_factory=list)
+
+
+def per_part_iou(asm: Assembly, cam: Camera, target: Target, ov=None) -> dict:
+    """Project each solid individually and compute the fraction of its projected
+    silhouette that lands inside the target sketch mask. Catches floating / protruding parts."""
+    solids = resolve(asm, ov)
+    fr = make_frame(_project(solids, cam), target)
+    if fr is None:
+        return {p.id: 0.0 for p in asm.parts}
+
+    right, up = basis(cam.az, cam.el)
+    res = {}
+    for pid, s in solids.items():
+        if s.op != "union":
+            continue
+        p_img = np.zeros((target.S, target.S), np.uint8)
+        for p3, convex in silhouette_polys(s):
+            uv = np.stack([p3 @ right, p3 @ up], axis=1)
+            pts = np.round(fr.to_px(uv)).astype(np.int32)
+            if convex:
+                cv2.fillConvexPoly(p_img, cv2.convexHull(pts), 1)
+            else:
+                cv2.fillPoly(p_img, [pts], 1)
+        part_area = float(p_img.sum())
+        if part_area == 0:
+            res[pid] = 0.0
+        else:
+            in_target = float((p_img & target.mask).sum())
+            res[pid] = round(in_target / part_area, 3)
+    return res
 
 
 def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera: bool = True,
@@ -252,6 +284,9 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
         c = Camera(float(x[n]), float(x[n + 1])) if fit_camera else cam
         return ov, c
 
+    history = []
+    best_seen = {"iou": 0.0}
+
     def base_loss(x):
         counter["n"] += 1
         ov, c = unpack(x)
@@ -259,6 +294,9 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
         if img is None:
             return 10.0, None
         iou, ch = score(img, target)
+        if iou > best_seen["iou"] + 0.015:
+            best_seen["iou"] = iou
+            history.append({"iter": counter["n"], "iou": round(float(iou), 3)})
         return (1.0 - iou) + 2.0 * ch, img
 
     def objective(x):
@@ -267,6 +305,8 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
 
     _, img0 = base_loss(x0)
     init_iou = score(img0, target)[0] if img0 is not None else 0.0
+    if not history:
+        history.append({"iter": 0, "iou": round(float(init_iou), 3)})
 
     res = differential_evolution(objective, bounds, x0=x0, maxiter=maxiter, popsize=popsize,
                                  tol=1e-4, seed=seed, polish=False, init="sobol",
@@ -283,6 +323,7 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
 
     base, img = base_loss(x)
     iou = score(img, target)[0] if img is not None else 0.0
+    history.append({"iter": len(history), "iou": round(float(iou), 3)})
 
     # sensitivity: how much does the unregularised loss rise when this dim moves +-15%?
     sens_slot, sens_part = {}, {}
@@ -296,10 +337,18 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
         sens_part[pid] = max(sens_part.get(pid, 0.0), worst)
 
     ov, c = unpack(x)
+    part_ious = per_part_iou(asm, c, target, ov)
+
     notes = []
     if iou < 0.8:
         notes.append("low silhouette agreement: structure is probably wrong, not just the dims")
-    return FitResult(iou, init_iou, c, ov, sens_slot, sens_part, img, counter["n"], notes)
+
+    # Check for floating/protruding parts
+    for pid, p_iou in part_ious.items():
+        if p_iou < 0.5:
+            notes.append(f"Part '{pid}' precision low ({int(p_iou*100)}% in silhouette) - possible protruding/floating geometry")
+
+    return FitResult(iou, init_iou, c, ov, sens_slot, sens_part, img, counter["n"], notes, part_ious, history)
 
 
 SENS_THRESHOLD = 0.004
