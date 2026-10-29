@@ -55,15 +55,14 @@ def root():
         "status": "online",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "description": "SpatialForge: Relational Blueprint-to-CAD Synthesis with Analysis-by-Synthesis & Multi-View Plausibility",
+        "description": "SpatialForge: Autonomous 2D CAD (DXF) Orthographic Blueprint-to-3D B-Rep CAD Engine",
         "stack": [
-            "SpatialForge v2 Relational CSG Engine",
-            "Differential Evolution Analysis-by-Synthesis",
-            "OpenCV Hough & Contour Feature Detection",
-            "Ray-Casting Surface Back-Projection",
-            "Multi-View VLM Verification",
-            "Manifold3D Watertight Solid Kernel",
-            "CadQuery B-Rep STEP Exporter"
+            "2D DXF Normalization & Adaptive Endpoint Stitcher",
+            "Orthographic View Segmentation (Front, Top, Right)",
+            "Projection Standard Inference (1st vs 3rd Angle)",
+            "2.5D Feature-Based B-Rep Reconstruction & Revolve Engine",
+            "OpenCascade HLR Reprojection Verification Gate",
+            "Watertight Solid Kernel & CadQuery STEP Exporter"
         ]
     }
 
@@ -77,17 +76,14 @@ async def draft_blueprint(
     requested_class: Optional[str] = Form(None)
 ):
     """
-    Tiered Latency Phase 1 (<500ms): Fast draft pass.
-    Instantly returns median-parameter 3D model for immediate visual feedback.
+    Fast 2D CAD draft pass (<300ms).
     """
     try:
         contents = await file.read()
         is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
-        if is_dxf:
-            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
-            return result
-
-        result = relational_engine.process_draft(contents, requested_class=requested_class)
+        if not is_dxf:
+            return JSONResponse(status_code=400, content={"error": "SpatialForge now operates exclusively on 2D CAD (.dxf) technical drawings. Please upload a .dxf file."})
+        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
         return result
     except Exception as e:
         import traceback
@@ -100,18 +96,15 @@ async def synthesize_blueprint(
     requested_class: Optional[str] = Form(None)
 ):
     """
-    Main synthesis endpoint. Ingests a 2D technical blueprint, 3D concept sketch, or 2D CAD DXF,
-    running the appropriate deterministic CAD or Relational CSG pipeline.
+    Main 2D CAD synthesis endpoint. Ingests a 2D orthographic technical drawing (.dxf),
+    executing view segmentation, standard inference, 2.5D reconstruction, and reprojection verification.
     """
     try:
         contents = await file.read()
         is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
-        if is_dxf:
-            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
-            return result
-
-        # Run Relational Analysis-by-Synthesis with spatialforge_v2
-        result = relational_engine.process_image(contents, requested_class=requested_class)
+        if not is_dxf:
+            return JSONResponse(status_code=400, content={"error": "SpatialForge now operates exclusively on 2D CAD (.dxf) technical drawings. Please upload a .dxf file."})
+        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
         return result
     except Exception as e:
         import traceback
@@ -204,33 +197,18 @@ async def patch_assembly(payload: PatchRequest):
         return JSONResponse(status_code=400, content={"error": str(e)})
 
 @app.get(f"{settings.API_V1_STR}/sample_cad")
-def get_sample_cad(template: str = "stacked_housing"):
+def get_sample_cad(case: str = "case_0000_clean"):
     """
-    Returns pre-generated spatialforge_v2 sample CAD outputs (STEP, STL, GLB, JSON, meshes, overlays).
+    Returns deterministic 2D CAD (DXF) sample reconstruction output
+    including 2D drawing sheet preview, Three.js 3D meshes, STEP, STL, and reprojection metrics.
     """
-    samples_dir = os.path.join(os.path.dirname(__file__), "..", "..", "samples")
-    sample_v2_dir = os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2", "sample_output")
-    res = {}
-
-    file_map = {
-        "model.stl": "stacked_housing.stl" if template == "stacked_housing" else "model.stl",
-        "model.glb": "stacked_housing.glb" if template == "stacked_housing" else "model.glb",
-        "model.step": "model.step",
-        "model.json": "stacked_housing_model.json" if template == "stacked_housing" else "model.json",
-        "sample_meshes.json": "stacked_housing_meshes.json" if template == "stacked_housing" else "sample_meshes.json",
-        "overlay.png": "overlay.png",
-        "shaded.png": "shaded.png",
-        "views.png": "views.png"
-    }
-
-    for target_key, actual_file in file_map.items():
-        p1 = os.path.join(samples_dir, actual_file)
-        p2 = os.path.join(sample_v2_dir, actual_file)
-        p = p1 if os.path.exists(p1) else (p2 if os.path.exists(p2) else None)
-        if p and os.path.exists(p):
-            with open(p, "rb") as fh:
-                res[target_key] = base64.b64encode(fh.read()).decode("utf-8")
-    return res
+    dxf_sample = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen", "sample_cases", f"{case}.dxf")
+    )
+    if os.path.exists(dxf_sample):
+        with open(dxf_sample, "rb") as f:
+            return process_dxf_bytes(f.read(), f"{case}.dxf")
+    return {"error": f"Sample DXF {case} not found"}
 
 @app.websocket("/ws/stream")
 async def websocket_telemetry_stream(websocket: WebSocket):
