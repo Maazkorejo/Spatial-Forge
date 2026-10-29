@@ -276,12 +276,91 @@ def bracket_flange() -> Assembly:
     })
 
 
+# ---------------------------------------------------------------------------
+# 5. TEMPLATE: Centrifugal Pump (Volute Casing + Impeller + Flanges)
+# ---------------------------------------------------------------------------
+def centrifugal_pump() -> Assembly:
+    """Industrial centrifugal pump: base skid, volute casing, suction and discharge flanges."""
+    return Assembly.model_validate({
+        "observations": [
+            "Centrifugal pump with spiral volute body, horizontal suction port, vertical discharge port."
+        ],
+        "object_class": "centrifugal_pump",
+        "view_hint": {"projection": "isometric", "azimuth_deg": -35, "elevation_deg": 25},
+        "parts": [
+            {
+                "id": "skid_base",
+                "label": "base plate",
+                "kind": "rounded_box",
+                "fillet": 3,
+                "width_x": _d(90.0, 0.25),
+                "depth_y": _d(60.0, 0.25),
+                "height_z": _d(10.0, 0.3)
+            },
+            {
+                "id": "volute_body",
+                "label": "spiral volute casing",
+                "kind": "cylinder",
+                "axis": "y",
+                "placement": {
+                    "parent": "skid_base",
+                    "face": "top",
+                    "align_x": "center",
+                    "align_y": "center"
+                },
+                "diameter": _d(55.0, 0.3),
+                "length": _d(32.0, 0.3)
+            },
+            {
+                "id": "discharge_neck",
+                "label": "vertical discharge port",
+                "kind": "cylinder",
+                "axis": "z",
+                "placement": {
+                    "parent": "volute_body",
+                    "face": "top",
+                    "align_x": "center",
+                    "align_y": "center"
+                },
+                "diameter": _d(22.0, 0.3),
+                "length": _d(24.0, 0.35)
+            },
+            {
+                "id": "suction_flange",
+                "label": "axial suction flange",
+                "kind": "cylinder",
+                "axis": "y",
+                "placement": {
+                    "parent": "volute_body",
+                    "face": "front",
+                    "align_x": "center",
+                    "align_z": "center"
+                },
+                "diameter": _d(30.0, 0.25),
+                "length": _d(8.0, 0.3)
+            }
+        ],
+        "features": [
+            {
+                "id": "drain_plug",
+                "kind": "screw",
+                "layer": "cosmetic",
+                "on": {"part": "volute_body", "face": "bottom", "u": 0.5, "v": 0.5},
+                "diameter": _d(4.0, 0.3),
+                "depth": _d(2.0, 0.5, "assumed")
+            }
+        ],
+        "confidence": 0.86
+    })
+
+
 # Registry Mapping
 TEMPLATE_REGISTRY = {
     "stacked_housing": stacked_housing,
     "sewing_machine": sewing_machine,
     "bench_grinder": bench_grinder,
-    "bracket_flange": bracket_flange
+    "bracket_flange": bracket_flange,
+    "centrifugal_pump": centrifugal_pump
 }
 
 

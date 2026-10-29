@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, Response, FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import os
 import base64
 
@@ -57,6 +57,24 @@ def root():
 def health():
     return {"status": "healthy"}
 
+@app.post(f"{settings.API_V1_STR}/draft")
+async def draft_blueprint(
+    file: UploadFile = File(...),
+    requested_class: Optional[str] = Form(None)
+):
+    """
+    Tiered Latency Phase 1 (<500ms): Fast draft pass.
+    Instantly returns median-parameter 3D model for immediate visual feedback.
+    """
+    try:
+        contents = await file.read()
+        result = relational_engine.process_draft(contents, requested_class=requested_class)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post(f"{settings.API_V1_STR}/synthesize")
 async def synthesize_blueprint(
     file: UploadFile = File(...),
@@ -100,6 +118,49 @@ async def log_correction(payload: CorrectionLog):
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
     return {"status": "logged"}
+
+class PatchRequest(BaseModel):
+    template_class: Optional[str] = "stacked_housing"
+    patches: List[Dict[str, Any]]
+    locked_parts: Optional[List[str]] = None
+
+@app.post(f"{settings.API_V1_STR}/patch")
+async def patch_assembly(payload: PatchRequest):
+    """
+    Applies validated RFC 6902 JSON-patches with programmatic lock guards.
+    Locked parts (high IoU or user approved) are strictly immutable.
+    """
+    import sys
+    V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2"))
+    if V2_DIR not in sys.path:
+        sys.path.insert(0, V2_DIR)
+    import patch_engine
+    import templates
+    from solver import resolve
+    from geometry import part_mesh
+
+    try:
+        constructor = templates.TEMPLATE_REGISTRY.get(payload.template_class, templates.stacked_housing)
+        current_asm = constructor()
+        updated_asm, logs = patch_engine.apply_patch(current_asm, payload.patches, locked_parts=payload.locked_parts)
+
+        # Generate updated meshes
+        solids = resolve(updated_asm)
+        meshes = {}
+        for pid, s in solids.items():
+            if s.op == "union":
+                V, F_faces = part_mesh(s)
+                meshes[pid] = {
+                    "id": pid,
+                    "layer": "body",
+                    "vertices": [[round(float(c), 3) for c in pt] for pt in V],
+                    "faces": [[int(idx) for idx in tri] for tri in F_faces]
+                }
+        return {"status": "ok", "logs": logs, "meshes": meshes, "assembly": updated_asm.model_dump()}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 @app.get(f"{settings.API_V1_STR}/sample_cad")
 def get_sample_cad(template: str = "stacked_housing"):

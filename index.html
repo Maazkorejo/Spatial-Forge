@@ -1032,14 +1032,42 @@
     async function uploadAndSynthesize(file) {
       const runBtn = document.getElementById('runBtn');
       const runBtnText = document.getElementById('runBtnText');
-      runBtnText.innerText = "Fitting & Raycasting...";
+      runBtnText.innerText = "Phase 1: Instant Draft...";
       runBtn.classList.add('animate-pulse');
 
+      const tSel = document.getElementById('templateSelector');
+      const reqClass = tSel && tSel.value ? tSel.value : '';
+
       try {
+        // --- PHASE 1: FAST DRAFT PASS (<500ms) ---
+        const draftData = new FormData();
+        draftData.append("file", file);
+        if (reqClass) draftData.append("requested_class", reqClass);
+
+        const draftResp = await fetch("http://127.0.0.1:8085/api/v1/draft", {
+          method: "POST",
+          body: draftData
+        });
+        if (draftResp.ok) {
+          const draftRes = await draftResp.json();
+          if (draftRes.meshes && Object.keys(draftRes.meshes).length > 0) {
+            renderMeshesFromV2(draftRes.meshes);
+            alignCameraToSketch(draftRes.camera.az, draftRes.camera.el);
+          }
+          if (draftRes.parts || draftRes.features) {
+            currentParts = draftRes.parts || [];
+            currentFeatures = draftRes.features || [];
+            populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
+          }
+          pipelineStatus.innerText = [DRAFT LOADED in ms] — Optimizing Proportions & B-Rep in Background...;
+          document.getElementById('summaryLineText').innerText = draftRes.summary_line;
+        }
+
+        // --- PHASE 2: BACKGROUND REFINEMENT PASS (5-15s) ---
+        runBtnText.innerText = "Phase 2: Continuous Fitting...";
         const formData = new FormData();
         formData.append("file", file);
-        const tSel = document.getElementById('templateSelector');
-        if (tSel && tSel.value) { formData.append("requested_class", tSel.value); }
+        if (reqClass) formData.append("requested_class", reqClass);
 
         const response = await fetch("http://127.0.0.1:8085/api/v1/synthesize", {
           method: "POST",
