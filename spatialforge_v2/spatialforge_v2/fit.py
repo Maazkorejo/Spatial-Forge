@@ -369,3 +369,27 @@ def apply_fit(asm: Assembly, fr: FitResult) -> Assembly:
     out.view_hint.azimuth_deg = round(fr.camera.az, 1)
     out.view_hint.elevation_deg = round(fr.camera.el, 1)
     return out
+
+
+def silhouette_iou(asm_or_img, cam_or_target, target: Optional[Target] = None, ov=None) -> float:
+    """
+    Computes real silhouette IoU between an assembly render and the target mask.
+    Accepts:
+      silhouette_iou(asm, cam, target)
+      silhouette_iou(asm, target, cam)
+      silhouette_iou(img, target)
+    """
+    if isinstance(cam_or_target, Target):
+        tgt = cam_or_target
+        if isinstance(asm_or_img, np.ndarray):
+            return float(score(asm_or_img, tgt)[0])
+        cam = target if isinstance(target, Camera) else Camera(35, 25)
+    else:
+        cam = cam_or_target
+        tgt = target
+
+    img = render(asm_or_img, cam, tgt, ov) if not isinstance(asm_or_img, np.ndarray) else asm_or_img
+    if img is None or tgt is None:
+        return 0.0
+    return float(score(img, tgt)[0])
+

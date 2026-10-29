@@ -15,13 +15,13 @@ if V2_DIR not in sys.path:
 import fit as F
 from schema import Assembly, Part, Feature, Dim, Anchor, ViewHint
 from solver import resolve, geometry_report, Solid
-from fit import Target, fit, apply_fit, search_camera, make_overlay, make_frame, _project, Camera
+from fit import Target, fit, apply_fit, search_camera, make_overlay, make_frame, _project, Camera, silhouette_iou, per_part_iou
 from features import place_features, Detection, feature_world_meshes
 from export import export_all, build_body
 from cad_export import export_step
 from templates import classify_sketch, TEMPLATE_REGISTRY, stacked_housing, sewing_machine
 from raster import rasterize, shade
-from multiview import scene_meshes, render_views
+from multiview import scene_meshes, render_views, multiview_check
 from pipeline import extract_mask
 from vlm import OpenAICompatVLM
 from app.core.config import settings
@@ -84,6 +84,82 @@ class RelationalSynthesisResult(BaseModel):
     openscad_code: str
 
 
+def detect_features_cv(img_bgr: np.ndarray) -> List[Detection]:
+    """
+    OpenCV feature detection for engineering sketches:
+    - cv2.HoughCircles detects circular dials, wheels, and knobs
+    - Contour detection detects rectangular slots, openings, and buttons
+    Returns deduplicated Detection objects in original image pixel coordinates.
+    """
+    if img_bgr is None or img_bgr.size == 0:
+        return []
+
+    h, w = img_bgr.shape[:2]
+    min_dim = min(h, w)
+    img_area = float(h * w)
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY) if len(img_bgr.shape) == 3 else img_bgr.copy()
+    blurred = cv2.GaussianBlur(gray, (5, 5), 1.5)
+
+    candidates: List[Detection] = []
+
+    # 1. Circular dials / wheels via HoughCircles
+    circles = cv2.HoughCircles(
+        blurred,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=max(int(min_dim * 0.08), 15),
+        param1=100,
+        param2=38,
+        minRadius=max(int(min_dim * 0.03), 8),
+        maxRadius=int(min_dim * 0.30)
+    )
+    if circles is not None:
+        for c in circles[0]:
+            cx, cy, r = float(c[0]), float(c[1]), float(c[2])
+            x0 = max(0, int(cx - r))
+            y0 = max(0, int(cy - r))
+            x1 = min(w, int(cx + r))
+            y1 = min(h, int(cy + r))
+            score = min(0.95, max(0.70, round(float(r / (min_dim * 0.25)), 2) * 0.25 + 0.70))
+            candidates.append(Detection("dial", (x0, y0, x1, y1), score))
+
+    # 2. Contours for rectangular slots and buttons
+    edges = cv2.Canny(blurred, 40, 130)
+    cnts, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for cnt in cnts:
+        x, y, cw, ch = cv2.boundingRect(cnt)
+        area = float(cw * ch)
+        if area < 0.0015 * img_area or area > 0.15 * img_area:
+            continue
+        if cw > 0.65 * w or ch > 0.65 * h:
+            continue
+        ar = max(cw, ch) / max(min(cw, ch), 1)
+        if ar >= 2.2:
+            candidates.append(Detection("slot", (x, y, x + cw, y + ch), 0.85))
+        elif 1.0 <= ar <= 1.8:
+            candidates.append(Detection("button", (x, y, x + cw, y + ch), 0.82))
+
+    # Deduplicate overlapping detections with IoU suppression
+    def box_iou(b1: tuple, b2: tuple) -> float:
+        ix0, iy0 = max(b1[0], b2[0]), max(b1[1], b2[1])
+        ix1, iy1 = min(b1[2], b2[2]), min(b1[3], b2[3])
+        iw, ih = max(0, ix1 - ix0), max(0, iy1 - iy0)
+        inter = iw * ih
+        area1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
+        area2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
+        return inter / max(area1 + area2 - inter, 1)
+
+    filtered: List[Detection] = []
+    # Prioritize dials then buttons/slots
+    candidates.sort(key=lambda d: (0 if d.label == "dial" else 1, -d.score))
+    for c in candidates:
+        if any(box_iou(c.box, f.box) > 0.35 for f in filtered):
+            continue
+        filtered.append(c)
+
+    return filtered[:8]
+
+
 class RelationalPipelineEngine:
     """
     SpatialForge v2 Production Engine:
@@ -132,6 +208,9 @@ class RelationalPipelineEngine:
         constructor = TEMPLATE_REGISTRY.get(cls_name, stacked_housing)
         draft_asm = constructor()
         cam = search_camera(draft_asm, target)
+
+        init_iou = round(float(silhouette_iou(draft_asm, cam, target)), 4)
+        draft_part_ious = per_part_iou(draft_asm, cam, target)
 
         from geometry import part_mesh
         solids = resolve(draft_asm)
@@ -198,10 +277,10 @@ class RelationalPipelineEngine:
             class_confidence=cls_conf,
             class_reason=cls_reason,
             execution_time_ms=t_elapsed,
-            iou=0.65,
-            initial_iou=0.65,
-            part_ious={p.id: 0.70 for p in draft_asm.parts},
-            history=[{"iter": 0, "iou": 0.65}],
+            iou=init_iou,
+            initial_iou=init_iou,
+            part_ious=draft_part_ious,
+            history=[{"iter": 0, "iou": init_iou}],
             camera={"az": round(cam.az, 1), "el": round(cam.el, 1)},
             summary_line=f"Draft topology '{cls_name.replace('_', ' ').title()}' generated in {t_elapsed}ms. Refining...",
             scale_anchored=False,
@@ -257,18 +336,11 @@ class RelationalPipelineEngine:
         solids = resolve(fitted)
         frame = make_frame(_project(solids, fr.camera), target)
 
-        if cls_name == "sewing_machine":
-            detections = [
-                Detection("dial", (int(w_img * 0.35), int(h_img * 0.28), int(w_img * 0.48), int(h_img * 0.45)), 0.95),
-                Detection("button", (int(w_img * 0.52), int(h_img * 0.32), int(w_img * 0.58), int(h_img * 0.38)), 0.90),
-                Detection("button", (int(w_img * 0.60), int(h_img * 0.32), int(w_img * 0.66), int(h_img * 0.38)), 0.90),
-                Detection("screw", (int(w_img * 0.75), int(h_img * 0.60), int(w_img * 0.79), int(h_img * 0.65)), 0.85),
-                Detection("slot", (int(w_img * 0.25), int(h_img * 0.65), int(w_img * 0.38), int(h_img * 0.72)), 0.85)
-            ]
+        detections = detect_features_cv(img_bgr)
+        if detections and frame is not None:
             placed_features, rejected = place_features(fitted, fr.camera, frame, target, detections)
             final_asm = fitted.model_copy(update={"features": placed_features if placed_features else fitted.features})
         else:
-            # For stacked_housing or other classes, features are grounded directly in the assembly template
             final_asm = fitted
 
         # ---------------------------------------------------------
@@ -381,9 +453,20 @@ class RelationalPipelineEngine:
         # OpenSCAD Code
         openscad_code = self._generate_scad(final_solids, final_asm.features)
 
+        # ---------------------------------------------------------
+        # 7. Multi-View Plausibility Review (VLM)
+        # ---------------------------------------------------------
+        mv_res = None
+        if self.vlm is not None:
+            try:
+                mv_res = multiview_check(self.vlm, final_asm, original_png=img_bytes)
+            except Exception:
+                mv_res = None
+
         t_elapsed = round((time.perf_counter() - t0) * 1000.0, 1)
         min_p_iou = min(fr.part_ious.values()) if fr.part_ious else fr.iou
-        status_label = "ok" if (fr.iou >= 0.80 and min_p_iou >= 0.55) else "needs_review"
+        mv_ok = (mv_res is None or (mv_res.get("plausible") and mv_res.get("score", 1.0) >= 0.70))
+        status_label = "ok" if (fr.iou >= 0.85 and min_p_iou >= 0.60 and mv_ok) else "needs_review"
 
         summary = (
             f"Class: {cls_name.replace('_', ' ').title()} ({int(cls_conf*100)}%) • "

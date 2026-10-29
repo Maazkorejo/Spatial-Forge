@@ -222,7 +222,7 @@
           <!-- Status strip -->
           <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-[#888] font-mono border-t border-[#262626] pt-1.5 z-20 bg-[#1a1a1a]/90 backdrop-blur-sm px-1.5">
             <span id="featureCount">9 parts (5 body, 3 feat, 1 cosm)</span>
-            <span id="iouBadge" class="text-emerald-400">IoU: 89.7% (Converged)</span>
+            <span id="iouBadge" class="text-emerald-400 font-mono font-medium">IoU: 89.7% [CONVERGED]</span>
           </div>
         </div>
 
@@ -235,12 +235,18 @@
 
       <!-- File upload strip -->
       <div class="h-9 px-3 border-t border-[#202020] bg-[#222222] flex items-center justify-between text-[#888]">
-        <span id="uploadHintText">Input: Drop perspective sketch or blueprint</span>
-        <label class="text-[#ea7600] hover:text-white cursor-pointer font-medium text-[11px] flex items-center gap-1 transition">
-          <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
-          <span>Choose File</span>
+        <span id="uploadHintText" class="truncate mr-2">Input: Drop sketch or blueprint</span>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="changeSketchBtn" type="button" class="text-[#ea7600] hover:text-white cursor-pointer font-medium text-[11px] flex items-center gap-1 transition bg-[#2a2a2a] hover:bg-[#333] px-2 py-1 rounded border border-[#3a3a3a]" title="Upload or replace sketch">
+            <i data-lucide="image" class="w-3.5 h-3.5"></i>
+            <span>Change Sketch</span>
+          </button>
+          <label for="fileUpload" id="chooseFileLabel" class="text-[#ea7600] hover:text-white cursor-pointer font-medium text-[11px] flex items-center gap-1 transition bg-[#ea7600]/10 hover:bg-[#ea7600]/20 px-2 py-1 rounded border border-[#ea7600]/30" title="Choose file from disk">
+            <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+            <span>Choose File</span>
+          </label>
           <input type="file" id="fileUpload" class="hidden" accept="image/*,.pdf">
-        </label>
+        </div>
       </div>
     </section>
 
@@ -335,7 +341,7 @@
             <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i>
             Verification Telemetry
           </span>
-          <span id="statusBadge" class="text-emerald-400 font-mono text-[9.5px]">● CONVERGED</span>
+          <span id="statusBadge" class="text-emerald-400 font-mono text-[9.5px]">● [CONVERGED]</span>
         </div>
 
         <div class="space-y-1.5 pt-1 text-[10.5px] font-mono">
@@ -878,6 +884,57 @@
     // -----------------------------------------------------------------
     // 6. INITIAL LOAD (spatialforge_v2 Samples)
     // -----------------------------------------------------------------
+    // Dynamic Convergence Badge Evaluator
+    function updateConvergenceBadges(status, iou, minPartIou, failureReason) {
+      const numIou = typeof iou === 'number' ? iou : (parseFloat(iou) / (String(iou).includes('%') ? 100 : 1));
+      let numMinPart = 1.0;
+      if (minPartIou !== undefined && minPartIou !== null) {
+        numMinPart = typeof minPartIou === 'number' ? minPartIou : (parseFloat(minPartIou) / (String(minPartIou).includes('%') ? 100 : 1));
+      } else {
+        numMinPart = numIou;
+      }
+
+      const isOk = status === 'ok';
+      const isConverged = isOk && (numIou >= 0.85) && (numMinPart >= 0.60);
+
+      const iBadge = document.getElementById('iouBadge');
+      const sBadge = document.getElementById('statusBadge');
+      const pStatus = document.getElementById('pipelineStatus');
+
+      if (isConverged) {
+        if (iBadge) {
+          iBadge.className = 'text-emerald-400 font-mono font-medium';
+          iBadge.innerText = `IoU: ${(numIou * 100).toFixed(1)}% [CONVERGED]`;
+        }
+        if (sBadge) {
+          sBadge.className = 'text-emerald-400 font-mono text-[9.5px]';
+          sBadge.innerText = '● [CONVERGED]';
+        }
+        if (pStatus) {
+          pStatus.innerText = 'Synthesis Complete [CONVERGED]';
+        }
+      } else {
+        const reasons = [];
+        if (!isOk) reasons.push(failureReason || `status: ${status}`);
+        if (numIou < 0.85) reasons.push(`Global IoU ${(numIou * 100).toFixed(1)}% < 85%`);
+        if (numMinPart < 0.60) reasons.push(`Lowest Part ${(numMinPart * 100).toFixed(1)}% < 60%`);
+        const reasonText = reasons.join(', ') || failureReason || 'Criteria not met';
+        const minPartDisplay = !isNaN(numMinPart) && numMinPart <= 1.0 ? `${(numMinPart * 100).toFixed(1)}%` : 'N/A';
+
+        if (iBadge) {
+          iBadge.className = 'text-amber-400 font-mono font-medium';
+          iBadge.innerText = `IoU: ${(numIou * 100).toFixed(1)}% [NEEDS REVIEW] (Min: ${minPartDisplay} | ${reasonText})`;
+        }
+        if (sBadge) {
+          sBadge.className = 'text-amber-400 font-mono text-[9.5px]';
+          sBadge.innerText = `● [NEEDS REVIEW] (Lowest: ${minPartDisplay} - ${reasonText})`;
+        }
+        if (pStatus) {
+          pStatus.innerText = `Synthesis Finished [NEEDS REVIEW] — Lowest Part IoU: ${minPartDisplay} (${reasonText})`;
+        }
+      }
+    }
+
     function applyEmbeddedTemplate(tplName) {
       const d = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA[tplName]) ? EMBEDDED_DATA[tplName] : (typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA['sewing_machine'] : null);
       if (!d) return;
@@ -893,13 +950,12 @@
       if (d.iou) {
         const mIou = document.getElementById('metricIou');
         if (mIou) mIou.innerText = d.iou;
-        const iBadge = document.getElementById('iouBadge');
-        if (iBadge) iBadge.innerText = 'IoU: ' + d.iou + ' (Converged)';
       }
       if (d.min_part) {
         const mMin = document.getElementById('metricMinPart');
         if (mMin) mMin.innerText = d.min_part + ' (No Floating)';
       }
+      updateConvergenceBadges('ok', d.iou, d.min_part);
       if (d.confidence) {
         const cBadge = document.getElementById('classConfBadge');
         if (cBadge) cBadge.innerText = d.confidence;
@@ -957,7 +1013,11 @@
       templateSelector.addEventListener('change', (e) => {
         const selected = e.target.value;
         pipelineStatus.innerText = 'Template switched to ' + selected;
-        applyEmbeddedTemplate(selected);
+        if (currentUploadedFile) {
+          uploadAndSynthesize(currentUploadedFile);
+        } else {
+          applyEmbeddedTemplate(selected);
+        }
       });
     }
 
@@ -986,45 +1046,151 @@
     // -----------------------------------------------------------------
     // 7. FILE UPLOAD & BACKEND SYNTHESIS INTEGRATION
     // -----------------------------------------------------------------
+    let currentUploadedFile = null;
     const fileUpload = document.getElementById('fileUpload');
+    const changeSketchBtn = document.getElementById('changeSketchBtn');
     const dropZone = document.getElementById('dropZone');
     const dragHint = document.getElementById('dragHint');
     const currentFileName = document.getElementById('currentFileName');
     const pipelineStatus = document.getElementById('pipelineStatus');
 
+    // Prevent default drag & drop behaviors across window
     ['dragenter', 'dragover'].forEach(name => {
+      window.addEventListener(name, (e) => e.preventDefault());
       dropZone.addEventListener(name, (e) => {
         e.preventDefault();
+        e.stopPropagation();
         dragHint.classList.remove('hidden');
       });
     });
 
-    ['dragleave', 'drop'].forEach(name => {
+    ['dragleave'].forEach(name => {
       dropZone.addEventListener(name, (e) => {
         e.preventDefault();
-        dragHint.classList.add('hidden');
+        if (!dropZone.contains(e.relatedTarget)) {
+          dragHint.classList.add('hidden');
+        }
       });
     });
 
+    window.addEventListener('drop', (e) => e.preventDefault());
     dropZone.addEventListener('drop', (e) => {
-      if (e.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragHint.classList.add('hidden');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         handleFile(e.dataTransfer.files[0]);
       }
     });
 
     fileUpload.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
+      if (e.target.files && e.target.files.length > 0) {
         handleFile(e.target.files[0]);
+      }
+      fileUpload.value = '';
+    });
+
+    fileUpload.addEventListener('click', () => {
+      fileUpload.value = '';
+    });
+
+    if (changeSketchBtn) {
+      changeSketchBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileUpload.value = '';
+        fileUpload.click();
+      });
+    }
+
+    dropZone.addEventListener('click', (e) => {
+      if (e.target.id === 'userImagePreview' || e.target.id === 'blueprintContainer' || e.target.id === 'dropZone') {
+        fileUpload.value = '';
+        fileUpload.click();
       }
     });
 
-    function handleFile(file) {
+    function resetViewerAndState(file) {
+      currentUploadedFile = file;
       currentFileName.innerText = file.name;
-      pipelineStatus.innerText = "Running spatialforge_v2 Synthesis...";
 
+      // 1. Clear 3D Meshes from scene
+      while (bodyGroup.children.length > 0) {
+        const c = bodyGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        bodyGroup.remove(c);
+      }
+      while (featGroup.children.length > 0) {
+        const c = featGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        featGroup.remove(c);
+      }
+      while (cosmGroup.children.length > 0) {
+        const c = cosmGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        cosmGroup.remove(c);
+      }
+      currentMeshes = {};
+      currentParts = [];
+      currentFeatures = [];
+      currentOpenScadCode = "";
+      currentStlBase64 = "";
+      currentGlbBase64 = "";
+      currentStepBase64 = "";
+
+      // Reset camera
+      camera.position.set(130, 95, 140);
+      controls.target.set(0, 32, 0);
+      controls.update();
+      renderer.render(scene, camera);
+
+      // Reset mesh counters
+      document.getElementById('sCount').innerText = '0';
+      document.getElementById('sLayers').innerText = 'L0 (0) | L1 (0) | L2 (0)';
+      document.getElementById('featureCount').innerText = '0 parts (ready to synthesize)';
+
+      // 2. Clear 2D Diagnostic Overlays & Annotations
+      diagnosticOverlay.src = '';
+      diagnosticOverlay.classList.add('hidden');
+      shadedOverlay.src = '';
+      shadedOverlay.classList.add('hidden');
+      viewsOverlay.src = '';
+      viewsOverlay.classList.add('hidden');
+      if (svgOverlay) svgOverlay.style.display = 'none';
+
+      // 3. Clear Sliders
+      const slidersList = document.getElementById('slidersList');
+      if (slidersList) {
+        slidersList.innerHTML = '<div class="text-[#777] text-center py-6 font-mono text-[10px]">Sketch loaded. Run synthesis to extract parametric CAD features.</div>';
+      }
+
+      // 4. Reset Telemetry and Convergence Badges to Pending
+      const iBadge = document.getElementById('iouBadge');
+      if (iBadge) {
+        iBadge.className = 'text-[#888] font-mono';
+        iBadge.innerText = 'IoU: --% [PENDING]';
+      }
+      const sBadge = document.getElementById('statusBadge');
+      if (sBadge) {
+        sBadge.className = 'text-[#888] font-mono text-[9.5px]';
+        sBadge.innerText = '● PENDING';
+      }
+      document.getElementById('metricIou').innerText = '--%';
+      document.getElementById('metricFeat').innerText = '--';
+      document.getElementById('metricCosm').innerText = '--';
+      document.getElementById('metricLatency').innerText = '--';
+      document.getElementById('summaryLineText').innerText = `Loaded sketch "${file.name}" • Ready for 3-layer synthesis`;
+      pipelineStatus.innerText = `New sketch loaded: ${file.name}. Initializing synthesis...`;
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      resetViewerAndState(file);
+
+      // Display sketch thumbnail immediately
       const reader = new FileReader();
       reader.onload = function(e) {
         userImagePreview.src = e.target.result;
+        userImagePreview.classList.remove('hidden');
         setActiveDiagnosticTab('sketch');
         uploadAndSynthesize(file);
       };
@@ -1054,15 +1220,15 @@
           const draftRes = await draftResp.json();
           if (draftRes.meshes && Object.keys(draftRes.meshes).length > 0) {
             renderMeshesFromV2(draftRes.meshes);
-            alignCameraToSketch(draftRes.camera.az, draftRes.camera.el);
+            if (draftRes.camera) alignCameraToSketch(draftRes.camera.az, draftRes.camera.el);
           }
           if (draftRes.parts || draftRes.features) {
             currentParts = draftRes.parts || [];
             currentFeatures = draftRes.features || [];
             populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
           }
-          pipelineStatus.innerText = "[DRAFT LOADED in " + draftRes.execution_time_ms + "ms] - Optimizing Proportions & B-Rep in Background...";
-          document.getElementById('summaryLineText').innerText = draftRes.summary_line;
+          pipelineStatus.innerText = `[DRAFT LOADED in ${draftRes.execution_time_ms}ms] - Optimizing Proportions & B-Rep in Background...`;
+          if (draftRes.summary_line) document.getElementById('summaryLineText').innerText = draftRes.summary_line;
         }
 
         // --- PHASE 2: BACKGROUND REFINEMENT PASS (5-15s) ---
@@ -1078,15 +1244,38 @@
 
         if (response.ok) {
           const res = await response.json();
+          const numIou = typeof res.iou === 'number' ? res.iou : (parseFloat(res.iou) / (String(res.iou).includes('%') ? 100 : 1));
 
-          document.getElementById('metricIou').innerText = `${(res.iou * 100).toFixed(2)}%`;
-          document.getElementById('iouBadge').innerText = `IoU: ${(res.iou * 100).toFixed(1)}% (Converged)`;
-          document.getElementById('metricLatency').innerText = `${(res.execution_time_ms / 1000).toFixed(2)}s`;
-          document.getElementById('metricCam').innerText = `az ${res.camera.az.toFixed(1)}°, el ${res.camera.el.toFixed(1)}°`;
-          document.getElementById('summaryLineText').innerText = res.summary_line || `Body ${(res.iou * 100).toFixed(1)}% silhouette match • Verified`;
+          let minPartIou = 1.0;
+          if (res.min_part_iou !== undefined && res.min_part_iou !== null) {
+            minPartIou = typeof res.min_part_iou === 'number' ? res.min_part_iou : (parseFloat(res.min_part_iou) / (String(res.min_part_iou).includes('%') ? 100 : 1));
+          } else if (res.part_ious && Object.keys(res.part_ious).length > 0) {
+            const vals = Object.values(res.part_ious).map(v => {
+              if (typeof v === 'number') return v;
+              const p = parseFloat(v);
+              return String(v).includes('%') ? p / 100 : p;
+            }).filter(v => !isNaN(v));
+            if (vals.length > 0) minPartIou = Math.min(...vals);
+          } else if (res.iou !== undefined) {
+            minPartIou = numIou;
+          }
 
-          recoveredCamAz = res.camera.az;
-          recoveredCamEl = res.camera.el;
+          document.getElementById('metricIou').innerText = `${(numIou * 100).toFixed(2)}%`;
+          
+          // Dynamic convergence badge:
+          updateConvergenceBadges(res.status || 'ok', numIou, minPartIou, res.failure_reason);
+
+          if (res.execution_time_ms !== undefined) {
+            document.getElementById('metricLatency').innerText = `${(res.execution_time_ms / 1000).toFixed(2)}s`;
+          }
+          if (res.camera) {
+            document.getElementById('metricCam').innerText = `az ${res.camera.az.toFixed(1)}°, el ${res.camera.el.toFixed(1)}°`;
+            recoveredCamAz = res.camera.az;
+            recoveredCamEl = res.camera.el;
+          }
+          if (res.summary_line) {
+            document.getElementById('summaryLineText').innerText = res.summary_line;
+          }
 
           if (res.overlay_base64) {
             diagnosticOverlay.src = `data:image/png;base64,${res.overlay_base64}`;
@@ -1113,13 +1302,18 @@
           currentStlBase64 = res.stl_base64 || "";
           currentGlbBase64 = res.glb_base64 || "";
           currentStepBase64 = res.step_base64 || "";
-
-          pipelineStatus.innerText = "Synthesis Complete (Converged)";
         } else {
-          alert("Backend error during synthesis.");
+          let errText = "Backend error during synthesis.";
+          try {
+            const errJson = await response.json();
+            if (errJson && errJson.error) errText = errJson.error;
+          } catch(e) {}
+          updateConvergenceBadges('error', 0, 0, errText);
+          alert(errText);
         }
       } catch (err) {
         console.error("Fetch error:", err);
+        updateConvergenceBadges('error', 0, 0, err.message || 'Backend offline / unreachable (127.0.0.1:8085)');
       } finally {
         runBtnText.innerText = "Run 3-Layer Synthesis";
         runBtn.classList.remove('animate-pulse');
@@ -1189,7 +1383,12 @@
     });
 
     document.getElementById('runBtn').addEventListener('click', () => {
-      alert(`SpatialForge v2 Synthesis Ready:\n• Drag & drop a sketch or technical drawing to run live\n• Exact 3D profile extrusion and face raycasting active\n• Exports: STEP, STL, GLB, OpenSCAD ready`);
+      if (currentUploadedFile) {
+        uploadAndSynthesize(currentUploadedFile);
+      } else {
+        fileUpload.value = '';
+        fileUpload.click();
+      }
     });
 
     // Modal

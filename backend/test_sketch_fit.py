@@ -2,7 +2,7 @@ import cv2
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "files")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "spatialforge_v2", "spatialforge_v2")))
 
 import fit as F
 from examples import sewing_machine

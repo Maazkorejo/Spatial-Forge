@@ -5,6 +5,8 @@ Provides canonical relational Assemblies with bounded deformation ranges for
 common mechanical classes, preventing topological hallucinations by construction.
 """
 from typing import Dict, Any, Tuple, Optional
+import json
+import re
 import cv2
 import numpy as np
 
@@ -378,16 +380,29 @@ def classify_sketch(img_bgr: np.ndarray, mask: np.ndarray, vlm_client: Any = Non
     # 1. Check with VLM if client provided
     if vlm_client is not None:
         try:
-            prompt = (
-                "Identify the mechanical topology class of this engineering sketch.\n"
-                "Options:\n"
-                "- 'stacked_housing': compact cubic or stacked housing with dials, gears, or wheels clustered on one body\n"
-                "- 'sewing_machine': elongated base bed with a vertical tower and a long horizontal cantilevered arm\n"
-                "- 'bench_grinder': central motor cylinder with twin circular grinding wheels on left and right\n"
-                "- 'bracket_flange': right-angle L-bracket or flat mounting plate\n"
-                "Return ONLY a JSON: {\"class\": \"...\", \"confidence\": 0.0-1.0, \"reason\": \"...\"}"
-            )
-            # Call VLM if active...
+            ok, png_buf = cv2.imencode(".png", img_bgr)
+            if ok:
+                png_bytes = png_buf.tobytes()
+                system = "You are an expert mechanical CAD engineer classifying engineering sketches and blueprints."
+                prompt = (
+                    "Identify the mechanical topology class of this engineering sketch.\n"
+                    "Options:\n"
+                    "- 'stacked_housing': compact cubic or stacked housing with dials, gears, or wheels clustered on one body\n"
+                    "- 'sewing_machine': elongated base bed with a vertical tower and a long horizontal cantilevered arm\n"
+                    "- 'bench_grinder': central motor cylinder with twin circular grinding wheels on left and right\n"
+                    "- 'bracket_flange': right-angle L-bracket or flat mounting plate\n"
+                    "- 'centrifugal_pump': spiral or volute casing with inlet/outlet pipes\n"
+                    "Return ONLY a JSON: {\"class\": \"...\", \"confidence\": 0.0-1.0, \"reason\": \"...\"}"
+                )
+                resp = vlm_client.complete(system, prompt, images=[png_bytes])
+                m = re.search(r"\{.*\}", resp, re.DOTALL)
+                raw_json = m.group(0) if m else resp
+                data = json.loads(raw_json)
+                cand_cls = str(data.get("class", "")).strip().lower().replace(" ", "_")
+                confidence = float(data.get("confidence", 0.9))
+                reason = str(data.get("reason", f"VLM classified as {cand_cls}"))
+                if cand_cls in TEMPLATE_REGISTRY:
+                    return cand_cls, confidence, reason
         except Exception:
             pass
 

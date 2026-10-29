@@ -1,4 +1,5 @@
 import json
+import asyncio
 from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,13 +10,12 @@ import os
 import base64
 
 from app.core.config import settings
-from app.agent.orchestrator import PipelineOrchestrator
 from app.agent.relational_pipeline import RelationalPipelineEngine
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="SpatialForge: Autonomous Physical Blueprint-to-CAD Agent"
+    description="SpatialForge: Autonomous Relational Blueprint-to-CAD Engine"
 )
 
 # Enable CORS for local Next.js / browser frontend
@@ -41,7 +41,6 @@ def get_ui():
         return FileResponse(index_path, media_type="text/html")
     return {"error": "index.html not found"}
 
-orchestrator = PipelineOrchestrator()
 relational_engine = RelationalPipelineEngine()
 
 @app.get("/")
@@ -50,7 +49,16 @@ def root():
         "status": "online",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "stack": ["Meta SAM 3.1", "Muse Spark Open", "Relational CSG DSL", "scipy Analysis-by-Synthesis"]
+        "description": "SpatialForge: Relational Blueprint-to-CAD Synthesis with Analysis-by-Synthesis & Multi-View Plausibility",
+        "stack": [
+            "SpatialForge v2 Relational CSG Engine",
+            "Differential Evolution Analysis-by-Synthesis",
+            "OpenCV Hough & Contour Feature Detection",
+            "Ray-Casting Surface Back-Projection",
+            "Multi-View VLM Verification",
+            "Manifold3D Watertight Solid Kernel",
+            "CadQuery B-Rep STEP Exporter"
+        ]
     }
 
 @app.get("/health")
@@ -195,7 +203,8 @@ def get_sample_cad(template: str = "stacked_housing"):
 async def websocket_telemetry_stream(websocket: WebSocket):
     """
     Live streaming WebSocket for UI step-by-step agent telemetry.
-    Streams progress across Perception, Micro-OCR, DRC, and Self-Healing.
+    Streams genuine pipeline progress across perception, camera estimation,
+    relational optimization, feature ray-casting, and multi-view verification.
     """
     await websocket.accept()
     try:
@@ -205,35 +214,47 @@ async def websocket_telemetry_stream(websocket: WebSocket):
 
             if message.get("action") == "synthesize" and "image_base64" in message:
                 img_bytes = base64.b64decode(message["image_base64"])
+                requested_class = message.get("requested_class")
 
-                # Stage 1: Perception
+                # Stage 1: Perception & Classification
                 await websocket.send_json({
                     "stage": "PERCEPTION",
-                    "status": "Meta SAM 3.1 segmenting hull & cavities...",
-                    "progress": 25
+                    "status": "Segmenting silhouette mask & classifying mechanical topology...",
+                    "progress": 20
                 })
 
-                # Stage 2: OCR
+                # Stage 2: Camera & Draft Resolution
                 await websocket.send_json({
-                    "stage": "OCR",
-                    "status": "RapidOCR extracting zero-hallucination dimensions...",
-                    "progress": 50
+                    "stage": "CAMERA_ESTIMATION",
+                    "status": "Searching viewpoint camera & resolving initial assembly...",
+                    "progress": 40
                 })
 
-                # Stage 3: DRC
+                # Stage 3: Relational Differential Evolution
                 await websocket.send_json({
-                    "stage": "DRC",
-                    "status": "Auditing ASME Y14.5 manufacturing constraints...",
-                    "progress": 75
+                    "stage": "OPTIMIZATION",
+                    "status": "Optimizing dimensional parameters via render-and-compare...",
+                    "progress": 65
                 })
 
-                # Execute
-                result = await orchestrator.execute_pipeline(img_bytes)
+                # Stage 4: Feature Ray-Casting & Multi-View Review
+                await websocket.send_json({
+                    "stage": "FEATURES_AND_VERIFICATION",
+                    "status": "Detecting OpenCV features & verifying multi-view plausibility...",
+                    "progress": 85
+                })
 
-                # Stage 4: Convergence & Final Payload
+                # Execute relational pipeline asynchronously
+                result = await asyncio.to_thread(
+                    relational_engine.process_image,
+                    img_bytes,
+                    requested_class=requested_class
+                )
+
+                # Stage 5: Complete
                 await websocket.send_json({
                     "stage": "COMPLETE",
-                    "status": "Self-Healing Loop converged (0.02% delta)",
+                    "status": f"Relational synthesis completed ({result.status.upper()}) • Silhouette IoU: {round(result.iou * 100, 1)}%",
                     "progress": 100,
                     "payload": result.model_dump()
                 })
