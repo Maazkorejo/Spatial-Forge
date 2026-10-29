@@ -1061,7 +1061,7 @@
             currentFeatures = draftRes.features || [];
             populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
           }
-          pipelineStatus.innerText = [DRAFT LOADED in ms] — Optimizing Proportions & B-Rep in Background...;
+          pipelineStatus.innerText = "[DRAFT LOADED in " + draftRes.execution_time_ms + "ms] - Optimizing Proportions & B-Rep in Background...";
           document.getElementById('summaryLineText').innerText = draftRes.summary_line;
         }
 
