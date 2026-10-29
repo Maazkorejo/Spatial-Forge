@@ -37,13 +37,21 @@ K3 = np.ones((3, 3), np.uint8)
 class Camera:
     az: float   # degrees, 0 = looking at the front (+y direction)
     el: float   # degrees above the horizon
+    roll: float = 0.0  # degrees of in-plane camera roll
 
 
-def basis(az: float, el: float):
+def basis(az: float, el: float, roll: float = 0.0):
     a, e = np.radians(az), np.radians(el)
     d = np.array([np.sin(a) * np.cos(e), -np.cos(a) * np.cos(e), np.sin(e)])  # toward camera
-    right = np.array([np.cos(a), np.sin(a), 0.0])
-    up = np.cross(d, right)
+    r0 = np.array([np.cos(a), np.sin(a), 0.0])
+    u0 = np.cross(d, r0)
+    if roll != 0.0:
+        psi = np.radians(roll)
+        c, s = np.cos(psi), np.sin(psi)
+        right = c * r0 + s * u0
+        up = -s * r0 + c * u0
+    else:
+        right, up = r0, u0
     return right, up
 
 
@@ -91,7 +99,7 @@ class Target:
 # --------------------------------------------------------------------------- render
 def _project(solids, cam: Camera):
     """-> list of (uv (k,2), is_convex) for every union solid."""
-    right, up = basis(cam.az, cam.el)
+    right, up = basis(cam.az, cam.el, getattr(cam, "roll", 0.0))
     polys = []
     for s in solids.values():
         if s.op != "union":
@@ -191,24 +199,45 @@ def make_overlay(img: np.ndarray, target: Target, scale: int = 3) -> bytes:
 # --------------------------------------------------------------------------- camera search
 def search_camera(asm: Assembly, target: Target, hint: Optional[ViewHint] = None) -> Camera:
     hint = hint or asm.view_hint
-    fixed = {"orthographic_front": (0, 0), "orthographic_side": (90, 0), "orthographic_top": (0, 89)}
+    fixed = {"orthographic_front": (0, 0, 0), "orthographic_side": (90, 0, 0), "orthographic_top": (0, 89, 0)}
     if hint.projection in fixed:
         return Camera(*fixed[hint.projection])
+
+    # Check target mask orientation for diagonal or turned objects
+    rolls = [0.0]
+    cnts, _ = cv2.findContours(target.mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if cnts:
+        cnt = max(cnts, key=cv2.contourArea)
+        if len(cnt) >= 5:
+            rect = cv2.minAreaRect(cnt)
+            (cx, cy), (rw, rh), _ = rect
+            major, minor = max(rw, rh), min(rw, rh)
+            if major / max(minor, 1.0) >= 1.4:
+                pts = cnt.reshape(-1, 2).astype(np.float32)
+                mean, eigenvectors = cv2.PCACompute(pts, mean=np.empty((0)))
+                rad = np.arctan2(eigenvectors[0, 1], eigenvectors[0, 0])
+                deg = np.degrees(rad)
+                # Test in-plane rotation candidates
+                rolls = [deg - 90, deg + 90, deg, 0.0]
+
     if hint.azimuth_deg is not None and hint.elevation_deg is not None:
         azs = [hint.azimuth_deg + d for d in (-20, -10, 0, 10, 20)]
         els = [max(2, hint.elevation_deg + d) for d in (-15, 0, 15)]
     else:
-        azs = list(range(-165, 180, 15))
-        els = [10, 20, 30, 40, 50]
-    best, best_s = Camera(35, 25), -1.0
-    for az in azs:
-        for el in els:
-            img = render(asm, Camera(az, el), target)
-            if img is None:
-                continue
-            iou, ch = score(img, target)
-            if iou - ch > best_s:
-                best, best_s = Camera(az, el), iou - ch
+        azs = list(range(-165, 180, 20))
+        els = [15, 30, 45, 60]
+
+    best, best_s = Camera(35, 25, 0.0), -1.0
+    for roll in rolls:
+        for az in azs:
+            for el in els:
+                c = Camera(az, el, roll)
+                img = render(asm, c, target)
+                if img is None:
+                    continue
+                iou, ch = score(img, target)
+                if iou - ch > best_s:
+                    best, best_s = c, iou - ch
     return best
 
 
@@ -236,7 +265,7 @@ def per_part_iou(asm: Assembly, cam: Camera, target: Target, ov=None) -> dict:
     if fr is None:
         return {p.id: 0.0 for p in asm.parts}
 
-    right, up = basis(cam.az, cam.el)
+    right, up = basis(cam.az, cam.el, getattr(cam, "roll", 0.0))
     res = {}
     for pid, s in solids.items():
         if s.op != "union":
@@ -272,16 +301,26 @@ def fit(asm: Assembly, target: Target, cam: Optional[Camera] = None, fit_camera:
         bounds.append((a, b))
         x0.append(np.log(d.value))
     cam = cam or search_camera(asm, target)
+    has_roll = getattr(cam, "roll", 0.0) != 0.0
     if fit_camera:
         bounds += [(cam.az - 20, cam.az + 20), (max(2.0, cam.el - 15), min(85.0, cam.el + 15))]
         x0 += [cam.az, cam.el]
+        if has_roll:
+            bounds.append((cam.roll - 25, cam.roll + 25))
+            x0.append(cam.roll)
     x0 = np.array(x0)
     log0 = x0[:n].copy()
     counter = {"n": 0}
 
     def unpack(x):
         ov = {(pid, f): float(np.exp(x[i])) for i, (pid, f, _) in enumerate(slots)}
-        c = Camera(float(x[n]), float(x[n + 1])) if fit_camera else cam
+        if fit_camera:
+            if has_roll:
+                c = Camera(float(x[n]), float(x[n + 1]), float(x[n + 2]))
+            else:
+                c = Camera(float(x[n]), float(x[n + 1]), 0.0)
+        else:
+            c = cam
         return ov, c
 
     history = []

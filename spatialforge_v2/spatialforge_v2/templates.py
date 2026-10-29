@@ -356,13 +356,94 @@ def centrifugal_pump() -> Assembly:
     })
 
 
+# ---------------------------------------------------------------------------
+# 5. TEMPLATE: Screwdriver / Turned Hand Tool (Handle + Shank + Driver Bit)
+# ---------------------------------------------------------------------------
+def screwdriver() -> Assembly:
+    """
+    Screwdriver / Cylindrical Hand Tool:
+    - Handle (main gripping cylinder / contoured body along Z)
+    - Collar / Ferrule (transition ring)
+    - Shank (slender steel cylinder rod)
+    - Tip (keystone flat/cross driver bit)
+    """
+    return Assembly.model_validate({
+        "observations": [
+            "Hand tool / screwdriver with a contoured grip handle and cylindrical shank.",
+            "Slender steel rod shank extending along the main longitudinal axis.",
+            "Driver bit tip (flathead/keystone) at the distal end of the shank."
+        ],
+        "object_class": "screwdriver",
+        "view_hint": {"projection": "isometric", "azimuth_deg": 35, "elevation_deg": 25},
+        "parts": [
+            # 1. Main Grip Handle (Cylinder along Z)
+            {
+                "id": "handle",
+                "label": "driver handle",
+                "kind": "cylinder",
+                "axis": "z",
+                "diameter": _d(28.0, 0.35),
+                "length": _d(85.0, 0.35)
+            },
+            # 2. Collar / Ferrule Ring
+            {
+                "id": "collar",
+                "label": "ferrule collar",
+                "kind": "cylinder",
+                "axis": "z",
+                "placement": {
+                    "parent": "handle",
+                    "face": "top",
+                    "align_x": "center",
+                    "align_y": "center"
+                },
+                "diameter": _d(14.0, 0.35),
+                "length": _d(10.0, 0.4)
+            },
+            # 3. Steel Shank (Long thin cylinder)
+            {
+                "id": "shank",
+                "label": "steel shank",
+                "kind": "cylinder",
+                "axis": "z",
+                "placement": {
+                    "parent": "collar",
+                    "face": "top",
+                    "align_x": "center",
+                    "align_y": "center"
+                },
+                "diameter": _d(6.0, 0.4),
+                "length": _d(95.0, 0.45)
+            },
+            # 4. Driver Tip (Flat keystone bit)
+            {
+                "id": "tip",
+                "label": "driver bit tip",
+                "kind": "box",
+                "placement": {
+                    "parent": "shank",
+                    "face": "top",
+                    "align_x": "center",
+                    "align_y": "center"
+                },
+                "width_x": _d(6.5, 0.35),
+                "depth_y": _d(1.4, 0.4),
+                "height_z": _d(12.0, 0.35)
+            }
+        ],
+        "features": [],
+        "confidence": 0.90
+    })
+
+
 # Registry Mapping
 TEMPLATE_REGISTRY = {
     "stacked_housing": stacked_housing,
     "sewing_machine": sewing_machine,
     "bench_grinder": bench_grinder,
     "bracket_flange": bracket_flange,
-    "centrifugal_pump": centrifugal_pump
+    "centrifugal_pump": centrifugal_pump,
+    "screwdriver": screwdriver
 }
 
 
@@ -392,6 +473,7 @@ def classify_sketch(img_bgr: np.ndarray, mask: np.ndarray, vlm_client: Any = Non
                     "- 'bench_grinder': central motor cylinder with twin circular grinding wheels on left and right\n"
                     "- 'bracket_flange': right-angle L-bracket or flat mounting plate\n"
                     "- 'centrifugal_pump': spiral or volute casing with inlet/outlet pipes\n"
+                    "- 'screwdriver': elongated cylindrical hand tool with contoured grip handle, slender metal shank, and driver bit tip\n"
                     "Return ONLY a JSON: {\"class\": \"...\", \"confidence\": 0.0-1.0, \"reason\": \"...\"}"
                 )
                 resp = vlm_client.complete(system, prompt, images=[png_bytes])
@@ -415,9 +497,10 @@ def classify_sketch(img_bgr: np.ndarray, mask: np.ndarray, vlm_client: Any = Non
     h = float(ys.max() - ys.min())
     aspect = w / max(h, 1.0)  # width / height
 
-    # Contour convexity analysis
+    # Contour convexity and oriented bounding elongation analysis
     contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     solidity = 0.8
+    elongation = 1.0
     if contours:
         cnt = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(cnt)
@@ -425,6 +508,14 @@ def classify_sketch(img_bgr: np.ndarray, mask: np.ndarray, vlm_client: Any = Non
         hull_area = cv2.contourArea(hull)
         if hull_area > 0:
             solidity = area / hull_area
+        rect = cv2.minAreaRect(cnt)
+        rw, rh = rect[1]
+        major, minor = max(rw, rh), min(rw, rh)
+        elongation = major / max(minor, 1.0)
+
+    # Elongated hand tool / turned shaft (high oriented elongation, e.g. screwdriver at any diagonal angle)
+    if elongation >= 2.2:
+        return "screwdriver", 0.94, f"Elongated cylindrical hand tool (oriented elongation {elongation:.2f})"
 
     # Elongated with large open C-space (low solidity) -> Sewing Machine
     # e.g., Sewing machines have an aspect ratio > 1.4 and a large gap under the arm (solidity < 0.65)

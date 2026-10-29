@@ -90,7 +90,9 @@
       <div class="flex items-center gap-1.5 bg-[#1b1b1b] border border-[#333] px-2 py-0.5 rounded">
         <span class="text-[9px] text-[#777] font-mono">TOPOLOGY:</span>
         <select id="templateSelector" class="bg-transparent text-white font-mono text-[9.5px] outline-none cursor-pointer">
-          <option value="sewing_machine" selected class="bg-[#242424]">Sewing Machine (Cantilever Arm)</option>
+          <option value="auto" selected class="bg-[#242424]">Auto-Detect Topology (VLM / CV)</option>
+          <option value="screwdriver" class="bg-[#242424]">Screwdriver / Turned Tool (Shaft)</option>
+          <option value="sewing_machine" class="bg-[#242424]">Sewing Machine (Cantilever Arm)</option>
           <option value="stacked_housing" class="bg-[#242424]">Stacked Housing (Compact Cube)</option>
           <option value="bench_grinder" class="bg-[#242424]">Bench Grinder (Twin Wheels)</option>
           <option value="bracket_flange" class="bg-[#242424]">Bracket / Flange (L-Plate)</option>
@@ -1204,7 +1206,7 @@
       runBtn.classList.add('animate-pulse');
 
       const tSel = document.getElementById('templateSelector');
-      const reqClass = tSel && tSel.value ? tSel.value : '';
+      const reqClass = tSel && tSel.value && tSel.value !== 'auto' ? tSel.value : '';
 
       try {
         // --- PHASE 1: FAST DRAFT PASS (<500ms) ---
@@ -1275,6 +1277,10 @@
           }
           if (res.summary_line) {
             document.getElementById('summaryLineText').innerText = res.summary_line;
+            if (res.class_confidence) {
+              const confBadge = document.getElementById('classConfBadge');
+              if (confBadge) confBadge.innerText = `${Math.round(res.class_confidence * 100)}%`;
+            }
           }
 
           if (res.overlay_base64) {
