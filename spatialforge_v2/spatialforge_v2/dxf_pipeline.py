@@ -126,12 +126,62 @@ def process_dxf_bytes(
 
         # 2. View Clustering, Standard Identification, and Registration
         clusters = cluster_drawing_entities(all_geom)
-        if len(clusters) < 3:
-            raise ValueError(f"Insufficient view clusters detected: expected >= 3, found {len(clusters)}.")
+        if not clusters:
+            raise ValueError("No valid geometric entities found in DXF drawing.")
 
-        identified = identify_views(clusters, classified["texts"])
-        inferred_std = identified["standard"]
-        registered = register_views(identified, scale=scale)
+        if len(clusters) >= 3:
+            identified = identify_views(clusters, classified["texts"])
+            inferred_std = identified["standard"]
+            registered = register_views(identified, scale=scale)
+        else:
+            # Single-view sketch / 2D contour profile mode (1 or 2 clusters)
+            primary = clusters[0]
+            w = round(primary["width"] / scale, 3)
+            h = round(primary["height"] / scale, 3)
+            d = max(16.0, round(min(w, h) * 0.15, 1))
+            f_bx = primary["bbox"]
+            u0, v0 = f_bx[0], f_bx[1]
+            norm_ents = []
+            for e in primary["entities"]:
+                kind = e.get("kind", "")
+                g = e.get("g", e)
+                res_e = dict(e)
+                if kind == "line" or "p" in g:
+                    p_raw = g["p"] if "p" in g else e["p"]
+                    res_e["g"] = {
+                        "p": [
+                            round((p_raw[0] - u0) / scale, 4),
+                            round((p_raw[1] - v0) / scale, 4),
+                            round((p_raw[2] - u0) / scale, 4),
+                            round((p_raw[3] - v0) / scale, 4),
+                        ]
+                    }
+                    res_e["p"] = res_e["g"]["p"]
+                elif kind in ("circle", "arc") or "c" in g:
+                    c_raw = g["c"] if "c" in g else e["c"]
+                    res_e["g"] = {
+                        "c": [
+                            round((c_raw[0] - u0) / scale, 4),
+                            round((c_raw[1] - v0) / scale, 4),
+                        ],
+                        "r": round((g["r"] if "r" in g else e["r"]) / scale, 4),
+                    }
+                    res_e["c"] = res_e["g"]["c"]
+                    res_e["r"] = res_e["g"]["r"]
+                norm_ents.append(res_e)
+
+            registered = {
+                "standard": "third",
+                "scale": scale,
+                "dimensions": {"W": w, "D": d, "H": h},
+                "views": {
+                    "front": {"entities": norm_ents, "origin": (0.0, 0.0)},
+                    "top": {"entities": [], "origin": (0.0, 0.0)},
+                    "right": {"entities": [], "origin": (0.0, 0.0)},
+                },
+            }
+            inferred_std = "third"
+
         registered["texts"] = classified["texts"]
         registered["filename"] = filename
         dims = registered["dimensions"]

@@ -87,12 +87,15 @@ def verify_reconstruction(
         drawn_hid = [_reg_ent_to_eval(e) for e in drawn_all if e.get("role") == "hidden"]
 
         # 3. Compute Chamfer Edge PRF
-        vis_scores = edge_prf(proj_vis_ents, drawn_vis, roles=("visible",), tol=tol_vis)
-        hid_scores = edge_prf(proj_hid_ents, drawn_hid, roles=("hidden",), tol=tol_hid) if drawn_hid else {"precision": 1.0, "recall": 1.0, "f1": 1.0}
-
-        f1_vis_list.append(vis_scores["f1"])
-        rec_vis_list.append(vis_scores["recall"])
-        prec_vis_list.append(vis_scores["precision"])
+        if drawn_vis:
+            vis_scores = edge_prf(proj_vis_ents, drawn_vis, roles=("visible",), tol=tol_vis)
+            hid_scores = edge_prf(proj_hid_ents, drawn_hid, roles=("hidden",), tol=tol_hid) if drawn_hid else {"precision": 1.0, "recall": 1.0, "f1": 1.0}
+            f1_vis_list.append(vis_scores["f1"])
+            rec_vis_list.append(vis_scores["recall"])
+            prec_vis_list.append(vis_scores["precision"])
+        else:
+            vis_scores = {"precision": 1.0, "recall": 1.0, "f1": 1.0}
+            hid_scores = {"precision": 1.0, "recall": 1.0, "f1": 1.0}
 
         view_reports[v] = {
             "visible": vis_scores,
