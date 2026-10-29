@@ -507,6 +507,11 @@
       box.getCenter(center);
       controls.target.copy(center);
 
+      // Align ground grid immediately beneath the model's bottom base
+      gridHelper.position.y = box.min.y - 0.05;
+      gridHelper.position.x = center.x;
+      gridHelper.position.z = center.z;
+
       const size = new THREE.Vector3();
       box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);

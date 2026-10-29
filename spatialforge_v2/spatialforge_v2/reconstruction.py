@@ -247,7 +247,7 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
 # ---------------------------------------------------------------------------
 def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[str, Any]]:
     """
-    Reconstruct a turned cylindrical stepped shaft using CadQuery revolve.
+    Reconstruct a turned cylindrical stepped shaft or ergonomic contoured hand tool using CadQuery revolve.
     """
     views = registered["views"]
     dims = registered["dimensions"]
@@ -255,61 +255,119 @@ def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
 
     front_ents = views["front"]["entities"]
     front_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
-    
-    # 2.1 Revolve Profile Extraction from Front View (half-profile above centerline)
     axis_y = dims["H"] / 2.0  # nominal center axis in registered view coords
-    
-    # Collect steps: horizontal segments above centerline
-    candidates = []
-    for l in front_lines:
-        g = l.get("g", l)
+
+    # Check whether the part is contoured (e.g. screwdriver handle) or purely stepped
+    slanted_lines = []
+    for e in front_lines:
+        g = e.get("g", e)
         x0, y0, x1, y1 = g["p"]
-        mid_y = (y0 + y1) / 2.0
-        if mid_y >= axis_y - 0.5:
-            x_min, x_max = min(x0, x1), max(x0, x1)
-            dx = x_max - x_min
-            dy = abs(y0 - y1)
-            if dx > 3.0 and dy <= 1.5:
-                r = max(0.5, round(abs(mid_y - axis_y), 2))
-                candidates.append((x_min, x_max, r))
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        if dx > 1.2 and dy > 1.2:
+            slanted_lines.append(e)
 
-    # Sort steps along X
-    candidates.sort(key=lambda s: s[0])
-    
-    # Deduplicate overlapping segments and merge
-    merged_steps = []
-    for c in candidates:
-        if not merged_steps:
-            merged_steps.append(c)
-        else:
-            prev_min, prev_max, prev_r = merged_steps[-1]
-            if abs(c[0] - prev_min) < 2.0 or c[0] < prev_max - 2.0:
-                if abs(c[2] - prev_r) < 1.0:
-                    merged_steps[-1] = (min(prev_min, c[0]), max(prev_max, c[1]), max(prev_r, c[2]))
-            else:
-                merged_steps.append(c)
+    is_contoured = len(slanted_lines) >= 2
 
-    # Ensure contiguous coverage along X
-    pts = [(0.0, 0.0)]
-    ch = 1.5  # standard end chamfer
-    
-    if merged_steps:
-        r0 = merged_steps[0][2]
-        pts += [(0.0, max(0.0, r0 - ch)), (ch, r0)]
-        for i, (x_min, x_max, r) in enumerate(merged_steps):
-            if i > 0:
-                pts.append((x_min, r))
-            if i < len(merged_steps) - 1:
-                pts.append((x_max, r))
-            else:
-                pts += [(x_max - ch, r), (x_max, max(0.0, r - ch)), (x_max, 0.0)]
+    if is_contoured:
+        # Trace continuous upper contour boundary r(x) along X
+        x_set = set([0.0, L])
+        for l in front_lines:
+            g = l.get("g", l)
+            x0, y0, x1, y1 = g["p"]
+            if (y0 + y1) / 2.0 >= axis_y - 0.5:
+                x_set.add(round(min(x0, x1), 2))
+                x_set.add(round(max(x0, x1), 2))
+        for x in np.linspace(0, L, 50):
+            x_set.add(round(float(x), 2))
+
+        sorted_x = sorted([x for x in x_set if 0.0 <= x <= L])
+
+        def get_max_r_at_x(x):
+            max_r = 0.0
+            for l in front_lines:
+                g = l.get("g", l)
+                x0, y0, x1, y1 = g["p"]
+                xmin, xmax = min(x0, x1), max(x0, x1)
+                if xmin - 1e-3 <= x <= xmax + 1e-3:
+                    if abs(xmax - xmin) < 1e-4:
+                        y_val = max(y0, y1)
+                    else:
+                        t = (x - xmin) / (xmax - xmin)
+                        y_val = y0 + t * (y1 - y0) if x0 <= x1 else y1 + t * (y0 - y1)
+                    r = y_val - axis_y
+                    if r > max_r:
+                        max_r = r
+            return max_r
+
+        raw_pts = [(0.0, 0.0)]
+        for x in sorted_x:
+            r = get_max_r_at_x(x)
+            if r > 0.4:
+                raw_pts.append((x, round(r, 2)))
+        raw_pts.append((L, 0.0))
+
+        # Filter duplicate consecutive points
+        pts = [raw_pts[0]]
+        for p in raw_pts[1:]:
+            if abs(p[0] - pts[-1][0]) > 0.05 or abs(p[1] - pts[-1][1]) > 0.05:
+                pts.append(p)
+        if pts[-1] != (L, 0.0):
+            pts.append((L, 0.0))
+
+        prof = cq.Workplane("XY").polyline(pts).close()
+        body = prof.revolve(360, (0, 0, 0), (1, 0, 0))
+
+        # Slotted flathead screwdriver blade wedge cut at distal tip (last 15mm)
+        tip_r_end = 0.6  # nominal half-thickness of tip (1.2mm blade)
+        c_top = cq.Workplane("XY").polyline([(L - 15.0, 3.0), (L, tip_r_end), (L, 10.0), (L - 15.0, 10.0)]).close().extrude(20.0).translate((0, -10.0, 0))
+        c_bot = cq.Workplane("XY").polyline([(L - 15.0, -3.0), (L, -tip_r_end), (L, -10.0), (L - 15.0, -10.0)]).close().extrude(20.0).translate((0, -10.0, 0))
+        body = body.cut(c_top).cut(c_bot)
+
     else:
-        # Fallback to simple cylinder
-        pts = [(0.0, 0.0), (0.0, dims["H"] / 2.0), (L, dims["H"] / 2.0), (L, 0.0)]
+        # Collect steps: horizontal segments above centerline
+        candidates = []
+        for l in front_lines:
+            g = l.get("g", l)
+            x0, y0, x1, y1 = g["p"]
+            mid_y = (y0 + y1) / 2.0
+            if mid_y >= axis_y - 0.5:
+                x_min, x_max = min(x0, x1), max(x0, x1)
+                dx = x_max - x_min
+                dy = abs(y0 - y1)
+                if dx > 3.0 and dy <= 1.5:
+                    r = max(0.5, round(abs(mid_y - axis_y), 2))
+                    candidates.append((x_min, x_max, r))
 
-    # Revolve 360 degrees around X axis
-    prof = cq.Workplane("XY").polyline(pts).close()
-    body = prof.revolve(360, (0, 0, 0), (1, 0, 0))
+        candidates.sort(key=lambda s: s[0])
+        merged_steps = []
+        for c in candidates:
+            if not merged_steps:
+                merged_steps.append(c)
+            else:
+                prev_min, prev_max, prev_r = merged_steps[-1]
+                if abs(c[0] - prev_min) < 2.0 or c[0] < prev_max - 2.0:
+                    if abs(c[2] - prev_r) < 1.0:
+                        merged_steps[-1] = (min(prev_min, c[0]), max(prev_max, c[1]), max(prev_r, c[2]))
+                else:
+                    merged_steps.append(c)
+
+        pts = [(0.0, 0.0)]
+        ch = 1.5
+        if merged_steps:
+            r0 = merged_steps[0][2]
+            pts += [(0.0, max(0.0, r0 - ch)), (ch, r0)]
+            for i, (x_min, x_max, r) in enumerate(merged_steps):
+                if i > 0:
+                    pts.append((x_min, r))
+                if i < len(merged_steps) - 1:
+                    pts.append((x_max, r))
+                else:
+                    pts += [(x_max - ch, r), (x_max, max(0.0, r - ch)), (x_max, 0.0)]
+        else:
+            pts = [(0.0, 0.0), (0.0, dims["H"] / 2.0), (L, dims["H"] / 2.0), (L, 0.0)]
+
+        prof = cq.Workplane("XY").polyline(pts).close()
+        body = prof.revolve(360, (0, 0, 0), (1, 0, 0))
 
     features_detected = []
 
@@ -323,7 +381,7 @@ def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
         body = body.cut(_cyl_z(d, dims["H"] + 10.0, cx, 0.0, -dims["H"] / 2.0 - 5.0))
         features_detected.append({"type": "cross_hole", "x": round(cx, 2), "d": d})
 
-    # Translate solid to registered orthographic view space (centered in Y and Z)
+    # Translate solid to registered model space (centered along Y and Z)
     body = body.translate((0.0, dims["D"] / 2.0, dims["H"] / 2.0))
 
     return body, {
@@ -333,8 +391,6 @@ def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
         "volume": float(body.val().Volume()),
         "valid": bool(body.val().isValid())
     }
-
-
 # ---------------------------------------------------------------------------
 # 3. Main Reconstruction Dispatcher
 # ---------------------------------------------------------------------------
