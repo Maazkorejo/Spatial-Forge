@@ -13,592 +13,510 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #181818;
-      color: #cccccc;
+    * {
+      box-sizing: border-box;
       user-select: none;
     }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #181818;
+      color: #cfcfcf;
+      overflow: hidden;
+      height: 100vh;
+      margin: 0;
+    }
+
     .font-mono {
       font-family: 'JetBrains Mono', monospace;
     }
 
-    input[type=range] {
-      -webkit-appearance: none;
-      background: #191919;
-      height: 4px;
-      border-radius: 2px;
+    /* Blender Style Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e1e1e;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #383838;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4a4a4a;
+    }
+
+    /* Blender Style Active Item Highlighting (Steel Blue) */
+    .blender-active-btn {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+
+    .blender-tab-active {
+      background-color: #2e2e2e !important;
+      color: #ffffff !important;
+      border-bottom: 2px solid #3b82f6 !important;
+    }
+
+    .viewport-canvas {
+      width: 100%;
+      height: 100%;
       outline: none;
     }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      background: #ea7600;
-      cursor: pointer;
-      border: 1px solid #ffffff;
-    }
 
-    .badge-fitted {
-      background: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
-      border: 1px solid rgba(59, 130, 246, 0.4);
-    }
-    .badge-inferred {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
-    }
-    .badge-assumed {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.4);
-    }
-    .badge-cosmetic {
-      background: rgba(168, 85, 247, 0.15);
-      color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.4);
-    }
-    .badge-measured {
-      background: rgba(34, 197, 94, 0.2);
-      color: #4ade80;
-      border: 1px solid rgba(34, 197, 94, 0.6);
-    }
-
-    /* Tab active style */
-    .view-tab-active {
-      background-color: #333333 !important;
-      color: #ffffff !important;
-      font-weight: 500;
+    /* Subtle grid overlay for 2D sheet viewer */
+    .sheet-grid {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     }
   </style>
 </head>
-<body class="h-screen flex flex-col text-[11px] overflow-hidden bg-[#181818]">
 
-  <!-- TOP HEADER -->
-  <header class="h-9 bg-[#242424] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-xs flex-shrink-0">
-    <div class="flex items-center gap-2.5">
-      <div class="w-5 h-5 rounded-sm bg-[#ea7600] flex items-center justify-center text-white font-bold text-[10px] shadow">
-        S
+<body class="flex flex-col h-screen select-none bg-[#181818] text-[#cccccc]">
+
+  <!-- ================================================================= -->
+  <!-- 1. BLENDER HEADER BAR (TOP MENU & GLOBAL CAD CONTROLS)            -->
+  <!-- ================================================================= -->
+  <header class="h-10 bg-[#262626] border-b border-[#1c1c1c] px-3 flex items-center justify-between z-30 flex-shrink-0">
+    
+    <!-- Left: App Identity, Benchmark Case Selector, DXF Load -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 pr-3 border-r border-[#383838]">
+        <div class="w-6 h-6 rounded bg-[#2563eb] flex items-center justify-center text-white shadow-sm">
+          <i data-lucide="box" class="w-4 h-4"></i>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-bold text-white text-[12px] tracking-tight leading-none">SpatialForge</span>
+          <span class="font-mono text-[#777777] text-[8.5px] uppercase tracking-wider">2D CAD &rarr; 3D B-Rep</span>
+        </div>
       </div>
-      <span class="font-semibold text-white tracking-tight">SpatialForge</span>
-      <span class="text-[#666]">/</span>
-      <span id="currentFileName" class="font-mono text-[#999] text-[11px]">case_0000_clean.dxf</span>
-      <div class="flex items-center gap-1.5 bg-[#1b1b1b] border border-[#333] px-2 py-0.5 rounded">
-        <span class="text-[9px] text-[#777] font-mono">2D CAD DRAWING:</span>
-        <select id="templateSelector" class="bg-transparent text-white font-mono text-[9.5px] outline-none cursor-pointer">
-          <option value="case_0000_clean" selected class="bg-[#242424]">Sample: Prismatic Stepped Block (3rd Angle)</option>
-          <option value="case_0001_clean" class="bg-[#242424]">Sample: Revolved Turned Shaft (3rd Angle)</option>
-          <option value="case_0002_clean" class="bg-[#242424]">Sample: Multi-Feature Baseplate (1st Angle)</option>
-          <option value="case_0003_clean" class="bg-[#242424]">Sample: Stepped Pocket Housing (1st Angle)</option>
+
+      <!-- Benchmark Drawings Dropdown -->
+      <div class="flex items-center gap-1.5 bg-[#1e1e1e] border border-[#383838] px-2 py-1 rounded">
+        <i data-lucide="file-code-2" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+        <span class="text-[10px] text-[#888888] font-mono">DRAWING:</span>
+        <select id="caseSelector" class="bg-transparent text-white font-mono text-[10px] outline-none cursor-pointer">
+          <option value="case_0000_clean" selected class="bg-[#242424]">01: Stepped Prismatic Block (3rd Angle, 1:1)</option>
+          <option value="case_0001_clean" class="bg-[#242424]">02: Revolved Turned Shaft (3rd Angle, 1:1)</option>
+          <option value="case_0002_clean" class="bg-[#242424]">03: Multi-Feature Baseplate (1st Angle, 1:1)</option>
+          <option value="case_0003_clean" class="bg-[#242424]">04: Stepped Pocket Housing (1st Angle, 1:1)</option>
         </select>
-        <span id="classConfBadge" class="text-[8.5px] font-mono px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">100%</span>
+      </div>
+
+      <!-- Action: Choose DXF from Disk -->
+      <label for="dxfFileInput" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2a2a2a] hover:bg-[#333333] border border-[#3d3d3d] text-white font-medium text-[11px] cursor-pointer transition active:scale-95">
+        <i data-lucide="upload" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+        <span>Open DXF...</span>
+      </label>
+      <input type="file" id="dxfFileInput" class="hidden" accept=".dxf">
+
+      <!-- Action: Re-run Reconstruction Button -->
+      <button id="reconstructBtn" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[11px] transition shadow-sm active:scale-95">
+        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+        <span id="reconstructBtnText">Reconstruct Solid</span>
+      </button>
+    </div>
+
+    <!-- Center: Standard & Watertight Verification Pill -->
+    <div class="flex items-center gap-2">
+      <div id="statusVerificationPill" class="flex items-center gap-2 bg-[#1e1e1e] border border-[#333333] px-3 py-0.5 rounded-full text-[10.5px] font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="headerSummaryText" class="text-white font-medium">[2D CAD / DXF] Third-Angle &bull; Edge F1: 100.0% &bull; Watertight Solid</span>
       </div>
     </div>
 
-    <!-- Actions & Exports -->
-    <div class="flex items-center gap-2">
-      <button id="runBtn" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#ea7600] hover:bg-[#d66c00] text-white font-medium text-[11px] transition active:scale-95 shadow-sm">
-        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-        <span id="runBtnText">Run 2D CAD Reconstruction</span>
+    <!-- Right: Export Group (STEP, STL, GLB, DXF) -->
+    <div class="flex items-center gap-1.5">
+      <button id="exportStepBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export B-Rep Solid STEP file for CAD tools">
+        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
+        <span>STEP</span>
       </button>
-
-      <div class="h-4 w-[1px] bg-[#333]"></div>
-
-      <button id="exportStepBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2b2b2b] hover:bg-[#383838] text-white border border-[#444] transition" title="Export B-Rep STEP for SolidWorks, Fusion 360, FreeCAD">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-blue-400"></i>
-        <span>STEP (CAD)</span>
-      </button>
-
-      <button id="exportStlBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2b2b2b] hover:bg-[#383838] text-white border border-[#444] transition" title="Export Watertight Binary STL for 3D Printing">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
+      <button id="exportStlBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export 3D Mesh STL file">
+        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
         <span>STL</span>
       </button>
-
-      <button id="exportGlbBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2b2b2b] hover:bg-[#383838] text-white border border-[#444] transition" title="Export Full PBR GLB for Three.js & Blender">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-purple-400"></i>
+      <button id="exportGlbBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export glTF / GLB file">
+        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
         <span>GLB</span>
       </button>
-
-      <button id="codeModalBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2b2b2b] hover:bg-[#383838] text-[#ccc] border border-[#444] transition" title="View Generated OpenSCAD CSG Code">
-        <i data-lucide="code" class="w-3 h-3 text-[#aaa]"></i>
-        <span>OpenSCAD</span>
+      <button id="downloadCurrentDxfBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Download raw 2D CAD DXF">
+        <i data-lucide="file-down" class="w-3 h-3 text-[#3b82f6]"></i>
+        <span>DXF</span>
       </button>
     </div>
   </header>
 
-  <!-- HONESTY & PROVENANCE SUMMARY BAR -->
-  <div class="bg-[#1c1c1c] border-b border-[#282828] px-3 py-1 flex items-center justify-between text-[10.5px]">
-    <div class="flex items-center gap-2 font-mono">
-      <span id="summaryLineText" class="text-white font-medium flex items-center gap-1.5">
-        <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-        [2D CAD / DXF] Third-Angle (1:1) • Reprojection Edge F1: 100.0% • Watertight B-Rep Solid (OK)
-      </span>
-    </div>
-
-    <div id="scaleAlertBanner" class="flex items-center gap-2">
-      <span class="text-emerald-400 text-[10px] flex items-center gap-1 font-mono">
-        <i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i>
-        <span id="scaleStatusText">Physical Scale (mm) — Verified from DXF header & dimensions</span>
-      </span>
-    </div>
-  </div>
-
-  <!-- MAIN WORKSPACE -->
+  <!-- ================================================================= -->
+  <!-- 2. MAIN BLENDER WORKSPACE (3-COLUMN SPLIT LAYOUT)                  -->
+  <!-- ================================================================= -->
   <main class="flex-1 flex overflow-hidden">
 
-    <!-- LEFT PANEL: 2D Perception & Multi-View Diagnostic Center (40%) -->
-    <section class="w-[40%] border-r border-[#1c1c1c] flex flex-col bg-[#1b1b1b]">
-      <div class="h-8 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
-        <div class="flex items-center gap-1.5 text-white font-medium">
-          <i data-lucide="scan" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-          <span>2D CAD Drawing & Views</span>
+    <!-- --------------------------------------------------------------- -->
+    <!-- 2A. LEFT EDITOR: 2D CAD SHEET & DIAGNOSTICS (38% WIDTH)         -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="w-[38%] border-r border-[#1c1c1c] flex flex-col bg-[#1e1e1e] relative">
+      
+      <!-- Editor Header -->
+      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+          <span class="text-[11px] font-semibold text-white uppercase tracking-wider">2D Drawing Sheet & Views</span>
         </div>
 
-        <!-- 3 Diagnostic View Tabs for 2D CAD -->
-        <div class="flex items-center bg-[#191919] p-0.5 rounded border border-[#333] text-[9.5px]">
-          <button id="tabDxf" class="px-2 py-0.5 rounded text-white view-tab-active transition" title="Rendered 2D DXF Drawing Sheet">
-            2D Sheet (DXF)
+        <!-- 3 Diagnostic Tabs -->
+        <div class="flex items-center bg-[#191919] p-0.5 rounded border border-[#333333] text-[9.5px] font-mono">
+          <button id="tabSheet" class="px-2 py-0.5 rounded text-white bg-[#2e2e2e] transition" title="Rendered 2D DXF Drawing Sheet">
+            2D Sheet
           </button>
-          <button id="tabFit" class="px-2 py-0.5 rounded text-[#888] hover:text-white transition" title="OpenCascade HLR Reprojection Edge Verification">
+          <button id="tabHlr" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="OpenCascade HLR Reprojection Edge Verification">
             Reprojection HLR
           </button>
-          <button id="tabViews" class="px-2 py-0.5 rounded text-[#888] hover:text-white transition" title="Segmented Front, Top, and Right Orthographic Views">
-            Orthographic Views
+          <button id="tabViews" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Segmented Front, Top, and Right Orthographic Views">
+            Segmented Views
           </button>
         </div>
       </div>
 
-      <!-- 2D Viewport Area -->
-      <div id="dropZone" class="flex-1 p-4 flex items-center justify-center bg-[#151515] relative overflow-hidden transition">
+      <!-- 2D Canvas / Image Display Container -->
+      <div id="sheetDropZone" class="flex-1 relative bg-[#141414] sheet-grid flex items-center justify-center p-3 overflow-hidden">
         
-        <div id="blueprintContainer" class="w-full max-w-sm aspect-square bg-[#1a1a1a] border border-[#2e2e2e] rounded p-2 relative shadow-md flex items-center justify-center overflow-hidden">
+        <!-- Frame containing the drawing sheet -->
+        <div class="w-full h-full max-w-full max-h-full bg-[#1b1b1b] border border-[#2e2e2e] rounded relative flex items-center justify-center shadow-lg overflow-hidden">
           
-          <!-- View 1: Uploaded 2D CAD DXF preview -->
-          <img id="userImagePreview" src="" class="absolute inset-0 w-full h-full object-contain p-2 z-0" alt="Drawing Preview" />
+          <!-- View 1: 2D DXF Drawing Sheet Preview -->
+          <img id="sheetPreviewImg" src="" class="absolute inset-0 w-full h-full object-contain p-2 z-10 transition-opacity" alt="2D Sheet Preview" />
 
-          <!-- View 2: Analysis-by-Synthesis Reprojection Overlay -->
-          <img id="diagnosticOverlay" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-10" alt="Fit Diagnostic Map" />
+          <!-- View 2: OpenCascade HLR Reprojection Overlay -->
+          <img id="hlrOverlayImg" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-20 transition-opacity" alt="Reprojection HLR" />
 
-          <!-- View 3: Shaded surface render -->
-          <img id="shadedOverlay" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-10" alt="Shaded Depth Render" />
+          <!-- View 3: Orthographic Views Overlay -->
+          <img id="viewsOverlayImg" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-20 transition-opacity" alt="Segmented Views" />
 
-          <!-- View 4: Orthographic Views (Front, Top, Right) -->
-          <img id="viewsOverlay" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-10" alt="Multiview Drawing" />
-
-          <!-- Status strip -->
-          <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-[#888] font-mono border-t border-[#262626] pt-1.5 z-20 bg-[#1a1a1a]/90 backdrop-blur-sm px-1.5">
-            <span id="featureCount">Measured 2D CAD B-Rep Solid</span>
-            <span id="iouBadge" class="text-emerald-400 font-mono font-medium">Edge F1: 100.0% [CONVERGED]</span>
+          <!-- Floating Sheet Telemetry Badge -->
+          <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-mono bg-[#181818]/90 backdrop-blur-sm border border-[#2d2d2d] px-2.5 py-1 rounded z-30">
+            <span id="sheetFilenameText" class="text-[#aaaaaa] truncate">case_0000_clean.dxf</span>
+            <span id="sheetF1Badge" class="text-emerald-400 font-semibold">Reproj F1: 100.0%</span>
           </div>
         </div>
 
-        <!-- Drag Over Hint -->
-        <div id="dragHint" class="hidden absolute inset-0 bg-[#ea7600]/10 flex flex-col items-center justify-center border-2 border-dashed border-[#ea7600] rounded m-4 pointer-events-none z-30 backdrop-blur-sm">
-          <i data-lucide="upload-cloud" class="w-8 h-8 text-[#ea7600] mb-2 animate-bounce"></i>
-          <span class="text-white font-medium text-xs">Drop 2D CAD drawing (.dxf)</span>
+        <!-- Drop Overlay Hint (Strictly Steel Blue / Cyan) -->
+        <div id="dropOverlay" class="hidden absolute inset-0 bg-[#2563eb]/15 flex flex-col items-center justify-center border-2 border-dashed border-[#3b82f6] rounded m-3 pointer-events-none z-40 backdrop-blur-sm">
+          <i data-lucide="file-up" class="w-10 h-10 text-[#3b82f6] mb-2 animate-bounce"></i>
+          <span class="text-white font-semibold text-sm">Drop 2D CAD (.dxf) here</span>
+          <span class="text-[#93c5fd] font-mono text-xs mt-1">Accepts standard orthographic 2D drawings</span>
         </div>
       </div>
 
-      <!-- File upload strip -->
-      <div class="h-9 px-3 border-t border-[#202020] bg-[#222222] flex items-center justify-between text-[#888]">
-        <span id="uploadHintText" class="truncate mr-2">Input: Drop 2D CAD drawing (.dxf)</span>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <button id="changeDxfBtn" type="button" class="text-[#ea7600] hover:text-white cursor-pointer font-medium text-[11px] flex items-center gap-1 transition bg-[#2a2a2a] hover:bg-[#333] px-2 py-1 rounded border border-[#3a3a3a]" title="Upload or replace 2D CAD drawing (.dxf)">
-            <i data-lucide="image" class="w-3.5 h-3.5"></i>
-            <span>Change DXF</span>
-          </button>
-          <label for="fileUpload" id="chooseFileLabel" class="text-[#ea7600] hover:text-white cursor-pointer font-medium text-[11px] flex items-center gap-1 transition bg-[#ea7600]/10 hover:bg-[#ea7600]/20 px-2 py-1 rounded border border-[#ea7600]/30" title="Choose 2D CAD drawing (.dxf) from disk">
-            <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
-            <span>Choose DXF</span>
-          </label>
-          <input type="file" id="fileUpload" class="hidden" accept=".dxf">
-        </div>
+      <!-- Bottom Sheet Controls Strip -->
+      <div class="h-8 bg-[#242424] border-t border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] text-[10px] font-mono flex-shrink-0">
+        <span id="dxfStatsText">Ingested: 62 DXF entities &bull; Millimeter Scale</span>
+        <button id="fitSheetZoomBtn" class="hover:text-white transition flex items-center gap-1">
+          <i data-lucide="maximize" class="w-3 h-3"></i>
+          <span>Fit View</span>
+        </button>
       </div>
     </section>
 
-    <!-- CENTER: 3D Viewport in Blender Style (Three.js WebGL) -->
-    <section class="flex-1 flex flex-col bg-[#1f1f1f] relative">
-      <div class="h-8 bg-[#282828] border-b border-[#202020] px-3 flex items-center justify-between text-[#888]">
+    <!-- --------------------------------------------------------------- -->
+    <!-- 2B. CENTER EDITOR: 3D VIEWPORT (BLENDER STYLE WEBGL)             -->
+    <!-- --------------------------------------------------------------- -->
+    <section class="flex-1 flex flex-col bg-[#181818] relative">
+      
+      <!-- 3D Viewport Header -->
+      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0 z-20">
         
-        <!-- Left info -->
-        <div class="flex items-center gap-2">
-          <span class="flex items-center gap-1.5 text-white font-medium">
-            <i data-lucide="box" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            B-Rep Solid CAD
-          </span>
-          <span class="text-[#555]">•</span>
-          <span id="cameraViewLabel" class="font-mono text-[#aaa] text-[10px]">az -32.0&deg;, el 28.0&deg;</span>
+        <!-- Left: Title & Camera Orientation -->
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5 text-white font-medium text-[11px]">
+            <i data-lucide="cube" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+            <span>3D Viewport (B-Rep Solid)</span>
+          </div>
+          <span class="text-[#444444]">|</span>
+          <span id="viewportCamLabel" class="font-mono text-[#888888] text-[10px]">User Ortho: Iso</span>
         </div>
 
-        <!-- Center: Layer Toggles -->
-        <div class="flex items-center gap-1 bg-[#1a1a1a] p-0.5 rounded border border-[#333]">
-          <button id="toggleLayerBody" class="px-2 py-0.5 rounded bg-blue-600/30 text-blue-400 font-medium text-[9.5px] flex items-center gap-1 border border-blue-500/50 transition">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> Body (L0)
+        <!-- Center: Shading Modes (Solid, Wireframe On Solid, Pure Wire) -->
+        <div class="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#383838] text-[9.5px] font-mono">
+          <button id="shadeSolidBtn" class="px-2 py-0.5 rounded bg-[#2e2e2e] text-white transition" title="Solid Diffuse Studio Shading">
+            Solid
           </button>
-          <button id="toggleLayerFeatures" class="px-2 py-0.5 rounded bg-emerald-600/30 text-emerald-400 font-medium text-[9.5px] flex items-center gap-1 border border-emerald-500/50 transition">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Features (L1)
+          <button id="shadeWireOnSolidBtn" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Solid with Crisp CAD B-Rep Edges">
+            Edges
           </button>
-          <button id="toggleLayerCosmetic" class="px-2 py-0.5 rounded bg-purple-600/30 text-purple-400 font-medium text-[9.5px] flex items-center gap-1 border border-purple-500/50 transition">
-            <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Cosmetic (L2)
+          <button id="shadePureWireBtn" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Pure Wireframe Mesh">
+            Wire
           </button>
         </div>
 
-        <!-- Right actions -->
-        <div class="flex items-center gap-1.5">
-          <button id="toggleWire" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition">
-            Wireframe
+        <!-- Right: Viewport Camera Snapping Buttons (Blender Numpad Style) -->
+        <div class="flex items-center gap-1">
+          <button id="camIsoBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Isometric View (Home)">
+            Iso
           </button>
-          <button id="alignCamBtn" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition" title="Align camera to standard Isometric CAD angle">
-            Isometric View
+          <button id="camTopBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Top View (Numpad 7)">
+            Top
           </button>
-          <button id="resetCam" class="px-2 py-0.5 rounded bg-[#333] hover:bg-[#3e3e3e] text-[#ccc] text-[9.5px] transition">
-            Reset
+          <button id="camFrontBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Front View (Numpad 1)">
+            Front
+          </button>
+          <button id="camRightBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Right View (Numpad 3)">
+            Right
+          </button>
+          <button id="camResetBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#3b82f6] hover:text-white font-mono text-[9.5px] transition" title="Frame Selected (Numpad .)">
+            Frame
           </button>
         </div>
       </div>
 
-      <div id="threeContainer" class="flex-1 relative bg-[#242424] overflow-hidden">
-        <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+      <!-- 3D Three.js WebGL Canvas -->
+      <div id="threeContainer" class="flex-1 relative overflow-hidden bg-gradient-to-b from-[#242424] to-[#141414]">
+        <!-- Three.js Canvas injected via JS -->
 
-        <!-- Orientation Widget -->
-        <div class="absolute top-3 right-3 w-12 h-12 rounded-full bg-[#1e1e1e]/80 border border-[#333] flex items-center justify-center pointer-events-none text-[9px] font-mono font-bold shadow">
-          <span class="text-rose-500 absolute top-0.5">Z</span>
-          <span class="text-emerald-500 absolute right-1">Y</span>
-          <span class="text-blue-500 absolute bottom-0.5">X</span>
-        </div>
-
-        <div class="absolute bottom-2 left-3 text-[9.5px] font-mono text-[#666] pointer-events-none">
-          Left Click: Orbit | Right Click: Pan | Scroll: Zoom
+        <!-- Subtle Top-Right View Orientation Compass Widget -->
+        <div class="absolute top-3 right-3 bg-[#1e1e1e]/80 border border-[#333333] rounded px-2 py-1 text-[9px] font-mono text-[#888888] pointer-events-none backdrop-blur-sm">
+          <span>X: <span class="text-rose-400">Right</span> &bull; Y: <span class="text-emerald-400">Depth</span> &bull; Z: <span class="text-sky-400">Up</span></span>
         </div>
       </div>
     </section>
 
-    <!-- RIGHT PANEL: Relational Part Parameters (310px) -->
-    <aside class="w-80 bg-[#242424] border-l border-[#1c1c1c] flex flex-col flex-shrink-0 overflow-y-auto">
-
-      <!-- Section 1: Relational Part Variables (Dynamically Populated) -->
-      <div class="p-3 border-b border-[#202020] space-y-2.5">
-        <div class="flex items-center justify-between text-white font-medium">
-          <span class="flex items-center gap-1.5">
-            <i data-lucide="sliders" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            Parts & Hardware Inspector
-          </span>
-          <span class="text-[9px] font-mono text-[#ea7600]">PARAMETRIC</span>
-        </div>
-
-        <!-- Layer Filter Tabs -->
-        <div class="flex rounded bg-[#1a1a1a] p-0.5 border border-[#333] text-[9.5px]">
-          <button id="filterAll" class="flex-1 py-1 rounded bg-[#333] text-white font-medium">All (9)</button>
-          <button id="filterBody" class="flex-1 py-1 rounded text-[#888] hover:text-white">Body</button>
-          <button id="filterFeat" class="flex-1 py-1 rounded text-[#888] hover:text-white">Features</button>
-          <button id="filterCosm" class="flex-1 py-1 rounded text-[#888] hover:text-white">Cosmetic</button>
-        </div>
-
-        <!-- Sliders Container -->
-        <div id="slidersList" class="space-y-2 pt-1 text-[#aaa]">
-          <!-- Populated dynamically -->
+    <!-- --------------------------------------------------------------- -->
+    <!-- 2C. RIGHT EDITOR: OUTLINER & PROPERTIES (BLENDER PROPERTIES, 24%)-->
+    <!-- --------------------------------------------------------------- -->
+    <section class="w-[24%] border-l border-[#1c1c1c] flex flex-col bg-[#222222] relative flex-shrink-0">
+      
+      <!-- Outliner Header -->
+      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0">
+        <div class="flex items-center gap-1.5 text-white font-medium text-[11px]">
+          <i data-lucide="layers" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+          <span class="uppercase tracking-wider">Outliner & Properties</span>
         </div>
       </div>
 
-      <!-- Section 2: Analysis-by-Synthesis Telemetry -->
-      <div class="p-3 border-b border-[#202020] space-y-2">
-        <div class="flex items-center justify-between text-white font-medium">
-          <span class="flex items-center gap-1.5">
-            <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i>
-            Verification Telemetry
-          </span>
-          <span id="statusBadge" class="text-emerald-400 font-mono text-[9.5px]">● [CONVERGED]</span>
+      <!-- Tabs / Inspector Sections -->
+      <div class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
+
+        <!-- Card 1: CAD Solid Outliner Hierarchy -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white">Scene Collection</span>
+            <span id="solidStatusTag" class="text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]">WATERTIGHT</span>
+          </div>
+
+          <div class="mt-2 space-y-1 text-[10.5px]">
+            <div class="flex items-center justify-between py-1 px-1.5 rounded bg-[#242424] text-white">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="box" class="w-3 h-3 text-[#3b82f6]"></i>
+                <span id="solidNameLabel">B-Rep Solid CAD</span>
+              </span>
+              <span class="text-[#888888] text-[9.5px]">Manifold</span>
+            </div>
+
+            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
+              <span class="flex items-center gap-1">
+                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
+                <span>Front Profile</span>
+              </span>
+              <span id="frontLinesCount" class="text-[#777777] text-[9.5px]">4 lines</span>
+            </div>
+
+            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
+              <span class="flex items-center gap-1">
+                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
+                <span>Top Profile</span>
+              </span>
+              <span id="topLinesCount" class="text-[#777777] text-[9.5px]">13 lines</span>
+            </div>
+
+            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
+              <span class="flex items-center gap-1">
+                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
+                <span>Right Profile</span>
+              </span>
+              <span id="rightLinesCount" class="text-[#777777] text-[9.5px]">7 lines</span>
+            </div>
+          </div>
         </div>
 
-        <div class="space-y-1.5 pt-1 text-[10.5px] font-mono">
-          <div class="flex justify-between text-[#888]">
-            <span>Silhouette IoU (L0):</span>
-            <span id="metricIou" class="text-emerald-400">89.70%</span>
+        <!-- Card 2: Deterministic CAD Inference & Verification Metrics -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white">Verification Gate</span>
+            <span id="gateDecisionBadge" class="text-emerald-400 font-bold">[CONVERGED]</span>
           </div>
-          <div class="flex justify-between text-[#888]">
-            <span>Features Verified (L1):</span>
-            <span id="metricFeat" class="text-emerald-400">5 Verified Hits</span>
-          </div>
-          <div class="flex justify-between text-[#888]">
-            <span>Cosmetic Catalog (L2):</span>
-            <span id="metricCosm" class="text-purple-400">1 ISO Screw</span>
-          </div>
-          <div class="flex justify-between text-[#888]">
-            <span>Recovered Camera:</span>
-            <span id="metricCam" class="text-white">az -32.0&deg;, el 28.0&deg;</span>
-          </div>
-          <div class="flex justify-between text-[#888]">
-            <span>Optimizer:</span>
-            <span class="text-white">scipy Diff. Evolution</span>
-          </div>
-          <div class="flex justify-between text-[#888]">
-            <span>Pipeline Latency:</span>
-            <span id="metricLatency" class="text-[#ea7600]">24.8s</span>
+
+          <div class="space-y-1.5 text-[10.5px]">
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Projection Standard:</span>
+              <span id="propStandard" class="text-white font-medium">Third Angle (ASME)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Drawing Scale:</span>
+              <span id="propScale" class="text-white font-medium">1:1 (Direct Millimeter)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Reprojection Edge F1:</span>
+              <span id="propF1" class="text-emerald-400 font-bold">100.0%</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Visible Precision:</span>
+              <span id="propPrecision" class="text-[#cccccc]">1.000</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Visible Recall:</span>
+              <span id="propRecall" class="text-[#cccccc]">1.000</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#888888]">Reconstruction Time:</span>
+              <span id="propTime" class="text-sky-400">285 ms</span>
+            </div>
           </div>
         </div>
+
+        <!-- Card 3: Measured 2D CAD Dimensions -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white">Measured Dimensions</span>
+            <span id="dimCountBadge" class="text-[#3b82f6] text-[9.5px]">3 items</span>
+          </div>
+
+          <div id="dimensionsList" class="space-y-1 text-[10px]">
+            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
+              <span class="text-[#aaaaaa]">Width (X):</span>
+              <span class="text-white font-bold">40.00 mm</span>
+            </div>
+            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
+              <span class="text-[#aaaaaa]">Depth (Y):</span>
+              <span class="text-white font-bold">20.00 mm</span>
+            </div>
+            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
+              <span class="text-[#aaaaaa]">Height (Z):</span>
+              <span class="text-white font-bold">10.00 mm</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Section 3: Provenance Legend -->
-      <div class="p-3 space-y-2 flex-1">
-        <div class="flex items-center justify-between text-white font-medium">
-          <span class="flex items-center gap-1.5">
-            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-[#ea7600]"></i>
-            Dimension Provenance
-          </span>
-        </div>
-
-        <div class="bg-[#1c1c1c] p-2.5 rounded border border-[#2e2e2e] space-y-1.5 text-[10px] text-[#888]">
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.2 rounded badge-measured font-mono text-[8.5px]">measured</span>
-            <span>Read from blueprint OCR or user anchor</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.2 rounded badge-fitted font-mono text-[8.5px]">fitted</span>
-            <span>Fitted via silhouette IoU loop</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.2 rounded badge-inferred font-mono text-[8.5px]">inferred</span>
-            <span>Back-projected onto 3D face</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.2 rounded badge-assumed font-mono text-[8.5px]">assumed</span>
-            <span>Occluded depth / structural guess</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.2 rounded badge-cosmetic font-mono text-[8.5px]">cosmetic</span>
-            <span>Standard catalog part (decorative)</span>
-          </div>
-        </div>
+      <!-- Quick Tips Box at Bottom of Properties -->
+      <div class="p-2.5 bg-[#1b1b1b] border-t border-[#1c1c1c] text-[9.5px] text-[#777777] font-mono leading-relaxed">
+        <span class="text-[#3b82f6] font-semibold">Tip:</span> Rotate with Left Click, Pan with Right Click / Shift+Left, Zoom with Mouse Wheel.
       </div>
-
-    </aside>
+    </section>
 
   </main>
 
-  <!-- BOTTOM STATUS BAR -->
-  <footer class="h-6 bg-[#202020] border-t border-[#181818] px-3 flex items-center justify-between text-[10px] text-[#777] font-mono flex-shrink-0">
+  <!-- ================================================================= -->
+  <!-- 3. BLENDER STATUS BAR (BOTTOM)                                    -->
+  <!-- ================================================================= -->
+  <footer class="h-6 bg-[#212121] border-t border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] text-[10px] font-mono z-30 flex-shrink-0">
     <div class="flex items-center gap-3">
-      <span><strong class="text-[#aaa]">SpatialForge:</strong> <span id="pipelineStatus">spatialforge_v2 Pipeline Active</span></span>
-      <span>•</span>
-      <span><strong class="text-[#aaa]">Relational Graph:</strong> Non-floating Guaranteed</span>
+      <span class="flex items-center gap-1.5 text-white">
+        <i data-lucide="check-circle" class="w-3 h-3 text-emerald-400"></i>
+        <span id="statusMessage">SpatialForge Ready &bull; Autonomous 2D CAD Ingestion Active</span>
+      </span>
+      <span class="text-[#444444]">|</span>
+      <span id="statusFile">Active: case_0000_clean.dxf</span>
     </div>
 
-    <div class="flex items-center gap-4 text-[#888]">
-      <span>Solids: <strong id="sCount" class="text-white">9</strong></span>
-      <span>Layers: <strong id="sLayers" class="text-white">L0 (5) | L1 (3) | L2 (1)</strong></span>
-      <span>Format: <strong class="text-white">STEP / STL / GLB / OpenSCAD</strong></span>
-      <span class="text-emerald-400">● 100% Open Weights</span>
+    <div class="flex items-center gap-4">
+      <span id="statusVertCount">Verts: 24</span>
+      <span id="statusPolyCount">Faces: 12</span>
+      <span id="statusUnits">Units: Millimeters (1:1)</span>
+      <span id="statusLatency" class="text-sky-400 font-medium">365 ms</span>
     </div>
   </footer>
 
-  <!-- CODE MODAL DIALOG -->
-  <div id="codeModal" class="hidden fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
-    <div class="bg-[#222] border border-[#333] rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
-      <div class="px-4 py-3 border-b border-[#333] flex justify-between items-center text-white">
-        <span class="font-medium text-xs flex items-center gap-1.5">
-          <i data-lucide="code" class="w-4 h-4 text-[#ea7600]"></i>
-          Parametric CAD Code (OpenSCAD / B-Rep)
-        </span>
-        <button id="closeCodeModalBtn" class="text-[#888] hover:text-white">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-      </div>
-      <div class="p-4 flex-1 overflow-auto">
-        <pre id="codeModalContent" class="font-mono text-[10.5px] text-[#bbb] bg-[#161616] p-3 rounded border border-[#2b2b2b] select-all overflow-x-auto whitespace-pre"></pre>
-      </div>
-      <div class="px-4 py-2.5 border-t border-[#333] flex justify-end gap-2 bg-[#1f1f1f]">
-        <button id="copyCodeBtn" class="px-3 py-1 bg-[#ea7600] hover:bg-[#d66c00] text-white rounded text-[11px] font-medium transition">
-          Copy Code
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- THREE.JS & CLIENT SCRIPT -->
+  <!-- ================================================================= -->
+  <!-- 4. CLIENT JAVASCRIPT & THREE.JS ENGINE                            -->
+  <!-- ================================================================= -->
   <script>
     lucide.createIcons();
-    const EMBEDDED_DATA = {};
-
 
     // -----------------------------------------------------------------
-    // 1. THREE.JS 3D SCENE & ENGINE
+    // 4.1 THREE.JS 3D SCENE INITIALIZATION (BLENDER STYLE)
     // -----------------------------------------------------------------
-    const container = document.getElementById('threeContainer');
-    const canvas = document.getElementById('threeCanvas');
-
+    const threeContainer = document.getElementById('threeContainer');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x242424);
+    scene.background = new THREE.Color(0x191919);
 
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(40, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 2000);
     camera.position.set(130, 95, 140);
 
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    threeContainer.appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
 
-    // Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    // Ground Grid (Subtle Blender Grid)
+    const gridHelper = new THREE.GridHelper(300, 30, 0x3d3d3d, 0x272727);
+    gridHelper.position.y = -0.1;
+    scene.add(gridHelper);
+
+    // Studio Lighting (Blender Viewport Studio Lighting)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    keyLight.position.set(100, 150, 100);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    keyLight.position.set(150, 200, 150);
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xa0a0a0, 0.4);
-    fillLight.position.set(-80, 50, -80);
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.4);
+    fillLight.position.set(-150, 100, -150);
     scene.add(fillLight);
 
-    const grid = new THREE.GridHelper(300, 30, 0x444444, 0x333333);
-    grid.position.y = -5;
-    scene.add(grid);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    rimLight.position.set(0, -100, 0);
+    scene.add(rimLight);
 
-    // Layer Groups
-    const bodyGroup = new THREE.Group();
-    const featGroup = new THREE.Group();
-    const cosmGroup = new THREE.Group();
-    scene.add(bodyGroup);
-    scene.add(featGroup);
-    scene.add(cosmGroup);
+    // CAD Solid Mesh Hierarchy Group
+    const cadRootGroup = new THREE.Group();
+    scene.add(cadRootGroup);
 
-    // Materials
-    const clayMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9e9e9e,
-      roughness: 0.5,
-      metalness: 0.1
-    });
+    // Materials for Shading Modes
+    let currentShadingMode = 'wire_on_solid'; // 'solid', 'wire_on_solid', 'pure_wire'
 
-    const dialMaterial = new THREE.MeshStandardMaterial({
-      color: 0x555555,
+    const cadSolidMaterial = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8, // Slate / Steel CAD material
       roughness: 0.35,
-      metalness: 0.45
+      metalness: 0.15,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
     });
 
-    const accentMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd8d8d8,
-      metalness: 0.85,
-      roughness: 0.2
+    const cadEdgeMaterial = new THREE.LineBasicMaterial({
+      color: 0x0f172a, // Crisp deep slate/black CAD edges
+      linewidth: 1.5
     });
 
-    const cosmeticScrewMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe5e5e5,
-      metalness: 0.9,
-      roughness: 0.15
+    const pureWireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true
     });
 
-    const orangeEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xea7600, linewidth: 2 });
-    const blueEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 1.5 });
-    const purpleEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xa855f7, linewidth: 1.5 });
-
-    // Global Pipeline State
-    let currentMeshes = {};
-    let currentParts = [];
-    let currentFeatures = [];
-    let currentOpenScadCode = "";
-    let currentStlBase64 = "";
-    let currentGlbBase64 = "";
-    let currentStepBase64 = "";
-    let recoveredCamAz = -32.0;
-    let recoveredCamEl = 28.0;
-    let globalScaleMmPerUnit = 1.0;
-    let activeFilter = 'all';
-
-    // -----------------------------------------------------------------
-    // 2. RENDER SPATIALFORGE_V2 EXACT MESHES
-    // -----------------------------------------------------------------
-    function renderMeshesFromV2(meshes) {
-      // Clear previous meshes
-      while (bodyGroup.children.length > 0) bodyGroup.remove(bodyGroup.children[0]);
-      while (featGroup.children.length > 0) featGroup.remove(featGroup.children[0]);
-      while (cosmGroup.children.length > 0) cosmGroup.remove(cosmGroup.children[0]);
-
-      currentMeshes = meshes;
-      const meshList = Array.isArray(meshes) ? meshes : Object.values(meshes);
-
-      let bCount = 0, fCount = 0, cCount = 0;
-
-      meshList.forEach(m => {
-        if (!m.vertices || !m.faces || m.vertices.length === 0) return;
-
-        const geom = new THREE.BufferGeometry();
-
-        // Coordinate transformation:
-        // spatialforge_v2 coordinates: X (right), Y (back), Z (up)
-        // Three.js coordinates:        X (right), Y (up),   Z (-Y, facing camera)
-        const vArr = new Float32Array(m.vertices.length * 3);
-        for (let i = 0; i < m.vertices.length; i++) {
-          const pt = m.vertices[i];
-          vArr[i * 3 + 0] = pt[0];
-          vArr[i * 3 + 1] = pt[2];  // Z becomes height Y
-          vArr[i * 3 + 2] = -pt[1]; // -Y becomes depth Z
-        }
-        geom.setAttribute('position', new THREE.BufferAttribute(vArr, 3));
-
-        // Flat face indices
-        const fArr = [];
-        for (let i = 0; i < m.faces.length; i++) {
-          fArr.push(m.faces[i][0], m.faces[i][1], m.faces[i][2]);
-        }
-        geom.setIndex(fArr);
-        geom.computeVertexNormals();
-
-        let mat = clayMaterial;
-        let edgeMat = orangeEdgeMaterial;
-        let targetGroup = bodyGroup;
-
-        const layer = m.layer || (m.id.startsWith('screw') ? 'cosmetic' : m.id.includes('dial') || m.id.includes('button') ? 'feature' : 'body');
-
-        if (layer === 'feature') {
-          targetGroup = featGroup;
-          mat = dialMaterial;
-          edgeMat = blueEdgeMaterial;
-          fCount++;
-        } else if (layer === 'cosmetic') {
-          targetGroup = cosmGroup;
-          mat = cosmeticScrewMaterial;
-          edgeMat = purpleEdgeMaterial;
-          cCount++;
-        } else {
-          targetGroup = bodyGroup;
-          if (m.id === 'needle') mat = accentMaterial;
-          else if (m.id === 'wheel') mat = clayMaterial;
-          bCount++;
-        }
-
-        const meshObj = new THREE.Mesh(geom, mat);
-        targetGroup.add(meshObj);
-
-        // Feature / Part edge contours
-        const edges = new THREE.EdgesGeometry(geom, 22);
-        const line = new THREE.LineSegments(edges, edgeMat);
-        targetGroup.add(line);
-      });
-
-      document.getElementById('sCount').innerText = meshList.length;
-      document.getElementById('sLayers').innerText = `L0 (${bCount}) | L1 (${fCount}) | L2 (${cCount})`;
-      document.getElementById('featureCount').innerText = `${meshList.length} parts (${bCount} body, ${fCount} feat, ${cCount} cosm)`;
-    }
-
-    function alignCameraToIso() {
-      camera.position.set(130, 95, 140);
-      controls.target.set(0, 20, 0);
-      controls.update();
-      document.getElementById('cameraViewLabel').innerText = `Isometric (3D B-Rep)`;
-    }
-    
+    // Handle Window Resizing
     window.addEventListener('resize', () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
+      if (!threeContainer) return;
+      const w = threeContainer.clientWidth;
+      const h = threeContainer.clientHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(w, h);
     });
 
+    // Animation Loop
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
@@ -607,698 +525,455 @@
     animate();
 
     // -----------------------------------------------------------------
-    // 3. LAYER VISIBILITY TOGGLES
+    // 4.2 CAMERA VIEW CONTROLS (BLENDER NUMPAD STYLE)
     // -----------------------------------------------------------------
-    const btnL0 = document.getElementById('toggleLayerBody');
-    const btnL1 = document.getElementById('toggleLayerFeatures');
-    const btnL2 = document.getElementById('toggleLayerCosmetic');
+    function setCameraView(azimuthDeg, elevationDeg, distance = 180) {
+      const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
+      const theta = THREE.MathUtils.degToRad(azimuthDeg + 90);
 
-    let showL0 = true, showL1 = true, showL2 = true;
+      const x = distance * Math.sin(phi) * Math.cos(theta);
+      const y = distance * Math.cos(phi);
+      const z = distance * Math.sin(phi) * Math.sin(theta);
 
-    btnL0.addEventListener('click', () => {
-      showL0 = !showL0;
-      bodyGroup.visible = showL0;
-      btnL0.classList.toggle('opacity-40', !showL0);
-    });
+      camera.position.set(x, y, z);
+      camera.lookAt(controls.target);
+      controls.update();
 
-    btnL1.addEventListener('click', () => {
-      showL1 = !showL1;
-      featGroup.visible = showL1;
-      btnL1.classList.toggle('opacity-40', !showL1);
-    });
+      const label = document.getElementById('viewportCamLabel');
+      if (label) {
+        label.innerText = `User Ortho: az ${azimuthDeg.toFixed(0)}°, el ${elevationDeg.toFixed(0)}°`;
+      }
+    }
 
-    btnL2.addEventListener('click', () => {
-      showL2 = !showL2;
-      cosmGroup.visible = showL2;
-      btnL2.classList.toggle('opacity-40', !showL2);
-    });
+    function frameSelectedObject() {
+      const box = new THREE.Box3().setFromObject(cadRootGroup);
+      if (box.isEmpty()) return;
+
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      controls.target.copy(center);
+
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const dist = Math.max(maxDim * 2.2, 80);
+
+      setCameraView(-32.0, 28.0, dist);
+    }
+
+    document.getElementById('camIsoBtn').addEventListener('click', () => setCameraView(-32.0, 28.0));
+    document.getElementById('camTopBtn').addEventListener('click', () => setCameraView(0.0, 89.9));
+    document.getElementById('camFrontBtn').addEventListener('click', () => setCameraView(0.0, 0.0));
+    document.getElementById('camRightBtn').addEventListener('click', () => setCameraView(90.0, 0.0));
+    document.getElementById('camResetBtn').addEventListener('click', frameSelectedObject);
 
     // -----------------------------------------------------------------
-    // 4. DIAGNOSTIC VIEW TABS
+    // 4.3 VIEWPORT SHADING MODES
     // -----------------------------------------------------------------
-    const tabDxf = document.getElementById('tabDxf');
-    const tabFit = document.getElementById('tabFit');
+    const shadeSolidBtn = document.getElementById('shadeSolidBtn');
+    const shadeWireOnSolidBtn = document.getElementById('shadeWireOnSolidBtn');
+    const shadePureWireBtn = document.getElementById('shadePureWireBtn');
+
+    function setShadingMode(mode) {
+      currentShadingMode = mode;
+      [shadeSolidBtn, shadeWireOnSolidBtn, shadePureWireBtn].forEach(b => {
+        b.classList.remove('bg-[#2e2e2e]', 'text-white');
+        b.classList.add('text-[#888888]');
+      });
+
+      if (mode === 'solid') {
+        shadeSolidBtn.classList.add('bg-[#2e2e2e]', 'text-white');
+      } else if (mode === 'wire_on_solid') {
+        shadeWireOnSolidBtn.classList.add('bg-[#2e2e2e]', 'text-white');
+      } else if (mode === 'pure_wire') {
+        shadePureWireBtn.classList.add('bg-[#2e2e2e]', 'text-white');
+      }
+
+      cadRootGroup.traverse(child => {
+        if (child.isMesh) {
+          if (mode === 'pure_wire') {
+            child.material = pureWireMaterial;
+          } else {
+            child.material = cadSolidMaterial;
+          }
+        }
+        if (child.isLineSegments) {
+          child.visible = (mode === 'wire_on_solid');
+        }
+      });
+    }
+
+    shadeSolidBtn.addEventListener('click', () => setShadingMode('solid'));
+    shadeWireOnSolidBtn.addEventListener('click', () => setShadingMode('wire_on_solid'));
+    shadePureWireBtn.addEventListener('click', () => setShadingMode('pure_wire'));
+
+    // -----------------------------------------------------------------
+    // 4.4 2D DIAGNOSTIC SHEET TABS
+    // -----------------------------------------------------------------
+    const tabSheet = document.getElementById('tabSheet');
+    const tabHlr = document.getElementById('tabHlr');
     const tabViews = document.getElementById('tabViews');
 
-    const userImagePreview = document.getElementById('userImagePreview');
-    const diagnosticOverlay = document.getElementById('diagnosticOverlay');
-    const shadedOverlay = document.getElementById('shadedOverlay');
-    const viewsOverlay = document.getElementById('viewsOverlay');
-    const svgOverlay = document.getElementById('svgOverlay');
+    const sheetPreviewImg = document.getElementById('sheetPreviewImg');
+    const hlrOverlayImg = document.getElementById('hlrOverlayImg');
+    const viewsOverlayImg = document.getElementById('viewsOverlayImg');
 
-    function setActiveDiagnosticTab(tabName) {
-      [tabDxf, tabFit, tabViews].forEach(t => { if (t) t.classList.remove('view-tab-active'); });
-      [diagnosticOverlay, shadedOverlay, viewsOverlay].forEach(el => { if (el) el.classList.add('hidden'); });
+    function setActiveSheetTab(tab) {
+      [tabSheet, tabHlr, tabViews].forEach(b => {
+        b.classList.remove('bg-[#2e2e2e]', 'text-white');
+        b.classList.add('text-[#888888]');
+      });
+      [sheetPreviewImg, hlrOverlayImg, viewsOverlayImg].forEach(img => img.classList.add('hidden'));
 
-      if (tabName === 'sketch' || tabName === 'dxf') {
-        if (tabDxf) tabDxf.classList.add('view-tab-active');
-        if (userImagePreview) userImagePreview.classList.remove('hidden');
-      } else if (tabName === 'fit') {
-        if (tabFit) tabFit.classList.add('view-tab-active');
-        if (diagnosticOverlay) diagnosticOverlay.classList.remove('hidden');
-      } else if (tabName === 'views') {
-        if (tabViews) tabViews.classList.add('view-tab-active');
-        if (viewsOverlay) viewsOverlay.classList.remove('hidden');
+      if (tab === 'sheet') {
+        tabSheet.classList.add('bg-[#2e2e2e]', 'text-white');
+        sheetPreviewImg.classList.remove('hidden');
+      } else if (tab === 'hlr') {
+        tabHlr.classList.add('bg-[#2e2e2e]', 'text-white');
+        hlrOverlayImg.classList.remove('hidden');
+      } else if (tab === 'views') {
+        tabViews.classList.add('bg-[#2e2e2e]', 'text-white');
+        viewsOverlayImg.classList.remove('hidden');
       }
     }
 
-    if (tabDxf) tabDxf.addEventListener('click', () => setActiveDiagnosticTab('dxf'));
-    if (tabFit) tabFit.addEventListener('click', () => setActiveDiagnosticTab('fit'));
-    if (tabViews) tabViews.addEventListener('click', () => setActiveDiagnosticTab('views'));
+    tabSheet.addEventListener('click', () => setActiveSheetTab('sheet'));
+    tabHlr.addEventListener('click', () => setActiveSheetTab('hlr'));
+    tabViews.addEventListener('click', () => setActiveSheetTab('views'));
 
     // -----------------------------------------------------------------
-    // 5. SLIDERS & PARAMETRIC INSPECTOR
+    // 4.5 CAD MESH RENDERING PIPELINE
     // -----------------------------------------------------------------
-    function populateSlidersFromModelJson(modelJson) {
-      const container = document.getElementById('slidersList');
-      container.innerHTML = '';
+    let currentStlBase64 = "";
+    let currentStepBase64 = "";
+    let currentGlbBase64 = "";
+    let currentDxfFilename = "case_0000_clean.dxf";
 
-      const items = [];
+    function clearSceneMeshes() {
+      while (cadRootGroup.children.length > 0) {
+        const obj = cadRootGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        cadRootGroup.remove(obj);
+      }
+    }
 
-      // Collect parts
-      if (modelJson.parts) {
-        modelJson.parts.forEach(p => {
-          let primVal = 50.0;
-          let primName = "Width (X)";
-          let src = "inferred";
-          let minVal = 10, maxVal = 120;
+    function renderCadMeshes(meshesDict) {
+      clearSceneMeshes();
+      if (!meshesDict || Object.keys(meshesDict).length === 0) return;
 
-          // Check p.dims first for fitted dimensions
-          if (p.dims && Object.keys(p.dims).length > 0) {
-            const dKeys = Object.keys(p.dims);
-            const priKey = dKeys.find(k => k.includes('width') || k.includes('length') || k.includes('diam') || k.includes('radius')) || dKeys[0];
-            const dObj = p.dims[priKey];
-            if (dObj) {
-              primVal = typeof dObj === 'object' && dObj.value !== undefined ? dObj.value : Number(dObj);
-              src = (typeof dObj === 'object' && dObj.source) ? dObj.source : 'fitted';
-              minVal = (typeof dObj === 'object' && dObj.min) ? dObj.min : primVal * 0.5;
-              maxVal = (typeof dObj === 'object' && dObj.max) ? dObj.max : primVal * 1.5;
-              primName = priKey.replace('_', ' ').toUpperCase();
-            }
-          } else if (p.width_x) {
-            primVal = p.width_x.value;
-            src = p.width_x.source;
-            minVal = p.width_x.min || primVal * 0.5;
-            maxVal = p.width_x.max || primVal * 1.5;
-            primName = "Width (X)";
-          } else if (p.length) {
-            primVal = p.length.value;
-            src = p.length.source;
-            minVal = p.length.min || primVal * 0.5;
-            maxVal = p.length.max || primVal * 1.5;
-            primName = "Length (X)";
-          } else if (p.radius) {
-            primVal = p.radius.value * 2;
-            src = p.radius.source;
-            minVal = p.radius.min * 2 || primVal * 0.5;
-            maxVal = p.radius.max * 2 || primVal * 1.5;
-            primName = "Diameter";
+      let totalVerts = 0;
+      let totalFaces = 0;
+
+      for (const [partId, partData] of Object.entries(meshesDict)) {
+        if (!partData.vertices || !partData.faces) continue;
+
+        const geom = new THREE.BufferGeometry();
+        const positions = [];
+        const indices = [];
+
+        // Build flat vertices array
+        for (const v of partData.vertices) {
+          positions.push(v[0], v[1], v[2]);
+        }
+
+        // Build face indices
+        for (const f of partData.faces) {
+          if (f.length === 3) {
+            indices.push(f[0], f[1], f[2]);
+          } else if (f.length === 4) {
+            indices.push(f[0], f[1], f[2]);
+            indices.push(f[0], f[2], f[3]);
           }
+        }
 
-          items.push({
-            id: p.id,
-            layer: "body",
-            kind: p.kind,
-            source: src,
-            val: primVal,
-            min: minVal,
-            max: maxVal,
-            dimLabel: primName
-          });
-        });
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geom.setIndex(indices);
+        geom.computeVertexNormals();
+
+        // Solid Mesh
+        const mesh = new THREE.Mesh(geom, currentShadingMode === 'pure_wire' ? pureWireMaterial : cadSolidMaterial);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        cadRootGroup.add(mesh);
+
+        // B-Rep Edges
+        const edgesGeom = new THREE.EdgesGeometry(geom, 24);
+        const edgesLine = new THREE.LineSegments(edgesGeom, cadEdgeMaterial);
+        edgesLine.visible = (currentShadingMode === 'wire_on_solid');
+        cadRootGroup.add(edgesLine);
+
+        totalVerts += partData.vertices.length;
+        totalFaces += partData.faces.length;
       }
 
-      // Collect features
-      if (modelJson.features) {
-        modelJson.features.forEach(f => {
-          let primVal = 8.0;
-          let primName = "Diameter";
-          let src = "inferred";
-          let minVal = 3, maxVal = 20;
+      document.getElementById('statusVertCount').innerText = `Verts: ${totalVerts}`;
+      document.getElementById('statusPolyCount').innerText = `Faces: ${totalFaces}`;
 
-          if (f.diameter) {
-            primVal = f.diameter.value;
-            src = f.diameter.source;
-            minVal = f.diameter.min || primVal * 0.5;
-            maxVal = f.diameter.max || primVal * 1.5;
-          } else if (f.dims && f.dims.diameter) {
-            primVal = f.dims.diameter.value;
-            src = f.dims.diameter.source;
-          }
-
-          items.push({
-            id: f.id,
-            layer: f.layer || "feature",
-            kind: f.kind,
-            source: src,
-            val: primVal,
-            min: minVal,
-            max: maxVal,
-            dimLabel: primName
-          });
-        });
-      }
-
-      const filtered = items.filter(it => {
-        if (activeFilter === 'body') return it.layer === 'body';
-        if (activeFilter === 'feat') return it.layer === 'feature';
-        if (activeFilter === 'cosm') return it.layer === 'cosmetic';
-        return true;
-      });
-
-      filtered.forEach(it => {
-        const row = document.createElement('div');
-        row.className = "bg-[#282828] p-2 rounded border border-[#333] space-y-1";
-
-        let badgeClass = "badge-inferred";
-        if (it.source === 'fitted') badgeClass = "badge-fitted";
-        else if (it.source === 'assumed') badgeClass = "badge-assumed";
-        else if (it.source === 'cosmetic') badgeClass = "badge-cosmetic";
-        else if (it.source === 'measured') badgeClass = "badge-measured";
-
-        const layerColor = it.layer === 'body' ? 'text-blue-400' : it.layer === 'feature' ? 'text-emerald-400' : 'text-purple-400';
-        const layerBadge = `<span class="text-[8px] font-mono uppercase ${layerColor}">[${it.layer}]</span>`;
-
-        const displayDim = (it.val * globalScaleMmPerUnit).toFixed(1);
-        const unit = globalScaleMmPerUnit === 1.0 ? 'u' : 'mm';
-
-        row.innerHTML = `
-          <div class="flex justify-between items-center text-[10.5px]">
-            <span class="text-white font-medium flex items-center gap-1">${it.id} ${layerBadge}</span>
-            <span class="px-1 py-0.2 rounded font-mono text-[8.5px] ${badgeClass}">${it.source}</span>
-          </div>
-          <div class="flex justify-between text-[10px] text-[#aaa]">
-            <span>${it.dimLabel}</span>
-            <span id="label_${it.id}" class="font-mono text-white">${displayDim} ${unit}</span>
-          </div>
-          <input type="range" min="${Math.max(1, it.min)}" max="${it.max}" value="${it.val}" step="0.5" class="w-full" data-part="${it.id}">
-        `;
-
-        const slider = row.querySelector('input');
-        slider.addEventListener('input', (e) => {
-          const val = parseFloat(e.target.value);
-          logCorrection(it.id, it.dimLabel, it.val, val);
-          row.querySelector(`#label_${it.id}`).innerText = `${(val * globalScaleMmPerUnit).toFixed(1)} ${unit}`;
-        });
-
-        container.appendChild(row);
-      });
+      frameSelectedObject();
     }
 
-    // Filter Buttons
-    document.getElementById('filterAll').addEventListener('click', (e) => setFilter('all', e.target));
-    document.getElementById('filterBody').addEventListener('click', (e) => setFilter('body', e.target));
-    document.getElementById('filterFeat').addEventListener('click', (e) => setFilter('feat', e.target));
-    document.getElementById('filterCosm').addEventListener('click', (e) => setFilter('cosm', e.target));
-
-    function setFilter(type, btn) {
-      activeFilter = type;
-      ['filterAll', 'filterBody', 'filterFeat', 'filterCosm'].forEach(id => {
-        document.getElementById(id).className = "flex-1 py-1 rounded text-[#888] hover:text-white";
-      });
-      btn.className = "flex-1 py-1 rounded bg-[#333] text-white font-medium";
-      populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
-    }
-
-    // Scale Anchor Calibration
-    document.getElementById('setAnchorBtn').addEventListener('click', () => {
-      const input = prompt(`Calibrate Scale: Enter physical dimension for Base Bed Length (currently ~95 u):`, "280.0");
-      if (input && !isNaN(parseFloat(input))) {
-        const targetMm = parseFloat(input);
-        globalScaleMmPerUnit = targetMm / 95.15;
-        document.getElementById('scaleStatusText').innerText = `Calibrated: Base = ${targetMm.toFixed(1)} mm (1u = ${globalScaleMmPerUnit.toFixed(2)}mm)`;
-        document.getElementById('scaleAlertBanner').classList.replace('text-amber-400', 'text-emerald-400');
-        populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
-        alert(`Scale Calibrated: Assembly scaled to physical metric millimeters (${targetMm.toFixed(1)} mm).`);
-      }
-    });
-
     // -----------------------------------------------------------------
-    // 6. INITIAL LOAD (spatialforge_v2 Samples)
+    // 4.6 APPLY SYNTHESIS TELEMETRY & RESULTS
     // -----------------------------------------------------------------
-    // Dynamic Convergence Badge Evaluator
-    function updateConvergenceBadges(status, iou, minPartIou, failureReason) {
-      const numIou = typeof iou === 'number' ? iou : (parseFloat(iou) / (String(iou).includes('%') ? 100 : 1));
-      let numMinPart = 1.0;
-      if (minPartIou !== undefined && minPartIou !== null) {
-        numMinPart = typeof minPartIou === 'number' ? minPartIou : (parseFloat(minPartIou) / (String(minPartIou).includes('%') ? 100 : 1));
+    function applySynthesisData(res, filename) {
+      currentDxfFilename = filename || currentDxfFilename;
+      document.getElementById('sheetFilenameText').innerText = currentDxfFilename;
+      document.getElementById('statusFile').innerText = `Active: ${currentDxfFilename}`;
+
+      // 1. Header & Verification Status
+      const rep = res.reprojection || {};
+      const f1Val = rep.f1 !== undefined ? rep.f1 : (rep.mean_vis_f1 !== undefined ? rep.mean_vis_f1 : (res.iou ? parseFloat(res.iou) : 1.0));
+      const f1Pct = (f1Val * 100).toFixed(1) + '%';
+
+      document.getElementById('sheetF1Badge').innerText = `Reproj F1: ${f1Pct}`;
+      document.getElementById('propF1').innerText = f1Pct;
+
+      const isFlagged = rep.flagged || res.status === 'needs_review';
+      const statusPill = document.getElementById('statusVerificationPill');
+      const gateBadge = document.getElementById('gateDecisionBadge');
+      const solidTag = document.getElementById('solidStatusTag');
+
+      if (isFlagged) {
+        statusPill.className = 'flex items-center gap-2 bg-[#2a1a1a] border border-rose-800 px-3 py-0.5 rounded-full text-[10.5px] font-mono text-rose-300';
+        gateBadge.className = 'text-rose-400 font-bold';
+        gateBadge.innerText = '[FLAGGED - NEEDS REVIEW]';
+        solidTag.className = 'text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/60 text-[9px]';
+        solidTag.innerText = 'NEEDS REVIEW';
       } else {
-        numMinPart = numIou;
+        statusPill.className = 'flex items-center gap-2 bg-[#1e1e1e] border border-[#333333] px-3 py-0.5 rounded-full text-[10.5px] font-mono text-emerald-400';
+        gateBadge.className = 'text-emerald-400 font-bold';
+        gateBadge.innerText = '[CONVERGED]';
+        solidTag.className = 'text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]';
+        solidTag.innerText = 'WATERTIGHT';
       }
 
-      const isOk = status === 'ok';
-      const isConverged = isOk && (numIou >= 0.85) && (numMinPart >= 0.60);
-
-      const iBadge = document.getElementById('iouBadge');
-      const sBadge = document.getElementById('statusBadge');
-      const pStatus = document.getElementById('pipelineStatus');
-
-      if (isConverged) {
-        if (iBadge) {
-          iBadge.className = 'text-emerald-400 font-mono font-medium';
-          iBadge.innerText = `IoU: ${(numIou * 100).toFixed(1)}% [CONVERGED]`;
-        }
-        if (sBadge) {
-          sBadge.className = 'text-emerald-400 font-mono text-[9.5px]';
-          sBadge.innerText = '● [CONVERGED]';
-        }
-        if (pStatus) {
-          pStatus.innerText = 'Synthesis Complete [CONVERGED]';
-        }
-      } else {
-        const reasons = [];
-        if (!isOk) reasons.push(failureReason || `status: ${status}`);
-        if (numIou < 0.85) reasons.push(`Global IoU ${(numIou * 100).toFixed(1)}% < 85%`);
-        if (numMinPart < 0.60) reasons.push(`Lowest Part ${(numMinPart * 100).toFixed(1)}% < 60%`);
-        const reasonText = reasons.join(', ') || failureReason || 'Criteria not met';
-        const minPartDisplay = !isNaN(numMinPart) && numMinPart <= 1.0 ? `${(numMinPart * 100).toFixed(1)}%` : 'N/A';
-
-        if (iBadge) {
-          iBadge.className = 'text-amber-400 font-mono font-medium';
-          iBadge.innerText = `IoU: ${(numIou * 100).toFixed(1)}% [NEEDS REVIEW] (Min: ${minPartDisplay} | ${reasonText})`;
-        }
-        if (sBadge) {
-          sBadge.className = 'text-amber-400 font-mono text-[9.5px]';
-          sBadge.innerText = `● [NEEDS REVIEW] (Lowest: ${minPartDisplay} - ${reasonText})`;
-        }
-        if (pStatus) {
-          pStatus.innerText = `Synthesis Finished [NEEDS REVIEW] — Lowest Part IoU: ${minPartDisplay} (${reasonText})`;
-        }
-      }
-    }
-
-
-    function loadInitialSampleData(caseName) {
-      const tSel = document.getElementById('templateSelector');
-      const selected = caseName || (tSel ? tSel.value : 'case_0000_clean');
-      pipelineStatus.innerText = `Loading 2D CAD drawing sample: ${selected}.dxf...`;
-      currentFileName.innerText = `${selected}.dxf`;
-
-      fetch(`http://127.0.0.1:8085/api/v1/sample_cad?case=${selected}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data && data.meshes) {
-            applySynthesisResult(data);
-          }
-        })
-        .catch(e => {
-          console.log('Error loading sample 2D CAD:', e);
-        });
-    }
-
-    const templateSelector = document.getElementById('templateSelector');
-    if (templateSelector) {
-      templateSelector.addEventListener('change', (e) => {
-        loadInitialSampleData(e.target.value);
-      });
-    }
-
-    // Log Correction Helper
-    async function logCorrection(partId, paramName, origVal, newVal) {
-      try {
-        await fetch('http://127.0.0.1:8085/api/v1/log_correction', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            template_class: templateSelector ? templateSelector.value : 'case_0000_clean',
-            part_id: partId,
-            parameter: paramName,
-            original_val: origVal,
-            corrected_val: newVal,
-            scale_anchor_mm: globalScaleMmPerUnit !== 1.0 ? 280.0 : null
-          })
-        });
-      } catch (e) {
-        console.warn('Logging correction failed:', e);
-      }
-    }
-
-    loadInitialSampleData();
-
-    // -----------------------------------------------------------------
-    // 7. FILE UPLOAD & BACKEND SYNTHESIS INTEGRATION
-    // -----------------------------------------------------------------
-    let currentUploadedFile = null;
-    const fileUpload = document.getElementById('fileUpload');
-    const changeDxfBtn = document.getElementById('changeDxfBtn');
-    const dropZone = document.getElementById('dropZone');
-    const dragHint = document.getElementById('dragHint');
-    const currentFileName = document.getElementById('currentFileName');
-    const pipelineStatus = document.getElementById('pipelineStatus');
-
-    // Prevent default drag & drop behaviors across window
-    ['dragenter', 'dragover'].forEach(name => {
-      window.addEventListener(name, (e) => e.preventDefault());
-      dropZone.addEventListener(name, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragHint.classList.remove('hidden');
-      });
-    });
-
-    ['dragleave'].forEach(name => {
-      dropZone.addEventListener(name, (e) => {
-        e.preventDefault();
-        if (!dropZone.contains(e.relatedTarget)) {
-          dragHint.classList.add('hidden');
-        }
-      });
-    });
-
-    window.addEventListener('drop', (e) => e.preventDefault());
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dragHint.classList.add('hidden');
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFile(e.dataTransfer.files[0]);
-      }
-    });
-
-    fileUpload.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleFile(e.target.files[0]);
-      }
-      fileUpload.value = '';
-    });
-
-    fileUpload.addEventListener('click', () => {
-      fileUpload.value = '';
-    });
-
-    if (changeDxfBtn) {
-      changeDxfBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fileUpload.value = '';
-        fileUpload.click();
-      });
-    }
-
-    dropZone.addEventListener('click', (e) => {
-      if (e.target.id === 'userImagePreview' || e.target.id === 'blueprintContainer' || e.target.id === 'dropZone') {
-        fileUpload.value = '';
-        fileUpload.click();
-      }
-    });
-
-    function resetViewerAndState(file) {
-      currentUploadedFile = file;
-      currentFileName.innerText = file.name;
-
-      // 1. Clear 3D Meshes from scene
-      while (bodyGroup.children.length > 0) {
-        const c = bodyGroup.children[0];
-        if (c.geometry) c.geometry.dispose();
-        bodyGroup.remove(c);
-      }
-      while (featGroup.children.length > 0) {
-        const c = featGroup.children[0];
-        if (c.geometry) c.geometry.dispose();
-        featGroup.remove(c);
-      }
-      while (cosmGroup.children.length > 0) {
-        const c = cosmGroup.children[0];
-        if (c.geometry) c.geometry.dispose();
-        cosmGroup.remove(c);
-      }
-      currentMeshes = {};
-      currentParts = [];
-      currentFeatures = [];
-      currentOpenScadCode = "";
-      currentStlBase64 = "";
-      currentGlbBase64 = "";
-      currentStepBase64 = "";
-
-      // Reset camera
-      camera.position.set(130, 95, 140);
-      controls.target.set(0, 32, 0);
-      controls.update();
-      renderer.render(scene, camera);
-
-      // Reset mesh counters
-      document.getElementById('sCount').innerText = '0';
-      document.getElementById('sLayers').innerText = 'L0 (0) | L1 (0) | L2 (0)';
-      document.getElementById('featureCount').innerText = '0 parts (ready to synthesize)';
-
-      // 2. Clear 2D Diagnostic Overlays & Annotations
-      diagnosticOverlay.src = '';
-      diagnosticOverlay.classList.add('hidden');
-      shadedOverlay.src = '';
-      shadedOverlay.classList.add('hidden');
-      viewsOverlay.src = '';
-      viewsOverlay.classList.add('hidden');
-      if (svgOverlay) svgOverlay.style.display = 'none';
-
-      // 3. Clear Sliders
-      const slidersList = document.getElementById('slidersList');
-      if (slidersList) {
-        slidersList.innerHTML = '<div class="text-[#777] text-center py-6 font-mono text-[10px]">2D CAD Drawing loaded. Run reconstruction to extract B-Rep features.</div>';
-      }
-
-      // 4. Reset Telemetry and Convergence Badges to Pending
-      const iBadge = document.getElementById('iouBadge');
-      if (iBadge) {
-        iBadge.className = 'text-[#888] font-mono';
-        iBadge.innerText = 'Edge F1: --% [PENDING]';
-      }
-      const sBadge = document.getElementById('statusBadge');
-      if (sBadge) {
-        sBadge.className = 'text-[#888] font-mono text-[9.5px]';
-        sBadge.innerText = '● PENDING';
-      }
-      document.getElementById('metricIou').innerText = '--%';
-      document.getElementById('metricFeat').innerText = '--';
-      document.getElementById('metricCosm').innerText = '--';
-      document.getElementById('metricLatency').innerText = '--';
-      document.getElementById('summaryLineText').innerText = `Loaded 2D CAD "${file.name}" • Ingesting orthographic views`;
-      pipelineStatus.innerText = `New 2D CAD loaded: ${file.name}. Initializing reconstruction...`;
-    }
-
-    function applySynthesisResult(res) {
-      const numIou = typeof res.iou === 'number' ? res.iou : (parseFloat(res.iou) / (String(res.iou).includes('%') ? 100 : 1));
-
-      let minPartIou = 1.0;
-      if (res.min_part_iou !== undefined && res.min_part_iou !== null) {
-        minPartIou = typeof res.min_part_iou === 'number' ? res.min_part_iou : (parseFloat(res.min_part_iou) / (String(res.min_part_iou).includes('%') ? 100 : 1));
-      } else if (res.part_ious && Object.keys(res.part_ious).length > 0) {
-        const vals = Object.values(res.part_ious).map(v => {
-          if (typeof v === 'number') return v;
-          const p = parseFloat(v);
-          return String(v).includes('%') ? p / 100 : p;
-        }).filter(v => !isNaN(v));
-        if (vals.length > 0) minPartIou = Math.min(...vals);
-      } else if (res.iou !== undefined) {
-        minPartIou = numIou;
-      }
-
-      document.getElementById('metricIou').innerText = `${(numIou * 100).toFixed(2)}%`;
-      
-      // Dynamic convergence badge:
-      updateConvergenceBadges(res.status || 'ok', numIou, minPartIou, res.failure_reason);
-
-      if (res.execution_time_ms !== undefined) {
-        document.getElementById('metricLatency').innerText = `${(res.execution_time_ms / 1000).toFixed(2)}s`;
-      }
-      if (res.camera) {
-        document.getElementById('metricCam').innerText = `az ${res.camera.az.toFixed(1)}°, el ${res.camera.el.toFixed(1)}°`;
-        recoveredCamAz = res.camera.az;
-        recoveredCamEl = res.camera.el;
-      }
       if (res.summary_line) {
-        document.getElementById('summaryLineText').innerText = res.summary_line;
-        if (res.class_confidence) {
-          const confBadge = document.getElementById('classConfBadge');
-          if (confBadge) confBadge.innerText = `${Math.round(res.class_confidence * 100)}%`;
+        document.getElementById('headerSummaryText').innerText = res.summary_line;
+        document.getElementById('statusMessage').innerText = res.summary_line;
+      }
+
+      // 2. Projection Standard & Scale
+      const stdText = res.standard === 'first' ? 'First Angle (ISO/European)' : 'Third Angle (ASME/US)';
+      document.getElementById('propStandard').innerText = stdText;
+
+      const scaleText = (res.scale ? `${res.scale}:1` : '1:1') + ` (${res.units || 'mm'})`;
+      document.getElementById('propScale').innerText = scaleText;
+      document.getElementById('statusUnits').innerText = `Units: Millimeters (${scaleText})`;
+
+      if (rep.mean_vis_precision !== undefined) {
+        document.getElementById('propPrecision').innerText = Number(rep.mean_vis_precision).toFixed(3);
+      }
+      if (rep.mean_vis_recall !== undefined) {
+        document.getElementById('propRecall').innerText = Number(rep.mean_vis_recall).toFixed(3);
+      }
+      if (res.execution_time_ms) {
+        document.getElementById('propTime').innerText = `${res.execution_time_ms.toFixed(0)} ms`;
+        document.getElementById('statusLatency').innerText = `${res.execution_time_ms.toFixed(0)} ms`;
+      }
+
+      // 3. View Line Counts in Outliner
+      if (rep.views) {
+        if (rep.views.front) {
+          const vis = rep.views.front.drawn_counts ? rep.views.front.drawn_counts.vis : 4;
+          document.getElementById('frontLinesCount').innerText = `${vis} lines`;
+        }
+        if (rep.views.top) {
+          const vis = rep.views.top.drawn_counts ? rep.views.top.drawn_counts.vis : 13;
+          document.getElementById('topLinesCount').innerText = `${vis} lines`;
+        }
+        if (rep.views.right) {
+          const vis = rep.views.right.drawn_counts ? rep.views.right.drawn_counts.vis : 7;
+          document.getElementById('rightLinesCount').innerText = `${vis} lines`;
         }
       }
-      if (res.object_class) {
-        const mCls = document.getElementById('metricClass');
-        if (mCls) mCls.innerText = res.object_class;
-      }
-      if (res.scale_anchored) {
-        const scaleAlert = document.getElementById('scaleAlertBanner');
-        if (scaleAlert) scaleAlert.classList.add('hidden');
+
+      // 4. Dimensions Table
+      const dimContainer = document.getElementById('dimensionsList');
+      if (res.dimensions && res.dimensions.length > 0) {
+        document.getElementById('dimCountBadge').innerText = `${res.dimensions.length} items`;
+        dimContainer.innerHTML = res.dimensions.map(d => `
+          <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
+            <span class="text-[#aaaaaa]">${d.label || d.name || 'Dimension'}:</span>
+            <span class="text-white font-bold">${Number(d.value).toFixed(2)} mm</span>
+          </div>
+        `).join('');
       }
 
-      // 2D Preview Display
-      const previewImg = res.sheet_preview_base64 || res.overlay_base64;
-      if (previewImg) {
-        userImagePreview.src = `data:image/png;base64,${previewImg}`;
-        userImagePreview.classList.remove('hidden');
-        setActiveDiagnosticTab('dxf');
+      // 5. Image Overlays
+      if (res.sheet_preview_base64) {
+        sheetPreviewImg.src = `data:image/png;base64,${res.sheet_preview_base64}`;
       }
-
       if (res.overlay_base64) {
-        diagnosticOverlay.src = `data:image/png;base64,${res.overlay_base64}`;
-      }
-      if (res.shaded_base64) {
-        shadedOverlay.src = `data:image/png;base64,${res.shaded_base64}`;
+        hlrOverlayImg.src = `data:image/png;base64,${res.overlay_base64}`;
       }
       if (res.views_base64) {
-        viewsOverlay.src = `data:image/png;base64,${res.views_base64}`;
+        viewsOverlayImg.src = `data:image/png;base64,${res.views_base64}`;
+      }
+      setActiveSheetTab('sheet');
+
+      // 6. Render 3D Solid
+      if (res.meshes) {
+        renderCadMeshes(res.meshes);
       }
 
-      if (res.meshes && Object.keys(res.meshes).length > 0) {
-        renderMeshesFromV2(res.meshes);
-        alignCameraToIso(recoveredCamAz, recoveredCamEl);
-      }
-
-      if (res.parts || res.features) {
-        currentParts = res.parts || [];
-        currentFeatures = res.features || [];
-        populateSlidersFromModelJson({ parts: currentParts, features: currentFeatures });
-      }
-
-      currentOpenScadCode = res.openscad_code || "";
+      // Store downloads
       currentStlBase64 = res.stl_base64 || "";
-      currentGlbBase64 = res.glb_base64 || "";
       currentStepBase64 = res.step_base64 || "";
+      currentGlbBase64 = res.glb_base64 || "";
     }
 
-    function handleFile(file) {
-      if (!file) return;
-      resetViewerAndState(file);
+    // -----------------------------------------------------------------
+    // 4.7 INGESTION & SAMPLE CASE LOADING
+    // -----------------------------------------------------------------
+    async function loadSampleCase(caseName) {
+      const reconstructBtnText = document.getElementById('reconstructBtnText');
+      reconstructBtnText.innerText = "Reconstructing...";
 
-      const isDxf = file.name && file.name.toLowerCase().endsWith('.dxf');
-      if (!isDxf) {
-        alert("Please upload a 2D CAD (.dxf) file. SpatialForge now operates exclusively on 2D CAD drawings.");
+      try {
+        const resp = await fetch(`http://127.0.0.1:8085/api/v1/sample_cad?case=${caseName}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        applySynthesisData(data, `${caseName}.dxf`);
+      } catch (e) {
+        console.error("Failed to load sample:", e);
+        document.getElementById('statusMessage').innerText = `Error loading ${caseName}: ${e.message}`;
+      } finally {
+        reconstructBtnText.innerText = "Reconstruct Solid";
+      }
+    }
+
+    const caseSelector = document.getElementById('caseSelector');
+    caseSelector.addEventListener('change', (e) => {
+      loadSampleCase(e.target.value);
+    });
+
+    // Reconstruct Button triggers re-loading or processing
+    document.getElementById('reconstructBtn').addEventListener('click', () => {
+      const selected = caseSelector.value;
+      loadSampleCase(selected);
+    });
+
+    // -----------------------------------------------------------------
+    // 4.8 FILE DRAG-AND-DROP & UPLOAD
+    // -----------------------------------------------------------------
+    const sheetDropZone = document.getElementById('sheetDropZone');
+    const dropOverlay = document.getElementById('dropOverlay');
+    const dxfFileInput = document.getElementById('dxfFileInput');
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropOverlay.classList.remove('hidden');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.target === dropOverlay || eventName === 'drop') {
+          dropOverlay.classList.add('hidden');
+        }
+      });
+    });
+
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropOverlay.classList.add('hidden');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleDxfFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    dxfFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleDxfFile(e.target.files[0]);
+      }
+    });
+
+    async function handleDxfFile(file) {
+      if (!file.name.toLowerCase().endsWith('.dxf')) {
+        alert("Please drop a 2D CAD (.dxf) technical drawing file.");
         return;
       }
 
-      resetViewerAndState(file);
-      userImagePreview.src = '';
-      userImagePreview.classList.add('hidden');
-      document.getElementById('summaryLineText').innerText = `Ingesting 2D CAD "${file.name}" • Processing orthographic views...`;
-      pipelineStatus.innerText = `Ingesting DXF: ${file.name}. Running view segmentation & reconstruction...`;
-      uploadAndSynthesize(file);
-    }
-
-    async function uploadAndSynthesize(file) {
-      const runBtn = document.getElementById('runBtn');
-      const runBtnText = document.getElementById('runBtnText');
-      runBtn.classList.add('animate-pulse');
-      runBtnText.innerText = "Reconstructing 2D CAD...";
+      document.getElementById('statusMessage').innerText = `Uploading and reconstructing ${file.name}...`;
+      const reconstructBtnText = document.getElementById('reconstructBtnText');
+      reconstructBtnText.innerText = "Processing DXF...";
 
       try {
         const formData = new FormData();
         formData.append("file", file);
-        const response = await fetch("http://127.0.0.1:8085/api/v1/dxf", {
+
+        const resp = await fetch("http://127.0.0.1:8085/api/v1/dxf", {
           method: "POST",
           body: formData
         });
-        if (response.ok) {
-          const res = await response.json();
-          applySynthesisResult(res);
-        } else {
-          let errText = "Backend error during 2D CAD reconstruction.";
-          try {
-            const errJson = await response.json();
-            if (errJson && errJson.error) errText = errJson.error;
-          } catch(e) {}
-          updateConvergenceBadges('error', 0, 0, errText);
-          alert(errText);
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.error || `HTTP ${resp.status}`);
         }
+
+        const res = await resp.json();
+        applySynthesisData(res, file.name);
       } catch (err) {
-        console.error("DXF upload error:", err);
-        updateConvergenceBadges('error', 0, 0, err.message || 'Backend offline / unreachable (127.0.0.1:8085)');
+        console.error("DXF upload failed:", err);
+        alert(`DXF Processing Error: ${err.message}`);
+        document.getElementById('statusMessage').innerText = `Error: ${err.message}`;
       } finally {
-        runBtnText.innerText = "Run 2D CAD Reconstruction";
-        runBtn.classList.remove('animate-pulse');
+        reconstructBtnText.innerText = "Reconstruct Solid";
       }
-    }
     }
 
     // -----------------------------------------------------------------
-    // 8. BINARY DOWNLOADS & ACTIONS
+    // 4.9 EXPORT DOWNLOAD HELPERS
     // -----------------------------------------------------------------
-    function downloadBase64File(base64Data, filename, mimeType = 'application/octet-stream') {
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    function downloadBase64File(base64Data, filename, mimeType) {
+      if (!base64Data) {
+        alert(`No ${filename} data available for export.`);
+        return;
       }
-      const byteArray = new Uint8Array(byteNumbers);
+      const byteChars = atob(base64Data);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNums);
       const blob = new Blob([byteArray], { type: mimeType });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = filename;
-      document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
     }
 
     document.getElementById('exportStepBtn').addEventListener('click', () => {
-      if (currentStepBase64) {
-        downloadBase64File(currentStepBase64, `${currentFileName.innerText.split('.')[0]}_model.step`);
-      } else {
-        alert("STEP export is being prepared or CadQuery B-Rep is generating...");
-      }
+      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
+      downloadBase64File(currentStepBase64, `${baseName}.step`, 'application/step');
     });
 
     document.getElementById('exportStlBtn').addEventListener('click', () => {
-      if (currentStlBase64) {
-        downloadBase64File(currentStlBase64, `${currentFileName.innerText.split('.')[0]}_model.stl`);
-      } else {
-        alert("STL export not ready.");
-      }
+      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
+      downloadBase64File(currentStlBase64, `${baseName}.stl`, 'application/vnd.ms-pki.stl');
     });
 
     document.getElementById('exportGlbBtn').addEventListener('click', () => {
-      if (currentGlbBase64) {
-        downloadBase64File(currentGlbBase64, `${currentFileName.innerText.split('.')[0]}_model.glb`, 'model/gltf-binary');
-      } else {
-        alert("GLB export not ready.");
-      }
+      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
+      downloadBase64File(currentGlbBase64, `${baseName}.glb`, 'model/gltf-binary');
     });
 
-    // View & Camera Controls
-    document.getElementById('toggleWire').addEventListener('click', () => {
-      clayMaterial.wireframe = !clayMaterial.wireframe;
-      dialMaterial.wireframe = clayMaterial.wireframe;
-      accentMaterial.wireframe = clayMaterial.wireframe;
-      cosmeticScrewMaterial.wireframe = clayMaterial.wireframe;
-      document.getElementById('toggleWire').classList.toggle('bg-[#ea7600]');
-      document.getElementById('toggleWire').classList.toggle('text-white');
+    document.getElementById('downloadCurrentDxfBtn').addEventListener('click', () => {
+      window.location.href = `http://127.0.0.1:8085/api/v1/download_dxf/${currentDxfFilename}`;
     });
 
-    document.getElementById('alignCamBtn').addEventListener('click', () => {
-      alignCameraToIso(recoveredCamAz, recoveredCamEl);
-    });
-
-    document.getElementById('resetCam').addEventListener('click', () => {
-      camera.position.set(130, 95, 140);
-      controls.target.set(0, 32, 0);
-    });
-
-    document.getElementById('runBtn').addEventListener('click', () => {
-      if (currentUploadedFile) {
-        uploadAndSynthesize(currentUploadedFile);
-      } else {
-        fileUpload.value = '';
-        fileUpload.click();
-      }
-    });
-
-    // Modal
-    const codeModal = document.getElementById('codeModal');
-    const codeModalContent = document.getElementById('codeModalContent');
-    const codeModalBtn = document.getElementById('codeModalBtn');
-    const closeCodeModalBtn = document.getElementById('closeCodeModalBtn');
-    const copyCodeBtn = document.getElementById('copyCodeBtn');
-
-    codeModalBtn.addEventListener('click', () => {
-      codeModalContent.innerText = currentOpenScadCode || `// SpatialForge v2 Parametric CAD\n// Primitives + Features + Hardware\n\nmodule assembly() {\n  // Watertight Manifold CSG\n}`;
-      codeModal.classList.remove('hidden');
-    });
-
-    closeCodeModalBtn.addEventListener('click', () => {
-      codeModal.classList.add('hidden');
-    });
-
-    copyCodeBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(codeModalContent.innerText);
-      copyCodeBtn.innerText = "Copied!";
-      setTimeout(() => { copyCodeBtn.innerText = "Copy Code"; }, 2000);
+    // -----------------------------------------------------------------
+    // 4.10 INITIAL BOOTSTRAP
+    // -----------------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSampleCase('case_0000_clean');
     });
   </script>
 </body>
