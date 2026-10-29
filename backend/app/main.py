@@ -210,6 +210,26 @@ def get_sample_cad(case: str = "case_0000_clean"):
             return process_dxf_bytes(f.read(), f"{case}.dxf")
     return {"error": f"Sample DXF {case} not found"}
 
+@app.get(settings.API_V1_STR + "/download_dxf/{filename}")
+def download_dxf(filename: str):
+    """
+    Directly downloads a sample 2D CAD (.dxf) file for offline inspection or upload testing.
+    """
+    search_dirs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "test_dxf_drawings")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen", "sample_cases"))
+    ]
+    for s_dir in search_dirs:
+        candidate = os.path.join(s_dir, filename)
+        if os.path.exists(candidate) and os.path.isfile(candidate) and filename.lower().endswith(".dxf"):
+            return FileResponse(
+                candidate,
+                media_type="application/dxf",
+                filename=filename,
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            )
+    return JSONResponse(status_code=404, content={"error": f"DXF sample {filename} not found"})
+
 @app.websocket("/ws/stream")
 async def websocket_telemetry_stream(websocket: WebSocket):
     """
