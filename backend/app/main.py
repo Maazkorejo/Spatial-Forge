@@ -230,6 +230,26 @@ def download_dxf(filename: str):
             )
     return JSONResponse(status_code=404, content={"error": f"DXF sample {filename} not found"})
 
+@app.get(settings.API_V1_STR + "/download_image/{filename}")
+def download_image(filename: str):
+    """
+    Directly downloads a rendered PNG drawing picture.
+    """
+    search_dirs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "test_dxf_drawings")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen", "sample_cases"))
+    ]
+    for s_dir in search_dirs:
+        candidate = os.path.join(s_dir, filename)
+        if os.path.exists(candidate) and os.path.isfile(candidate) and filename.lower().endswith(".png"):
+            return FileResponse(
+                candidate,
+                media_type="image/png",
+                filename=filename,
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            )
+    return JSONResponse(status_code=404, content={"error": f"Drawing picture {filename} not found"})
+
 @app.websocket("/ws/stream")
 async def websocket_telemetry_stream(websocket: WebSocket):
     """
