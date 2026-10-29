@@ -271,26 +271,36 @@ def register_views(
         kind = e.get("kind", "")
         g = e.get("g", e)
         res = dict(e)
-        if kind == "line":
-            x0, y0, x1, y1 = g["p"]
-            res["g"] = {
-                "p": [
-                    round((x0 - u0) / scale, 4),
-                    round((y0 - v0) / scale, 4),
-                    round((x1 - u0) / scale, 4),
-                    round((y1 - v0) / scale, 4),
-                ]
-            }
-        elif kind in ("circle", "arc"):
-            cx, cy = g["c"]
-            r = g["r"]
-            res["g"] = {
-                "c": [round((cx - u0) / scale, 4), round((cy - v0) / scale, 4)],
-                "r": round(r / scale, 4),
-            }
-            if kind == "arc":
-                res["g"]["a0"] = g["a0"]
-                res["g"]["a1"] = g["a1"]
+        if kind == "line" or "p" in g or "p" in e:
+            p_raw = g["p"] if "p" in g else e["p"]
+            x0, y0, x1, y1 = p_raw
+            p_norm = [
+                round((x0 - u0) / scale, 4),
+                round((y0 - v0) / scale, 4),
+                round((x1 - u0) / scale, 4),
+                round((y1 - v0) / scale, 4),
+            ]
+            res["g"] = {"p": p_norm}
+            res["p"] = p_norm
+            res["kind"] = "line"
+        elif kind in ("circle", "arc") or "c" in g or "c" in e:
+            c_raw = g["c"] if "c" in g else e["c"]
+            r_raw = g["r"] if "r" in g else e["r"]
+            cx, cy = c_raw
+            r = r_raw
+            c_norm = [round((cx - u0) / scale, 4), round((cy - v0) / scale, 4)]
+            r_norm = round(r / scale, 4)
+            res["g"] = {"c": c_norm, "r": r_norm}
+            res["c"] = c_norm
+            res["r"] = r_norm
+            if kind == "arc" or "a0" in g or "a0" in e:
+                res["g"]["a0"] = g.get("a0", e.get("a0", 0.0))
+                res["g"]["a1"] = g.get("a1", e.get("a1", 360.0))
+                res["a0"] = res["g"]["a0"]
+                res["a1"] = res["g"]["a1"]
+                res["kind"] = "arc"
+            else:
+                res["kind"] = "circle"
         return res
 
     norm_front = [normalize_entity(e, u0_front, v0_front) for e in front["entities"]]

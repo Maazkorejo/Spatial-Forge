@@ -171,7 +171,18 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
             features_detected.append({"type": "hole_z", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_hole, 2)})
             features_detected.append({"type": "counterbore", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_cb, 2), "depth": cb_depth})
 
-    # 1.4 Rectangular Pockets (Inner loops in Top View)
+    # 1.4 Chamfer Detection
+    chamfer_c = None
+    for l in front_vis_lines:
+        g = l.get("g", l)
+        x0, z0, x1, z1 = g["p"]
+        dx, dz = abs(x1 - x0), abs(z1 - z0)
+        if 0.8 <= dx <= 3.5 and 0.8 <= dz <= 3.5 and abs(dx - dz) < 0.5:
+            if max(z0, z1) >= H - 1.0:  # touches top face
+                chamfer_c = round(float((dx + dz) / 2.0), 1)
+                break
+
+    # 1.5 Rectangular Pockets (Inner loops in Top View)
     if polys and len(polys) > 1:
         outer_poly = max(polys, key=lambda p: p.area)
         for poly in polys:
@@ -181,21 +192,46 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
             sx = max_x - min_x
             sy = max_y - min_y
             cx, cy = (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
+
+            # Ignore thin chamfer strips (must be true pocket >= 5.0mm)
+            if sx < 5.0 or sy < 5.0:
+                continue
             
             # Find pocket depth from hidden lines in Front view
             depth = round(H * 0.4, 2)
-            is_bottom = False
             for hx0, hx1, z_floor in front_hidden_z:
                 if abs(hx0 - min_x) < 2.0 or abs(hx1 - max_x) < 2.0 or (hx0 <= cx <= hx1):
-                    if z_floor < H / 2.0:
-                        # Could be pocket depth from bottom or deep pocket from top
-                        depth = round(H - z_floor, 2)
-                    else:
-                        depth = round(H - z_floor, 2)
+                    depth = round(H - z_floor, 2)
                     break
 
             body = body.cut(cq.Workplane("XY").box(sx, sy, depth + 1.0, centered=False).translate((min_x, min_y, H - depth)))
             features_detected.append({"type": "pocket_top", "x": round(min_x, 2), "y": round(min_y, 2), "sx": round(sx, 2), "sy": round(sy, 2), "depth": depth})
+
+    # 1.6 Bottom Pockets (from Top View Hidden Lines)
+    top_hid_lines = [e for e in top_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role") == "hidden"]
+    if top_hid_lines:
+        hid_polys, _ = build_closed_loops(top_hid_lines)
+        for hpoly in hid_polys:
+            h_min_x, h_min_y, h_max_x, h_max_y = hpoly.bounds
+            h_sx = h_max_x - h_min_x
+            h_sy = h_max_y - h_min_y
+            if h_sx >= 5.0 and h_sy >= 5.0:
+                # Find floor height from front hidden lines
+                b_depth = round(H * 0.3, 2)
+                for hx0, hx1, z_floor in front_hidden_z:
+                    if (hx0 - 1.0 <= (h_min_x + h_max_x) / 2.0 <= hx1 + 1.0) and z_floor < H / 2.0:
+                        b_depth = round(z_floor, 2)
+                        break
+                body = body.cut(cq.Workplane("XY").box(h_sx, h_sy, b_depth + 1.0, centered=False).translate((h_min_x, h_min_y, -1.0)))
+                features_detected.append({"type": "pocket_bottom", "x": round(h_min_x, 2), "y": round(h_min_y, 2), "sx": round(h_sx, 2), "sy": round(h_sy, 2), "depth": b_depth})
+
+    # 1.7 Apply Top Chamfer
+    if chamfer_c is not None:
+        try:
+            body = body.faces(">Z").edges().chamfer(chamfer_c)
+            features_detected.append({"type": "chamfer", "c": chamfer_c})
+        except Exception:
+            pass
 
     return body, {
         "family": "prismatic",
