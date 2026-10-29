@@ -254,38 +254,52 @@ def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
     L = dims["W"]
 
     front_ents = views["front"]["entities"]
-    front_lines = [e for e in front_ents if e.get("kind") == "line" or "p" in e.get("g", e)]
+    front_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
     
     # 2.1 Revolve Profile Extraction from Front View (half-profile above centerline)
-    # Filter lines above the axis (y >= -0.5)
     axis_y = dims["H"] / 2.0  # nominal center axis in registered view coords
     
-    # Collect steps: horizontal segments at radius r = abs(y - axis_y)
-    step_segments = []
+    # Collect steps: horizontal segments above centerline
+    candidates = []
     for l in front_lines:
         g = l.get("g", l)
         x0, y0, x1, y1 = g["p"]
-        if abs(y0 - y1) < 0.5:  # horizontal segment
+        mid_y = (y0 + y1) / 2.0
+        if mid_y >= axis_y - 0.5:
             x_min, x_max = min(x0, x1), max(x0, x1)
-            if x_max - x_min > 4.0:
-                r = abs(((y0 + y1) / 2.0) - axis_y)
-                if r > 2.0:
-                    step_segments.append((x_min, x_max, round(r, 2)))
+            dx = x_max - x_min
+            dy = abs(y0 - y1)
+            if dx > 3.0 and dy <= 1.5:
+                r = max(0.5, round(abs(mid_y - axis_y), 2))
+                candidates.append((x_min, x_max, r))
 
     # Sort steps along X
-    step_segments.sort(key=lambda s: s[0])
+    candidates.sort(key=lambda s: s[0])
     
-    # Construct half-profile vertices along X
+    # Deduplicate overlapping segments and merge
+    merged_steps = []
+    for c in candidates:
+        if not merged_steps:
+            merged_steps.append(c)
+        else:
+            prev_min, prev_max, prev_r = merged_steps[-1]
+            if abs(c[0] - prev_min) < 2.0 or c[0] < prev_max - 2.0:
+                if abs(c[2] - prev_r) < 1.0:
+                    merged_steps[-1] = (min(prev_min, c[0]), max(prev_max, c[1]), max(prev_r, c[2]))
+            else:
+                merged_steps.append(c)
+
+    # Ensure contiguous coverage along X
     pts = [(0.0, 0.0)]
     ch = 1.5  # standard end chamfer
     
-    if step_segments:
-        r0 = step_segments[0][2]
+    if merged_steps:
+        r0 = merged_steps[0][2]
         pts += [(0.0, max(0.0, r0 - ch)), (ch, r0)]
-        for i, (x_min, x_max, r) in enumerate(step_segments):
+        for i, (x_min, x_max, r) in enumerate(merged_steps):
             if i > 0:
                 pts.append((x_min, r))
-            if i < len(step_segments) - 1:
+            if i < len(merged_steps) - 1:
                 pts.append((x_max, r))
             else:
                 pts += [(x_max - ch, r), (x_max, max(0.0, r - ch)), (x_max, 0.0)]
@@ -308,6 +322,9 @@ def reconstruct_turned(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
         d = round(r * 2.0, 2)
         body = body.cut(_cyl_z(d, dims["H"] + 10.0, cx, 0.0, -dims["H"] / 2.0 - 5.0))
         features_detected.append({"type": "cross_hole", "x": round(cx, 2), "d": d})
+
+    # Translate solid to registered orthographic view space (centered in Y and Z)
+    body = body.translate((0.0, dims["D"] / 2.0, dims["H"] / 2.0))
 
     return body, {
         "family": "turned",

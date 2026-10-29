@@ -121,7 +121,8 @@ def process_dxf_bytes(
         scale_res = regress_drawing_scale(ingested, stitched_lines, classified["circles"])
         scale = scale_res["scale"]
 
-        all_geom = stitched_lines + classified["circles"] + classified["arcs"]
+        geom_lines = [l for l in stitched_lines if l.get("role", "visible") in ("visible", "hidden")]
+        all_geom = (geom_lines if geom_lines else stitched_lines) + classified["circles"] + classified["arcs"]
 
         # 2. View Clustering, Standard Identification, and Registration
         clusters = cluster_drawing_entities(all_geom)
