@@ -54,16 +54,16 @@ def ingest_dxf(path: str) -> Dict[str, Any]:
         if t == "LINE":
             p1, p2 = _xy(e.dxf.start), _xy(e.dxf.end)
             if math.hypot(p2[0] - p1[0], p2[1] - p1[1]) > 1e-5:
-                raw_lines.append({"p": p1 + p2, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
+                raw_lines.append({"kind": "line", "p": p1 + p2, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
         elif t == "CIRCLE":
             c, r = _xy(e.dxf.center), float(e.dxf.radius)
             if r > 1e-5:
-                raw_circles.append({"c": c, "r": r, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
+                raw_circles.append({"kind": "circle", "c": c, "r": r, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
         elif t == "ARC":
             c, r = _xy(e.dxf.center), float(e.dxf.radius)
             a0, a1 = float(e.dxf.start_angle), float(e.dxf.end_angle)
             if r > 1e-5:
-                raw_arcs.append({"c": c, "r": r, "a0": a0, "a1": a1, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
+                raw_arcs.append({"kind": "arc", "c": c, "r": r, "a0": a0, "a1": a1, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
         elif t in ("LWPOLYLINE", "POLYLINE"):
             # Decompose polyline vertices into lines / arcs (with bulge support)
             pts = list(e.get_points(format="xyb") if t == "LWPOLYLINE" else [(v.dxf.location.x, v.dxf.location.y, 0.0) for v in e.vertices])
@@ -75,7 +75,7 @@ def ingest_dxf(path: str) -> Dict[str, Any]:
                 x2, y2 = p2[0], p2[1]
                 if abs(b) < 1e-6:
                     if math.hypot(x2 - x1, y2 - y1) > 1e-5:
-                        raw_lines.append({"p": [x1, y1, x2, y2], "layer": lay, "ltype": lt, "handle": e.dxf.handle})
+                        raw_lines.append({"kind": "line", "p": [x1, y1, x2, y2], "layer": lay, "ltype": lt, "handle": e.dxf.handle})
                 else:
                     # Bulge = tan(included_angle / 4)
                     theta = 4.0 * math.atan(b)
@@ -91,12 +91,13 @@ def ingest_dxf(path: str) -> Dict[str, Any]:
                         cy = my + dx * h if b > 0 else my - dx * h
                         a0 = math.degrees(math.atan2(y1 - cy, x1 - cx)) % 360.0
                         a1 = math.degrees(math.atan2(y2 - cy, x2 - cx)) % 360.0
-                        raw_arcs.append({"c": [cx, cy], "r": r, "a0": a0, "a1": a1, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
+                        raw_arcs.append({"kind": "arc", "c": [cx, cy], "r": r, "a0": a0, "a1": a1, "layer": lay, "ltype": lt, "handle": e.dxf.handle})
         elif t in ("TEXT", "MTEXT"):
             txt = e.dxf.text if t == "TEXT" else e.text
-            raw_texts.append({"text": str(txt).strip(), "at": _xy(e.dxf.insert), "layer": lay, "handle": e.dxf.handle})
+            raw_texts.append({"kind": "text", "text": str(txt).strip(), "at": _xy(e.dxf.insert), "layer": lay, "handle": e.dxf.handle})
         elif t == "DIMENSION":
             raw_dims.append({
+                "kind": "dimension",
                 "measurement": float(e.get_measurement()),
                 "text": str(e.dxf.get("text", "<>")).strip(),
                 "layer": lay,
@@ -213,6 +214,7 @@ def merge_collinear_lines(lines: List[Dict[str, Any]], ang_tol_deg: float = 1.0,
                 s1["p"] = [o_x + ux * t1_a, o_y + uy * t1_a, o_x + ux * t1_b, o_y + uy * t1_b]
         
         merged.append({
+            "kind": "line",
             "p": s1["p"],
             "layer": s1["layer"],
             "ltype": s1["ltype"],
@@ -294,31 +296,57 @@ def classify_and_filter_entities(ingested: Dict[str, Any]) -> Dict[str, Any]:
 
     # 3.3 Detect Title Block and Border:
     # Title blocks are rectangular clusters in the corner with texts like "TITLE", "SCALE", "UNITS", "PROJECTION"
-    all_pts = []
-    for l in lines:
-        all_pts += [l["p"][:2], l["p"][2:]]
-    if all_pts:
-        all_pts_arr = np.array(all_pts)
-        min_x, min_y = all_pts_arr.min(0)
-        max_x, max_y = all_pts_arr.max(0)
-    else:
-        min_x, min_y, max_x, max_y = 0, 0, 100, 100
-        
     title_texts = [t for t in texts if any(k in t["text"].upper() for k in ("TITLE", "SCALE", "UNITS", "PROJECTION", "PART-"))]
     if title_texts:
         t_pts = np.array([t["at"] for t in title_texts])
-        t_min_x, t_min_y = float(t_pts[:, 0].min() - 20), float(t_pts[:, 1].min() - 20)
-        t_max_x, t_max_y = float(t_pts[:, 0].max() + 40), float(t_pts[:, 1].max() + 20)
+        t_box = [
+            float(t_pts[:, 0].min() - 15),
+            float(t_pts[:, 1].min() - 15),
+            float(t_pts[:, 0].max() + 110),
+            float(t_pts[:, 1].max() + 15),
+        ]
         for l in lines:
-            if l["role"] == "unknown":
+            if l["role"] in ("unknown", "visible"):
                 lx0, ly0, lx1, ly1 = l["p"]
-                if (t_min_x <= lx0 <= t_max_x and t_min_y <= ly0 <= t_max_y and
-                    t_min_x <= lx1 <= t_max_x and t_min_y <= ly1 <= t_max_y):
+                if (t_box[0] <= min(lx0, lx1) and max(lx0, lx1) <= t_box[2] and
+                    t_box[1] <= min(ly0, ly1) and max(ly0, ly1) <= t_box[3]):
                     l["role"] = "title"
-                    
-    # 3.4 Detect Exploded Dimension Lines:
-    # Look for arrowhead geometry (pairs of short segments at ~15 deg meeting at a point)
-    # and lines that lie outside the main view envelopes
+
+    # 3.4 Detect Exploded Dimensions:
+    # An exploded dimension has arrowheads: short lines (len ~ 1.5 - 3.5mm) meeting at an acute angle at an arrow tip
+    pt_map = defaultdict(list)
+    for l in lines:
+        if l["role"] != "title":
+            p0 = (round(l["p"][0], 1), round(l["p"][1], 1))
+            p1 = (round(l["p"][2], 1), round(l["p"][3], 1))
+            pt_map[p0].append(l)
+            pt_map[p1].append(l)
+
+    arrow_tips = set()
+    for pt, v in pt_map.items():
+        if len(v) >= 2:
+            short_barbs = [l for l in v if math.hypot(l["p"][2] - l["p"][0], l["p"][3] - l["p"][1]) <= 3.5]
+            if len(short_barbs) >= 2:
+                arrow_tips.add(pt)
+                for sb in short_barbs:
+                    sb["role"] = "dim"
+
+    # Lines passing through or terminating at arrow tips are dimension lines or witness extension lines
+    def pt_to_line_dist(pt, l):
+        p0, p1 = np.array(l["p"][:2]), np.array(l["p"][2:])
+        u = p1 - p0
+        L2 = np.dot(u, u)
+        if L2 < 1e-6:
+            return float(np.linalg.norm(np.array(pt) - p0))
+        t = max(0.0, min(1.0, float(np.dot(np.array(pt) - p0, u) / L2)))
+        return float(np.linalg.norm(np.array(pt) - (p0 + t * u)))
+
+    if arrow_tips:
+        for l in lines:
+            if l["role"] in ("unknown", "visible"):
+                if any(pt_to_line_dist(tip, l) < 0.25 for tip in arrow_tips):
+                    l["role"] = "dim"
+
     # Any remaining unknown line with standard length is considered visible geometry
     for l in lines:
         if l["role"] == "unknown":
