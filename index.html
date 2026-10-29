@@ -112,13 +112,7 @@
       </button>
     </div>
 
-    <!-- Center: Standard & Watertight Verification Pill -->
-    <div class="flex items-center gap-2">
-      <div id="statusVerificationPill" class="flex items-center gap-2 bg-[#1e1e1e] border border-[#333333] px-3 py-0.5 rounded-full text-[10.5px] font-mono">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span id="headerSummaryText" class="text-white font-medium">[2D CAD / DXF] Third-Angle &bull; Edge F1: 100.0% &bull; Watertight Solid</span>
-      </div>
-    </div>
+
 
     <!-- Right: Export Group (STEP, STL, GLB, DXF) -->
     <div class="flex items-center gap-1.5">
@@ -220,15 +214,7 @@
       <!-- 3D Viewport Header -->
       <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0 z-20">
         
-        <!-- Left: Title & Camera Orientation -->
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5 text-white font-medium text-[11px]">
-            <i data-lucide="cube" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
-            <span>3D Viewport (B-Rep Solid)</span>
-          </div>
-          <span class="text-[#444444]">|</span>
-          <span id="viewportCamLabel" class="font-mono text-[#888888] text-[10px]">User Ortho: Iso</span>
-        </div>
+
 
         <!-- Center: Shading Modes (Solid, Wireframe On Solid, Pure Wire) -->
         <div class="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#383838] text-[9.5px] font-mono">
@@ -510,10 +496,7 @@
       camera.lookAt(controls.target);
       controls.update();
 
-      const label = document.getElementById('viewportCamLabel');
-      if (label) {
-        label.innerText = `User Ortho: az ${azimuthDeg.toFixed(0)}°, el ${elevationDeg.toFixed(0)}°`;
-      }
+
     }
 
     function frameSelectedObject() {
@@ -700,26 +683,31 @@
       document.getElementById('propF1').innerText = f1Pct;
 
       const isFlagged = rep.flagged || res.status === 'needs_review';
-      const statusPill = document.getElementById('statusVerificationPill');
       const gateBadge = document.getElementById('gateDecisionBadge');
       const solidTag = document.getElementById('solidStatusTag');
 
       if (isFlagged) {
-        statusPill.className = 'flex items-center gap-2 bg-[#2a1a1a] border border-rose-800 px-3 py-0.5 rounded-full text-[10.5px] font-mono text-rose-300';
-        gateBadge.className = 'text-rose-400 font-bold';
-        gateBadge.innerText = '[FLAGGED - NEEDS REVIEW]';
-        solidTag.className = 'text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/60 text-[9px]';
-        solidTag.innerText = 'NEEDS REVIEW';
+        if (gateBadge) {
+          gateBadge.className = 'text-rose-400 font-bold';
+          gateBadge.innerText = '[FLAGGED - NEEDS REVIEW]';
+        }
+        if (solidTag) {
+          solidTag.className = 'text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/60 text-[9px]';
+          solidTag.innerText = 'NEEDS REVIEW';
+        }
       } else {
-        statusPill.className = 'flex items-center gap-2 bg-[#1e1e1e] border border-[#333333] px-3 py-0.5 rounded-full text-[10.5px] font-mono text-emerald-400';
-        gateBadge.className = 'text-emerald-400 font-bold';
-        gateBadge.innerText = '[CONVERGED]';
-        solidTag.className = 'text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]';
-        solidTag.innerText = 'WATERTIGHT';
+        if (gateBadge) {
+          gateBadge.className = 'text-emerald-400 font-bold';
+          gateBadge.innerText = '[CONVERGED]';
+        }
+        if (solidTag) {
+          solidTag.className = 'text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]';
+          solidTag.innerText = 'WATERTIGHT';
+        }
       }
 
       if (res.summary_line) {
-        document.getElementById('headerSummaryText').innerText = res.summary_line;
+        
         const sm = document.getElementById('statusMessage'); if (sm) sm.innerText = res.summary_line;
       }
 
