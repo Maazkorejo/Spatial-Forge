@@ -7,7 +7,13 @@ from fastapi.responses import JSONResponse, Response, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import os
+import sys
 import base64
+
+V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2"))
+if V2_DIR not in sys.path:
+    sys.path.insert(0, V2_DIR)
+from dxf_pipeline import process_dxf_bytes
 
 from app.core.config import settings
 from app.agent.relational_pipeline import RelationalPipelineEngine
@@ -76,6 +82,11 @@ async def draft_blueprint(
     """
     try:
         contents = await file.read()
+        is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
+        if is_dxf:
+            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+            return result
+
         result = relational_engine.process_draft(contents, requested_class=requested_class)
         return result
     except Exception as e:
@@ -89,13 +100,35 @@ async def synthesize_blueprint(
     requested_class: Optional[str] = Form(None)
 ):
     """
-    Main synthesis endpoint. Ingests a 2D technical blueprint or 3D concept sketch,
-    runs the Relational CSG pipeline with camera estimation and render-and-compare optimization.
+    Main synthesis endpoint. Ingests a 2D technical blueprint, 3D concept sketch, or 2D CAD DXF,
+    running the appropriate deterministic CAD or Relational CSG pipeline.
     """
     try:
         contents = await file.read()
+        is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
+        if is_dxf:
+            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+            return result
+
         # Run Relational Analysis-by-Synthesis with spatialforge_v2
         result = relational_engine.process_image(contents, requested_class=requested_class)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post(f"{settings.API_V1_STR}/dxf")
+@app.post("/pipeline/dxf")
+async def process_dxf_endpoint(file: UploadFile = File(...)):
+    """
+    Dedicated 2D CAD (DXF) to 3D B-Rep CAD synthesis endpoint.
+    Performs ingestion, view segmentation, standard inference, 2.5D reconstruction,
+    and reprojection verification.
+    """
+    try:
+        contents = await file.read()
+        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
         return result
     except Exception as e:
         import traceback
@@ -213,8 +246,42 @@ async def websocket_telemetry_stream(websocket: WebSocket):
             message = json.loads(data)
 
             if message.get("action") == "synthesize" and "image_base64" in message:
-                img_bytes = base64.b64decode(message["image_base64"])
+                raw_bytes = base64.b64decode(message["image_base64"])
                 requested_class = message.get("requested_class")
+                filename = message.get("filename", "drawing.dxf" if message.get("is_dxf") else "sketch.png")
+                is_dxf = message.get("is_dxf") or filename.lower().endswith(".dxf") or raw_bytes.startswith(b"0\nSECTION") or raw_bytes.startswith(b"0\r\nSECTION") or b"HEADER" in raw_bytes[:200]
+
+                if is_dxf:
+                    await websocket.send_json({
+                        "stage": "INGESTION",
+                        "status": "Normalizing DXF entities, classifying lines & stitching endpoints...",
+                        "progress": 25
+                    })
+                    await websocket.send_json({
+                        "stage": "VIEW_SEGMENTATION",
+                        "status": "Clustering drawing views & inferring projection standard (1st vs 3rd angle)...",
+                        "progress": 50
+                    })
+                    await websocket.send_json({
+                        "stage": "RECONSTRUCTION",
+                        "status": "Synthesizing 2.5D B-Rep solid with measured features...",
+                        "progress": 75
+                    })
+                    await websocket.send_json({
+                        "stage": "VERIFICATION",
+                        "status": "Reprojecting 3D solid via OpenCascade HLR & checking reliability gate...",
+                        "progress": 90
+                    })
+
+                    result = await asyncio.to_thread(process_dxf_bytes, raw_bytes, filename)
+
+                    await websocket.send_json({
+                        "stage": "COMPLETE",
+                        "status": f"2D CAD synthesis completed ({result['status'].upper()}) • Reprojection F1: {round(result['iou'] * 100, 1)}%",
+                        "progress": 100,
+                        "payload": result
+                    })
+                    continue
 
                 # Stage 1: Perception & Classification
                 await websocket.send_json({
