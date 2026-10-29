@@ -84,14 +84,15 @@ class RelationalSynthesisResult(BaseModel):
     openscad_code: str
 
 
-def detect_features_cv(img_bgr: np.ndarray) -> List[Detection]:
+def detect_features_cv(img_bgr: np.ndarray, cls_name: str = "") -> List[Detection]:
     """
     OpenCV feature detection for engineering sketches:
     - cv2.HoughCircles detects circular dials, wheels, and knobs
     - Contour detection detects rectangular slots, openings, and buttons
-    Returns deduplicated Detection objects in original image pixel coordinates.
+    Only applies to mechanical housings/machinery with control panels.
+    Turned tools (screwdrivers) and monolithic brackets have no surface controls.
     """
-    if img_bgr is None or img_bgr.size == 0:
+    if img_bgr is None or img_bgr.size == 0 or cls_name in ("screwdriver", "bracket_flange"):
         return []
 
     h, w = img_bgr.shape[:2]
@@ -336,7 +337,7 @@ class RelationalPipelineEngine:
         solids = resolve(fitted)
         frame = make_frame(_project(solids, fr.camera), target)
 
-        detections = detect_features_cv(img_bgr)
+        detections = detect_features_cv(img_bgr, cls_name=cls_name)
         if detections and frame is not None:
             placed_features, rejected = place_features(fitted, fr.camera, frame, target, detections)
             final_asm = fitted.model_copy(update={"features": placed_features if placed_features else fitted.features})
