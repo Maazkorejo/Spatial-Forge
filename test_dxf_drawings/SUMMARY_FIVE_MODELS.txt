@@ -1,0 +1,27 @@
+================================================================================
+SPATIAL FORGE - 2D CAD TECHNICAL DRAWING & 3D B-REP GENERATION SUITE
+================================================================================
+
+The following 5 complex engineering drawings and authentic 3D CAD B-Rep solids
+have been generated in ASME 3rd-Angle Orthographic Multi-View projection and
+verified through OpenCascade HLR Ray-Cast Reprojection Verification:
+
+  * FORGED ALLOY WHEEL             [PASS - OK] | Edge F1: 98.6% | 3D Vol:   426558.5 mm3
+    - DXF Drawing: 06_wheel_technical_drawing.dxf
+    - PNG Picture: 06_wheel_technical_drawing.png
+
+  * MONARCH BUTTERFLY              [PASS - OK] | Edge F1: 92.7% | 3D Vol:    86688.4 mm3
+    - DXF Drawing: 07_butterfly_technical_drawing.dxf
+    - PNG Picture: 07_butterfly_technical_drawing.png
+
+  * STYLIZED CAT FIGURINE          [PASS - OK] | Edge F1: 97.4% | 3D Vol:   260454.1 mm3
+    - DXF Drawing: 08_cat_technical_drawing.dxf
+    - PNG Picture: 08_cat_technical_drawing.png
+
+  * INTERNAL COMBUSTION ENGINE     [PASS - OK] | Edge F1: 91.3% | 3D Vol:  1033794.2 mm3
+    - DXF Drawing: 09_engine_technical_drawing.dxf
+    - PNG Picture: 09_engine_technical_drawing.png
+
+  * F-35A LIGHTNING II JET         [PASS - OK] | Edge F1: 86.9% | 3D Vol:   100982.3 mm3
+    - DXF Drawing: 10_f35_jet_technical_drawing.dxf
+    - PNG Picture: 10_f35_jet_technical_drawing.png

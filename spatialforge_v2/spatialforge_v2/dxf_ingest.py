@@ -253,7 +253,7 @@ def classify_and_filter_entities(ingested: Dict[str, Any]) -> Dict[str, Any]:
             l["role"] = "center"
         elif "DIM" in lay:
             l["role"] = "dim"
-        elif "TITLE" in lay:
+        elif any(k in lay for k in ("TITLE", "BORDER", "FRAME", "SHEET", "MARGIN")):
             l["role"] = "title"
         elif lay == "VISIBLE":
             l["role"] = "visible"

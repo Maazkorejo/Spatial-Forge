@@ -132,6 +132,8 @@ def process_dxf_bytes(
         identified = identify_views(clusters, classified["texts"])
         inferred_std = identified["standard"]
         registered = register_views(identified, scale=scale)
+        registered["texts"] = classified["texts"]
+        registered["filename"] = filename
         dims = registered["dimensions"]
 
         # 3. 2.5D Feature-Based 3D B-Rep CAD Reconstruction

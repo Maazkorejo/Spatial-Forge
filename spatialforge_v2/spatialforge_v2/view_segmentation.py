@@ -34,7 +34,7 @@ def _ent_bbox(e: Dict[str, Any]) -> Tuple[float, float, float, float]:
 # ---------------------------------------------------------------------------
 def cluster_drawing_entities(
     entities: List[Dict[str, Any]],
-    cluster_tol: float = 10.0
+    cluster_tol: float = 18.0
 ) -> List[Dict[str, Any]]:
     """
     Cluster drawing geometry into distinct view regions.
