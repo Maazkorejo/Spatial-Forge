@@ -1,1336 +1,932 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpatialForge — Autonomous 2D CAD (DXF) to 3D B-Rep Synthesis Engine</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Three.js & OrbitControls -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SpatialForge — Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Three.js & OrbitControls -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root{
+    --bg:#0e0f11; --panel:#17181b; --panel-2:#1d1f23; --line:#2a2c31;
+    --text:#edeef0; --muted:#8b8f96; --accent:#6f8dff; --accent-dim:#3c4a85;
+    --ink:#c7cdff; --emerald:#34d399; --emerald-dim:rgba(52, 211, 153, 0.15);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f3f3f1; --panel:#ffffff; --panel-2:#ececea; --line:#dddddb;
+      --text:#17181b; --muted:#6b6f76; --accent:#4a63d6; --accent-dim:#c7cdfa; --ink:#2a3690;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f3f1; --panel:#ffffff; --panel-2:#ececea; --line:#dddddb;
+    --text:#17181b; --muted:#6b6f76; --accent:#4a63d6; --accent-dim:#c7cdfa; --ink:#2a3690;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:'Manrope',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;}
+  body{
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    padding-left:env(safe-area-inset-left,0px);
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  /* ---------- APP SHELL ---------- */
+  .app{display:flex;height:100%;width:100%;}
 
-    * {
-      box-sizing: border-box;
-      user-select: none;
-    }
+  /* icon rail */
+  .rail{width:64px;flex:none;border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:8px;background:var(--panel);}
+  .rail .mark{width:26px;height:26px;margin-bottom:14px;}
+  .rail-btn{width:42px;height:42px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--muted);transition:background .15s ease,color .15s ease;position:relative;}
+  .rail-btn:hover{color:var(--text);background:var(--panel-2);}
+  .rail-btn.active{color:var(--accent);background:var(--accent-dim);}
+  .rail-btn svg{width:19px;height:19px;}
+  .rail-label{font-size:9px;color:var(--muted);margin-top:auto;writing-mode:vertical-rl;letter-spacing:.04em;padding-bottom:4px;}
 
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #181818;
-      color: #cfcfcf;
-      overflow: hidden;
-      height: 100vh;
-      margin: 0;
-    }
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
 
-    .font-mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
+  /* top bar */
+  .topbar{height:52px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:0 18px;background:var(--panel);}
+  .tb-left{display:flex;align-items:center;gap:14px;font-size:13px;}
+  .tb-left .file{color:var(--muted);display:flex;align-items:center;gap:8px;}
+  .tb-left .file b{color:var(--text);font-weight:600;}
+  .tb-tabs{display:flex;gap:2px;background:var(--panel-2);padding:3px;border-radius:8px;}
+  .tb-tab{font-size:12.5px;padding:6px 14px;border-radius:6px;color:var(--muted);cursor:pointer;transition:all .15s ease;font-weight:500;}
+  .tb-tab.active{background:var(--panel);color:var(--text);font-weight:600;}
+  .tb-right{display:flex;align-items:center;gap:10px;}
+  .badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 9px;border-radius:6px;background:var(--accent-dim);color:var(--ink);letter-spacing:0.02em;}
+  .badge.converged{background:rgba(52,211,153,0.15);color:var(--emerald);border:1px solid rgba(52,211,153,0.3);}
+  .badge.warning{background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);}
+  .btn{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:7px;border:1px solid var(--line);
+    background:transparent;color:var(--text);cursor:pointer;transition:all .15s ease;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{border-color:var(--accent);color:white;}
+  .btn-primary{background:var(--accent);color:#0c0d10;border:none;}
+  .btn-primary:hover{background:#8198ff;color:#0c0d10;}
+  .btn-emerald{background:var(--emerald);color:#0a291e;border:none;}
+  .btn-emerald:hover{background:#6ee7b7;}
 
-    /* Blender Style Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #1e1e1e;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #383838;
-      border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #4a4a4a;
-    }
+  /* page container */
+  .pages{flex:1;position:relative;min-height:0;}
+  .page{position:absolute;inset:0;display:none;}
+  .page.active{display:flex;}
 
-    /* Blender Style Active Item Highlighting (Steel Blue) */
-    .blender-active-btn {
-      background-color: #2563eb !important;
-      color: #ffffff !important;
-    }
+  /* ===================== PAGE: UPLOAD / OVERVIEW ===================== */
+  #page-upload{padding:28px;}
+  .upload-grid{display:flex;gap:28px;width:100%;height:100%;}
+  .upload-left{flex:1.2;display:flex;flex-direction:column;min-height:0;}
+  .upload-right{width:320px;flex:none;display:flex;flex-direction:column;gap:16px;}
 
-    .blender-tab-active {
-      background-color: #2e2e2e !important;
-      color: #ffffff !important;
-      border-bottom: 2px solid #3b82f6 !important;
-    }
+  .drop{flex:1;border:1px dashed var(--line);border-radius:14px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;gap:14px;position:relative;
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/26px 26px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/26px 26px, var(--panel);
+    min-height:0;cursor:pointer;transition:border-color .15s ease, background-color .15s ease;}
+  .drop:hover, .drop.drag-over{border-color:var(--accent);background-color:rgba(111,141,255,0.03);}
+  .drop svg{width:36px;height:36px;color:var(--muted);}
+  .drop h2{font-size:17px;margin:0;font-weight:700;}
+  .drop p{font-size:13px;color:var(--muted);margin:0;max-width:36ch;line-height:1.5;}
+  .drop .formats{display:flex;gap:8px;margin-top:4px;}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:4px 9px;border-radius:5px;border:1px solid var(--line);color:var(--muted);background:var(--panel-2);}
 
-    .viewport-canvas {
-      width: 100%;
-      height: 100%;
-      outline: none;
-    }
+  .recent{flex:none;margin-top:18px;}
+  .recent h3{font-size:11px;color:var(--muted);font-weight:600;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.04em;}
+  .recent-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;border-radius:6px;cursor:pointer;transition:background .15s ease;}
+  .recent-row:hover{background:var(--panel-2);color:var(--accent);}
+  .recent-row:last-child{border-bottom:none;}
+  .recent-row .meta{color:var(--muted);font-size:11.5px;}
+  .recent-score{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--emerald);}
 
-    /* Subtle grid overlay for 2D sheet viewer */
-    .sheet-grid {
-      background-size: 20px 20px;
-      background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    }
-  </style>
+  .panel-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;flex:none;}
+  .panel-box h3{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.04em;}
+  .step-list{display:flex;flex-direction:column;gap:0;}
+  .step-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .step-item:last-child{border-bottom:none;}
+  .step-num{width:22px;height:22px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;
+    justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);flex:none;border:1px solid var(--line);}
+  .step-item div.t{font-size:12.5px;font-weight:600;margin-bottom:2px;}
+  .step-item div.d{font-size:11.5px;color:var(--muted);line-height:1.4;}
+
+  .stat-box{display:flex;flex-direction:column;gap:14px;flex:1;}
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;}
+  .stat-row .n{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;}
+  .stat-row .l{font-size:12px;color:var(--muted);}
+
+  /* ===================== PAGE: EDIT WORKSPACE ===================== */
+  #page-edit{padding:0;}
+  .edit-grid{display:grid;grid-template-columns:240px 1fr 310px;width:100%;height:100%;min-height:0;}
+  .edit-col{min-height:0;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--panel);}
+  .edit-col:last-child{border-right:none;border-left:1px solid var(--line);}
+  .edit-col-head{padding:12px 16px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:600;flex:none;
+    display:flex;align-items:center;justify-content:space-between;text-transform:uppercase;letter-spacing:0.04em;}
+  .edit-col-body{flex:1;overflow-y:auto;padding:12px 16px;}
+
+  .part-row{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-radius:6px;
+    cursor:pointer;font-size:12.5px;margin-bottom:2px;transition:all .15s ease;}
+  .part-row:hover{background:var(--panel-2);color:var(--accent);}
+  .part-row.sel{background:var(--panel-2);color:var(--accent);font-weight:600;}
+  .src{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 6px;border-radius:4px;}
+  .src.measured{background:var(--accent-dim);color:var(--ink);}
+  .src.inferred{background:var(--panel-2);color:var(--muted);border:1px solid var(--line);}
+
+  .viewer{flex:1;display:flex;align-items:center;justify-content:center;position:relative;
+    background:
+      radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 60%),
+      var(--bg);overflow:hidden;}
+  #threeCanvasWrapper{width:100%;height:100%;position:absolute;inset:0;}
+  .viewer-toolbar{position:absolute;top:14px;left:16px;display:flex;gap:6px;z-index:10;}
+  .vt-btn{font-size:11.5px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);color:var(--muted);background:var(--panel);cursor:pointer;font-weight:500;transition:all .15s ease;}
+  .vt-btn:hover{color:var(--text);border-color:var(--muted);}
+  .vt-btn.active{color:var(--text);border-color:var(--accent);background:var(--panel-2);font-weight:600;}
+  .viewer-status{position:absolute;bottom:14px;left:16px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+    background:rgba(23,24,27,0.85);backdrop-filter:blur(8px);padding:6px 12px;border-radius:6px;border:1px solid var(--line);z-index:10;}
+  .pip{width:7px;height:7px;border-radius:50%;background:var(--emerald);flex:none;box-shadow:0 0 8px rgba(52,211,153,0.5);}
+
+  .prop-group{margin-bottom:20px;}
+  .prop-group h4{font-size:11px;color:var(--muted);font-weight:600;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.04em;}
+  .prop-field{margin-bottom:10px;}
+  .prop-field .fl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;color:var(--muted);}
+  .prop-field .fl b{font-family:'JetBrains Mono',monospace;font-weight:500;color:var(--text);}
+  .bar{height:4px;border-radius:2px;background:var(--panel-2);overflow:hidden;}
+  .bar i{display:block;height:100%;background:var(--emerald);border-radius:2px;transition:width .3s ease;}
+  .num-input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;transition:border-color .15s ease;}
+  .num-input:focus{outline:none;border-color:var(--accent);}
+
+  /* Operations input & preset chips */
+  .presets-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+  .preset-btn{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:11px;
+    color:var(--ink);cursor:pointer;text-align:left;transition:all .15s ease;font-weight:500;}
+  .preset-btn:hover{border-color:var(--accent);color:var(--text);}
+  .cad-textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;
+    color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical;min-height:90px;line-height:1.4;margin-bottom:10px;}
+  .cad-textarea:focus{outline:none;border-color:var(--accent);}
+
+  .history-row{display:flex;gap:6px;margin-bottom:14px;}
+  .history-row .btn{flex:1;justify-content:center;padding:6px 0;font-size:11.5px;}
+
+  /* ===================== PAGE: EXPORT ===================== */
+  #page-export{padding:28px;}
+  .export-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:20px;width:100%;height:100%;}
+  .fmt-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;
+    display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s ease, transform .15s ease;}
+  .fmt-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .fmt-card.sel{border-color:var(--accent);background:var(--panel-2);}
+  .fmt-card .ext{font-family:'JetBrains Mono',monospace;font-size:22px;color:var(--accent);font-weight:600;}
+  .fmt-card h3{font-size:15px;margin:0;font-weight:700;}
+  .fmt-card p{font-size:12.5px;color:var(--muted);margin:0;line-height:1.5;flex:1;}
+  .fmt-card .use{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;margin-top:auto;}
+  .fmt-card .dl-btn{margin-top:8px;padding:8px 0;text-align:center;border-radius:6px;background:var(--accent);color:#0c0d10;font-weight:600;font-size:12px;}
+
+  ::-webkit-scrollbar{width:7px;height:7px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
 </head>
+<body>
+<div class="app">
 
-<body class="flex flex-col h-screen select-none bg-[#181818] text-[#cccccc]">
+  <!-- Left Icon Rail -->
+  <div class="rail">
+    <svg class="mark" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="2.5" width="15" height="15" rx="2" stroke="var(--accent)" stroke-width="1.4"/><path d="M2.5 7.5h15M7.5 2.5v15" stroke="var(--accent)" stroke-width="1.4"/></svg>
 
-  <!-- ================================================================= -->
-  <!-- 1. BLENDER HEADER BAR (TOP MENU & GLOBAL CAD CONTROLS)            -->
-  <!-- ================================================================= -->
-  <header class="h-10 bg-[#262626] border-b border-[#1c1c1c] px-3 flex items-center justify-between z-30 flex-shrink-0">
-    
-    <!-- Left: App Identity, Benchmark Case Selector, DXF Load -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2 pr-3 border-r border-[#383838]">
-        <div class="w-6 h-6 rounded bg-[#2563eb] flex items-center justify-center text-white shadow-sm">
-          <i data-lucide="box" class="w-4 h-4"></i>
-        </div>
-        <div class="flex flex-col">
-          <span class="font-bold text-white text-[12px] tracking-tight leading-none">SpatialForge</span>
-          <span class="font-mono text-[#777777] text-[8.5px] uppercase tracking-wider">2D CAD &rarr; 3D B-Rep</span>
-        </div>
+    <div class="rail-btn active" data-page="upload" title="Upload Blueprint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+    </div>
+    <div class="rail-btn" data-page="edit" title="Edit 3D Solid">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21l3.6-1 11-11-2.6-2.6-11 11L3 21zM14.5 5.5L18.5 9.5"/></svg>
+    </div>
+    <div class="rail-btn" data-page="export" title="Export CAD Files">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12M8 7l4-4 4 4M5 21h14"/></svg>
+    </div>
+  </div>
+
+  <!-- Main Work Area -->
+  <div class="main">
+    <!-- Top Navigation Bar -->
+    <div class="topbar">
+      <div class="tb-left">
+        <div class="file"><span id="topbarFilename">case_0000_clean.dxf</span> <span style="opacity:.4">/</span> <b id="pageTitle">Upload</b></div>
       </div>
-
-
-
-      <!-- Action: Choose DXF from Disk -->
-      <label for="dxfFileInput" class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#2a2a2a] hover:bg-[#333333] border border-[#3d3d3d] text-white font-medium text-[11px] cursor-pointer transition active:scale-95">
-        <i data-lucide="upload" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
-        <span>Open DXF...</span>
-      </label>
-      <input type="file" id="dxfFileInput" class="hidden" accept=".dxf">
-
-      <!-- Action: Re-run Reconstruction Button -->
-      <button id="reconstructBtn" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[11px] transition shadow-sm active:scale-95">
-        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
-        <span id="reconstructBtnText">Reconstruct Solid</span>
-      </button>
+      <div class="tb-tabs">
+        <div class="tb-tab active" data-page="upload">Upload</div>
+        <div class="tb-tab" data-page="edit">Edit</div>
+        <div class="tb-tab" data-page="export">Export</div>
+      </div>
+      <div class="tb-right">
+        <span id="topbarStatusBadge" class="badge converged">converged</span>
+        <button class="btn" onclick="document.getElementById('hiddenFileInput').click()">Open DXF</button>
+        <button class="btn btn-primary" onclick="triggerReconstruction()">Reconstruct</button>
+      </div>
     </div>
 
+    <!-- Hidden native file input -->
+    <input type="file" id="hiddenFileInput" style="display:none" accept=".dxf">
 
+    <div class="pages">
 
-    <!-- Right: Export Group (STEP, STL, GLB, DXF) -->
-    <div class="flex items-center gap-1.5 text-xs font-medium">
-      <button id="exportStepBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export B-Rep STEP">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-sky-400"></i>
-        <span>STEP</span>
-      </button>
-      <button id="exportStlBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export STL Mesh">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
-        <span>STL</span>
-      </button>
-      <button id="exportGlbBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export GLB 3D">
-        <i data-lucide="download" class="w-3.5 h-3.5 text-purple-400"></i>
-        <span>GLB</span>
-      </button>
-      <button id="downloadCurrentDxfBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Download 2D DXF">
-        <i data-lucide="file-code" class="w-3.5 h-3.5 text-blue-400"></i>
-        <span>DXF</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- ================================================================= -->
-  <!-- 2. MAIN BLENDER WORKSPACE (3-COLUMN SPLIT LAYOUT)                  -->
-  <!-- ================================================================= -->
-  <main class="flex-1 flex overflow-hidden">
-
-    <!-- --------------------------------------------------------------- -->
-    <!-- 2A. LEFT EDITOR: 2D CAD SHEET & DIAGNOSTICS (38% WIDTH)         -->
-    <!-- --------------------------------------------------------------- -->
-    <section class="w-[38%] border-r border-[#1c1c1c] flex flex-col bg-[#1e1e1e] relative">
-      
-      <!-- Editor Header -->
-      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0">
-        <div class="flex items-center gap-2">
-          <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
-          <span class="text-[11px] font-semibold text-white uppercase tracking-wider">2D Drawing Sheet & Views</span>
-        </div>
-
-        <!-- 3 Diagnostic Tabs -->
-        <div class="flex items-center bg-[#191919] p-0.5 rounded border border-[#333333] text-[9.5px] font-mono">
-          <button id="tabSheet" class="px-2 py-0.5 rounded text-white bg-[#2e2e2e] transition" title="Rendered 2D DXF Drawing Sheet">
-            2D Sheet
-          </button>
-          <button id="tabHlr" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="OpenCascade HLR Reprojection Edge Verification">
-            Reprojection HLR
-          </button>
-          <button id="tabViews" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Segmented Front, Top, and Right Orthographic Views">
-            Segmented Views
-          </button>
+      <!-- ==================== PAGE: UPLOAD ==================== -->
+      <div class="page active" id="page-upload">
+        <div class="upload-grid" style="padding:28px;">
+          <div class="upload-left">
+            <div class="drop" id="dropZone" onclick="document.getElementById('hiddenFileInput').click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+              <h2>Drop a drawing to reconstruct</h2>
+              <p>2D CAD (.dxf) blueprints provide exact vector geometry, line classifications and projection standards.</p>
+              <div class="formats">
+                <span class="chip">.DXF</span><span class="chip">ASME 3rd</span><span class="chip">ISO 1st</span><span class="chip">STEP</span>
+              </div>
+            </div>
+            <div class="recent">
+              <h3>Canonical ASME test drawings</h3>
+              <div class="recent-row" onclick="loadSampleCase('01_stepped_prismatic_block_3rd_angle')"><span>01_stepped_prismatic_block_3rd_angle.dxf</span><span class="meta">3 views</span><span class="recent-score">F1 100%</span></div>
+              <div class="recent-row" onclick="loadSampleCase('02_stepped_turned_shaft_3rd_angle')"><span>02_stepped_turned_shaft_3rd_angle.dxf</span><span class="meta">3 views</span><span class="recent-score">F1 98.6%</span></div>
+              <div class="recent-row" onclick="loadSampleCase('06_wheel_technical_drawing')"><span>06_wheel_technical_drawing.dxf</span><span class="meta">3 views</span><span class="recent-score">F1 97.4%</span></div>
+              <div class="recent-row" onclick="loadSampleCase('07_butterfly_technical_drawing')"><span>07_butterfly_technical_drawing.dxf</span><span class="meta">3 views</span><span class="recent-score">F1 92.7%</span></div>
+              <div class="recent-row" onclick="loadSampleCase('10_f35_jet_technical_drawing')"><span>10_f35_jet_technical_drawing.dxf</span><span class="meta">3 views</span><span class="recent-score">F1 94.1%</span></div>
+            </div>
+          </div>
+          <div class="upload-right">
+            <div class="panel-box">
+              <h3>Reconstruction stages</h3>
+              <div class="step-list">
+                <div class="step-item"><div class="step-num">1</div><div><div class="t">Parse DXF geometry</div><div class="d">Entities read as exact coordinates, not pixels.</div></div></div>
+                <div class="step-item"><div class="step-num">2</div><div><div class="t">Cluster views</div><div class="d">Front/top/side correspond by position and standard.</div></div></div>
+                <div class="step-item"><div class="step-num">3</div><div><div class="t">Synthesize solid</div><div class="d">2.5D visual hull compiles to watertight OpenCascade B-Rep.</div></div></div>
+                <div class="step-item"><div class="step-num">4</div><div><div class="t">Verify HLR</div><div class="d">Hidden-line reprojected and checked before marked converged.</div></div></div>
+              </div>
+            </div>
+            <div class="panel-box stat-box">
+              <h3>This workspace</h3>
+              <div class="stat-row"><span class="l">Reprojection Edge F1</span><span class="n" id="statF1">100.0%</span></div>
+              <div class="stat-row"><span class="l">Visible Precision</span><span class="n" id="statPrecision">1.000</span></div>
+              <div class="stat-row"><span class="l">Visible Recall</span><span class="n" id="statRecall">1.000</span></div>
+              <div class="stat-row"><span class="l">Reconstruction Latency</span><span class="n" id="statLatency">285 ms</span></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 2D Canvas / Image Display Container -->
-      <div id="sheetDropZone" class="flex-1 relative bg-[#141414] sheet-grid flex items-center justify-center p-3 overflow-hidden">
-        
-        <!-- Frame containing the drawing sheet -->
-        <div class="w-full h-full max-w-full max-h-full bg-[#1b1b1b] border border-[#2e2e2e] rounded relative flex items-center justify-center shadow-lg overflow-hidden">
-          
-          <!-- View 1: 2D DXF Drawing Sheet Preview -->
-          <img id="sheetPreviewImg" src="" class="absolute inset-0 w-full h-full object-contain p-2 z-10 transition-opacity" alt="2D Sheet Preview" />
-
-          <!-- View 2: OpenCascade HLR Reprojection Overlay -->
-          <img id="hlrOverlayImg" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-20 transition-opacity" alt="Reprojection HLR" />
-
-          <!-- View 3: Orthographic Views Overlay -->
-          <img id="viewsOverlayImg" src="" class="hidden absolute inset-0 w-full h-full object-contain p-2 z-20 transition-opacity" alt="Segmented Views" />
-
-          <!-- Floating Sheet Telemetry Badge -->
-          <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-mono bg-[#181818]/90 backdrop-blur-sm border border-[#2d2d2d] px-2.5 py-1 rounded z-30">
-            <span id="sheetFilenameText" class="text-[#aaaaaa] truncate">case_0000_clean.dxf</span>
-            <span id="sheetF1Badge" class="text-emerald-400 font-semibold">Reproj F1: 100.0%</span>
-          </div>
-        </div>
-
-        <!-- Drop Overlay Hint (Strictly Steel Blue / Cyan) -->
-        <div id="dropOverlay" class="hidden absolute inset-0 bg-[#2563eb]/15 flex flex-col items-center justify-center border-2 border-dashed border-[#3b82f6] rounded m-3 pointer-events-none z-40 backdrop-blur-sm">
-          <i data-lucide="file-up" class="w-10 h-10 text-[#3b82f6] mb-2 animate-bounce"></i>
-          <span class="text-white font-semibold text-sm">Drop 2D CAD (.dxf) here</span>
-          <span class="text-[#93c5fd] font-mono text-xs mt-1">Accepts standard orthographic 2D drawings</span>
-        </div>
-      </div>
-
-      <!-- Bottom Sheet Controls Strip -->
-      <div class="h-8 bg-[#242424] border-t border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] text-[10px] font-mono flex-shrink-0">
-        <span id="dxfStatsText">Ingested: 62 DXF entities &bull; Millimeter Scale</span>
-        <button id="fitSheetZoomBtn" class="hover:text-white transition flex items-center gap-1">
-          <i data-lucide="maximize" class="w-3 h-3"></i>
-          <span>Fit View</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- --------------------------------------------------------------- -->
-    <!-- 2B. CENTER EDITOR: 3D VIEWPORT (BLENDER STYLE WEBGL)             -->
-    <!-- --------------------------------------------------------------- -->
-    <section class="flex-1 flex flex-col bg-[#181818] relative">
-      
-      <!-- 3D Viewport Header -->
-      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0 z-20">
-        
-
-
-        <!-- Center: Shading Modes (Solid, Wireframe On Solid, Pure Wire) -->
-        <div class="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#383838] text-[9.5px] font-mono">
-          <button id="shadeSolidBtn" class="px-2 py-0.5 rounded bg-[#2e2e2e] text-white transition" title="Solid Diffuse Studio Shading">
-            Solid
-          </button>
-          <button id="shadeWireOnSolidBtn" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Solid with Crisp CAD B-Rep Edges">
-            Edges
-          </button>
-          <button id="shadePureWireBtn" class="px-2 py-0.5 rounded text-[#888888] hover:text-white transition" title="Pure Wireframe Mesh">
-            Wire
-          </button>
-        </div>
-
-        <!-- Right: Viewport Camera Snapping Buttons (Blender Numpad Style) -->
-        <div class="flex items-center gap-1">
-          <button id="camIsoBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Isometric View (Home)">
-            Iso
-          </button>
-          <button id="camTopBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Top View (Numpad 7)">
-            Top
-          </button>
-          <button id="camFrontBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Front View (Numpad 1)">
-            Front
-          </button>
-          <button id="camRightBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#cccccc] hover:text-white font-mono text-[9.5px] transition" title="Right View (Numpad 3)">
-            Right
-          </button>
-          <button id="camResetBtn" class="px-1.5 py-0.5 rounded bg-[#222222] hover:bg-[#333333] border border-[#383838] text-[#3b82f6] hover:text-white font-mono text-[9.5px] transition" title="Frame Selected (Numpad .)">
-            Frame
-          </button>
-        </div>
-      </div>
-
-      <!-- 3D Three.js WebGL Canvas -->
-      <div id="threeContainer" class="flex-1 relative overflow-hidden bg-gradient-to-b from-[#242424] to-[#141414]">
-        <!-- Three.js Canvas injected via JS -->
-
-        <!-- Subtle Top-Right View Orientation Compass Widget -->
-        <div class="absolute top-3 right-3 bg-[#1e1e1e]/80 border border-[#333333] rounded px-2 py-1 text-[9px] font-mono text-[#888888] pointer-events-none backdrop-blur-sm">
-          <span>X: <span class="text-rose-400">Right</span> &bull; Y: <span class="text-emerald-400">Depth</span> &bull; Z: <span class="text-sky-400">Up</span></span>
-        </div>
-      </div>
-    </section>
-
-    <!-- --------------------------------------------------------------- -->
-    <!-- 2C. RIGHT PANEL: INSPECT & CAD EDIT                             -->
-    <!-- --------------------------------------------------------------- -->
-    <section class="w-[24%] border-l border-[#26262b] flex flex-col bg-[#161619] relative flex-shrink-0">
-      
-      <!-- Segmented Tab Switcher -->
-      <div class="h-11 bg-[#1a1a1e] border-b border-[#26262b] px-3 flex items-center justify-between flex-shrink-0">
-        <div class="flex bg-[#121215] p-0.5 rounded-lg border border-[#26262b] text-xs font-medium w-full">
-          <button id="tabBtnInspect" onclick="switchRightTab('inspect')" class="flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium">
-            <i data-lucide="layers" class="w-3.5 h-3.5 text-sky-400"></i>
-            <span>Inspect</span>
-          </button>
-          <button id="tabBtnEdit" onclick="switchRightTab('edit')" class="flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium">
-            <i data-lucide="wrench" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>Edit</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tab 1: Inspector Sections -->
-      <div id="panelInspect" class="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs text-[#cfcfcf]">
-
-        <!-- Card 1: CAD Solid Outliner Hierarchy -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="box" class="w-3.5 h-3.5 text-sky-400"></i>
-              Entities
-            </span>
-            <span id="solidStatusTag" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">WATERTIGHT</span>
-          </div>
-
-          <div class="space-y-1 text-xs">
-            <div class="flex items-center justify-between py-1.5 px-2 rounded-md bg-[#232329] text-white">
-              <span class="flex items-center gap-1.5 font-medium">
-                <span id="solidNameLabel">Solid Body</span>
-              </span>
-              <span class="text-[#9ca3af] text-[10px] font-mono">Manifold</span>
+      <!-- ==================== PAGE: EDIT ==================== -->
+      <div class="page" id="page-edit">
+        <div class="edit-grid">
+          <!-- Left: Parts & Feature Tree -->
+          <div class="edit-col">
+            <div class="edit-col-head">
+              <span>Features (<span id="featuresCount">1</span>)</span>
+              <span class="src measured" id="treeStatusTag">WATERTIGHT</span>
             </div>
-
-            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
-                <span>Front</span>
-              </span>
-              <span id="frontLinesCount" class="font-mono text-[11px] text-[#71717a]">4 lines</span>
-            </div>
-
-            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
-                <span>Top</span>
-              </span>
-              <span id="topLinesCount" class="font-mono text-[11px] text-[#71717a]">13 lines</span>
-            </div>
-
-            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
-              <span class="flex items-center gap-1.5">
-                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
-                <span>Right</span>
-              </span>
-              <span id="rightLinesCount" class="font-mono text-[11px] text-[#71717a]">7 lines</span>
+            <div class="edit-col-body" id="featuresList">
+              <div class="part-row sel"><span>base block</span><span class="src measured">40×20×10</span></div>
             </div>
           </div>
-        </div>
 
-        <!-- Card 2: Deterministic CAD Inference & Verification Metrics -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-              Verification
-            </span>
-            <span id="gateDecisionBadge" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">CONVERGED</span>
-          </div>
-
-          <div class="space-y-1.5 text-xs">
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Standard</span>
-              <span id="propStandard" class="text-white font-medium">Third Angle</span>
-            </div>
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Scale</span>
-              <span id="propScale" class="font-mono text-white">1:1</span>
-            </div>
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Edge F1</span>
-              <span id="propF1" class="font-mono text-emerald-400 font-semibold">100.0%</span>
-            </div>
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Precision</span>
-              <span id="propPrecision" class="font-mono text-[#d1d5db]">1.000</span>
-            </div>
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Recall</span>
-              <span id="propRecall" class="font-mono text-[#d1d5db]">1.000</span>
-            </div>
-            <div class="flex justify-between items-center py-0.5">
-              <span class="text-[#9ca3af]">Latency</span>
-              <span id="propTime" class="font-mono text-sky-400">285 ms</span>
+          <!-- Middle: 3D Viewport -->
+          <div class="edit-col" style="border-left:1px solid var(--line);">
+            <div class="viewer">
+              <div id="threeCanvasWrapper"></div>
+              <div class="viewer-toolbar">
+                <div class="vt-btn active" id="btnShaded" onclick="setShadingMode('wire_on_solid')">Shaded</div>
+                <div class="vt-btn" id="btnWire" onclick="setShadingMode('pure_wire')">Wireframe</div>
+                <div class="vt-btn" id="btnSolid" onclick="setShadingMode('solid')">Solid</div>
+              </div>
+              <div class="viewer-status">
+                <span class="pip"></span>
+                <span id="viewerStatusText">Reprojection Edge F1: 100.0% · Watertight Manifold</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Card 3: Measured 2D CAD Dimensions -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="ruler" class="w-3.5 h-3.5 text-sky-400"></i>
-              Dimensions
-            </span>
-            <span id="dimCountBadge" class="text-[9.5px] font-mono text-[#9ca3af] bg-[#222228] px-1.5 py-0.5 rounded">3</span>
-          </div>
-
-          <div id="dimensionsList" class="space-y-1 text-xs font-mono">
-            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
-              <span class="text-[#9ca3af] flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> X
-              </span>
-              <span class="text-white font-medium">40.00 mm</span>
+          <!-- Right: Properties & Parametric B-Rep Edit -->
+          <div class="edit-col">
+            <div class="edit-col-head">
+              <span id="rightColTitle">Properties & Edit</span>
+              <span class="mono" id="cadVersionTag" style="font-size:10px;color:var(--emerald);">v0</span>
             </div>
-            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
-              <span class="text-[#9ca3af] flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Y
-              </span>
-              <span class="text-white font-medium">20.00 mm</span>
-            </div>
-            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
-              <span class="text-[#9ca3af] flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span> Z
-              </span>
-              <span class="text-white font-medium">10.00 mm</span>
-            </div>
-          </div>
-        </div>
+            <div class="edit-col-body">
 
-      </div>
+              <!-- Measured Dimensions -->
+              <div class="prop-group">
+                <h4>Dimensions</h4>
+                <div class="prop-field"><div class="fl"><span>Length (X)</span><b id="dimX">40.0 mm</b></div><input class="num-input" id="inputX" value="40.0 mm" readonly></div>
+                <div class="prop-field"><div class="fl"><span>Width (Y)</span><b id="dimY">20.0 mm</b></div><input class="num-input" id="inputY" value="20.0 mm" readonly></div>
+                <div class="prop-field"><div class="fl"><span>Thickness (Z)</span><b id="dimZ">10.0 mm</b></div><input class="num-input" id="inputZ" value="10.0 mm" readonly></div>
+              </div>
 
-      <!-- Tab 2: CAD Edit Engine -->
-      <div id="panelEdit" class="hidden flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs text-[#cfcfcf]">
+              <!-- Confidence / Verification Gate -->
+              <div class="prop-group">
+                <h4>Confidence</h4>
+                <div class="prop-field"><div class="fl"><span>Reprojection F1</span><b id="confF1">1.00</b></div><div class="bar"><i id="barF1" style="width:100%"></i></div></div>
+                <div class="prop-field"><div class="fl"><span>Precision</span><b id="confPrec">1.00</b></div><div class="bar"><i id="barPrec" style="width:100%"></i></div></div>
+                <div class="prop-field"><div class="fl"><span>Solid Volume</span><b id="confVol">8,000 mm³</b></div></div>
+              </div>
 
-        <!-- Card E1: Session & Version History Control -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="history" class="w-3.5 h-3.5 text-emerald-400"></i>
-              History
-            </span>
-            <span id="cadEditVersion" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">v0</span>
-          </div>
+              <!-- Parametric B-Rep Edit Engine -->
+              <div class="prop-group">
+                <h4>Parametric Edit (B-Rep)</h4>
+                
+                <!-- Quick contextual presets -->
+                <div class="presets-grid">
+                  <div class="preset-btn" onclick="setPreset('hole')">+ Ø6 Hole</div>
+                  <div class="preset-btn" onclick="setPreset('fillet')">+ R2 Fillet</div>
+                  <div class="preset-btn" onclick="setPreset('bolt')">+ 4×M3 PCD14</div>
+                  <div class="preset-btn" onclick="setPreset('resize')">Resize 60</div>
+                  <div class="preset-btn" onclick="setPreset('shell')">Shell 2mm</div>
+                  <div class="preset-btn" onclick="setPreset('reject')">Gate Test</div>
+                </div>
 
-          <div class="flex items-center justify-between py-1 px-2.5 rounded-md bg-[#232329]">
-            <span class="text-[#9ca3af] text-[11px]">Volume</span>
-            <span class="font-mono text-xs text-white font-medium">
-              <span id="cadEditVolume">8,000.0</span> <span class="text-[10px] text-[#71717a]">mm³</span>
-            </span>
-          </div>
-
-          <div class="grid grid-cols-3 gap-1.5 pt-0.5">
-            <button onclick="cadEditUndo()" class="py-1.5 px-2 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-[#e5e7eb] text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
-              <i data-lucide="undo-2" class="w-3 h-3 text-[#9ca3af]"></i> Undo
-            </button>
-            <button onclick="cadEditRedo()" class="py-1.5 px-2 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-[#e5e7eb] text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
-              <i data-lucide="redo-2" class="w-3 h-3 text-[#9ca3af]"></i> Redo
-            </button>
-            <button onclick="cadEditInit()" class="py-1.5 px-2 rounded-md bg-[#202025] hover:bg-[#282830] text-[#9ca3af] hover:text-white text-xs border border-white/5 flex items-center justify-center gap-1 transition active:scale-95" title="Reset base block">
-              <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
-            </button>
-          </div>
-        </div>
-
-        <!-- Card E2: Current Feature Tree -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="git-commit" class="w-3.5 h-3.5 text-sky-400"></i>
-              Features
-            </span>
-            <span id="featureCountBadge" class="text-[9.5px] font-mono text-[#9ca3af] bg-[#222228] px-1.5 py-0.5 rounded">0</span>
-          </div>
-
-          <div id="cadEditTreeDisplay" class="space-y-1.5">
-            <div class="bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32] flex items-center justify-between text-xs">
-              <span class="text-[#9ca3af] flex items-center gap-1.5">
-                <i data-lucide="box" class="w-3 h-3 text-sky-400"></i> Base Box
-              </span>
-              <span id="cadTreeBaseDims" class="font-mono text-white font-medium text-[11px]">40 × 20 × 10 mm</span>
-            </div>
-            <div id="cadTreeFeaturesList" class="space-y-1">
-              <div class="text-[#71717a] text-[11px] py-1.5 text-center">No features applied</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card E3: Contextual Quick Presets -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
-              Presets
-            </span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-            <button onclick="setTestPreset('hole')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-emerald-400 border border-white/5 hover:border-emerald-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> + Ø6 Hole
-            </button>
-            <button onclick="setTestPreset('fillet')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-emerald-400 border border-white/5 hover:border-emerald-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> + R2 Fillet
-            </button>
-            <button onclick="setTestPreset('bolt_pattern')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-sky-400 border border-white/5 hover:border-sky-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> + 4×M3 PCD14
-            </button>
-            <button onclick="setTestPreset('resize')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-sky-400 border border-white/5 hover:border-sky-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> Resize 60
-            </button>
-            <button onclick="setTestPreset('shell')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-purple-400 border border-white/5 hover:border-purple-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Shell 2mm
-            </button>
-            <button onclick="setTestPreset('gate_reject')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-rose-400 border border-white/5 hover:border-rose-500/30 font-medium transition text-left flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Gate Test
-            </button>
-          </div>
-        </div>
-
-        <!-- Card E4: Operation JSON Input & Deterministic Executor -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
-              Operations
-            </span>
-            <span class="text-[9.5px] font-mono text-[#71717a]">JSON</span>
-          </div>
-
-          <textarea id="cadEditJsonInput" rows="5" class="w-full bg-[#111114] border border-[#2a2a32] rounded-md p-2.5 text-[11px] font-mono text-emerald-400/95 focus:outline-none focus:border-emerald-500/50 resize-y leading-relaxed shadow-inner" spellcheck="false">[
-  {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}},
-  {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
+                <!-- JSON Operations Input -->
+                <textarea class="cad-textarea" id="cadOpsInput" spellcheck="false">[
+  {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
 ]</textarea>
 
-          <div class="grid grid-cols-2 gap-2 pt-0.5">
-            <button onclick="cadEditPropose()" class="py-2 px-3 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-white text-xs font-medium border border-white/10 transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm">
-              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-sky-400"></i> Verify
-            </button>
-            <button onclick="cadEditApply()" class="py-2 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm">
-              <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Apply
-            </button>
+                <!-- Actions: Verify & Apply -->
+                <div style="display:flex;gap:6px;margin-bottom:8px;">
+                  <button class="btn" style="flex:1;justify-content:center;" onclick="cadEditPropose()">Verify</button>
+                  <button class="btn btn-emerald" style="flex:1;justify-content:center;" onclick="cadEditApply()">Apply</button>
+                </div>
+
+                <!-- History: Undo / Redo / Reset -->
+                <div class="history-row">
+                  <button class="btn" onclick="cadEditUndo()">↺ Undo</button>
+                  <button class="btn" onclick="cadEditRedo()">↻ Redo</button>
+                  <button class="btn" onclick="cadEditReset()">Reset</button>
+                </div>
+
+                <!-- Gate check diff status -->
+                <div id="cadGateReport" style="display:none;background:var(--panel-2);padding:10px;border-radius:6px;border:1px solid var(--line);font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.4;">
+                </div>
+
+              </div>
+
+            </div>
           </div>
         </div>
-
-        <!-- Card E5: Safety Gate & Analytic Diff Report -->
-        <div id="cadEditGateReportCard" class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2 hidden">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-400"></i>
-              Gate Report
-            </span>
-            <span id="cadEditGateBadge" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">PASSED</span>
-          </div>
-
-          <div id="cadEditDiffDisplay" class="text-xs space-y-1.5 bg-[#141417] p-2.5 rounded-md border border-[#24242b] font-mono">
-            <!-- Dynamic Diff / Messages -->
-          </div>
-        </div>
-
-        <!-- Card E6: CAD Model Exports -->
-        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
-              <i data-lucide="download" class="w-3.5 h-3.5 text-sky-400"></i>
-              Export
-            </span>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <button onclick="downloadCadEditExport('step')" class="py-1.5 px-3 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-white text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
-              <i data-lucide="download" class="w-3 h-3 text-sky-400"></i> STEP
-            </button>
-            <button onclick="downloadCadEditExport('stl')" class="py-1.5 px-3 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-white text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
-              <i data-lucide="download" class="w-3 h-3 text-emerald-400"></i> STL
-            </button>
-          </div>
-        </div>
-
       </div>
-    </section>
 
-  </main>
+      <!-- ==================== PAGE: EXPORT ==================== -->
+      <div class="page" id="page-export">
+        <div class="export-grid">
+          <div class="fmt-card sel" onclick="downloadExport('step')">
+            <span class="ext">.STEP</span>
+            <h3>Parametric CAD</h3>
+            <p>Full OpenCascade B-Rep solid with analytical surfaces. Native import in SolidWorks, Fusion 360, FreeCAD, and Onshape.</p>
+            <div class="dl-btn">Download .STEP</div>
+            <div class="use">Best for continued engineering & CAM toolpaths</div>
+          </div>
+          <div class="fmt-card" onclick="downloadExport('stl')">
+            <span class="ext">.STL</span>
+            <h3>Print-Ready Mesh</h3>
+            <p>Watertight triangular mesh, manifold-verified, self-intersection tested, and ready for slicers (PrusaSlicer, Cura, Bambu Studio).</p>
+            <div class="dl-btn" style="background:var(--emerald);">Download .STL</div>
+            <div class="use">Best for 3D printing (FDM/SLA)</div>
+          </div>
+          <div class="fmt-card" onclick="downloadExport('glb')">
+            <span class="ext">.GLB</span>
+            <h3>Web / AR 3D Asset</h3>
+            <p>Optimized binary glTF scene with materials and normals, ready to embed on web pages, mobile apps, or view in AR.</p>
+            <div class="dl-btn" style="background:#a78bfa;">Download .GLB</div>
+            <div class="use">Best for web visualization & sharing</div>
+          </div>
+          <div class="fmt-card" onclick="downloadExport('dxf')">
+            <span class="ext">.DXF</span>
+            <h3>2D CAD Drawing</h3>
+            <p>Original orthographic projection CAD file with dimension annotations, layers, and view clusters.</p>
+            <div class="dl-btn" style="background:#38bdf8;">Download .DXF</div>
+            <div class="use">Best for 2D drafting & laser/waterjet cutting</div>
+          </div>
+        </div>
+      </div>
 
+    </div>
+  </div>
+</div>
 
+<script>
+  // =================================================================
+  // 1. NAVIGATION & TAB SWITCHING
+  // =================================================================
+  var railBtns = document.querySelectorAll('.rail-btn');
+  var tabBtns = document.querySelectorAll('.tb-tab');
+  var pages = document.querySelectorAll('.page');
+  var titleEl = document.getElementById('pageTitle');
+  var titles = {upload:'Upload', edit:'Edit', export:'Export'};
 
-  <!-- ================================================================= -->
-  <!-- 4. CLIENT JAVASCRIPT & THREE.JS ENGINE                            -->
-  <!-- ================================================================= -->
-  <script>
-    lucide.createIcons();
+  function setPage(name){
+    pages.forEach(function(p){ p.classList.toggle('active', p.id === 'page-'+name); });
+    railBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.page === name); });
+    tabBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.page === name); });
+    titleEl.textContent = titles[name];
+    if (name === 'edit' && renderer && camera) {
+      setTimeout(onWindowResize, 50);
+    }
+  }
+  railBtns.forEach(function(b){ b.addEventListener('click', function(){ setPage(b.dataset.page); }); });
+  tabBtns.forEach(function(b){ b.addEventListener('click', function(){ setPage(b.dataset.page); }); });
 
-    // -----------------------------------------------------------------
-    // 4.1 THREE.JS 3D SCENE INITIALIZATION (BLENDER STYLE)
-    // -----------------------------------------------------------------
-    const threeContainer = document.getElementById('threeContainer');
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x191919);
+  // Format cards selection
+  document.querySelectorAll('.fmt-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      document.querySelectorAll('.fmt-card').forEach(function(c){ c.classList.remove('sel'); });
+      card.classList.add('sel');
+    });
+  });
 
-    const camera = new THREE.PerspectiveCamera(40, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 2000);
-    camera.position.set(130, 95, 140);
+  // =================================================================
+  // 2. THREE.JS 3D CAD ENGINE INITIALIZATION
+  // =================================================================
+  let scene, camera, renderer, controls;
+  const threeWrapper = document.getElementById('threeCanvasWrapper');
+  const cadRootGroup = new THREE.Group();
+  let currentShadingMode = 'wire_on_solid';
+  let currentDxfFilename = "case_0000_clean.dxf";
+  let currentStepBase64 = "";
+  let currentStlBase64 = "";
+  let currentGlbBase64 = "";
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    threeContainer.appendChild(renderer.domElement);
+  const cadSolidMaterial = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8,
+    roughness: 0.35,
+    metalness: 0.15,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1
+  });
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  const cadEdgeMaterial = new THREE.LineBasicMaterial({
+    color: 0x0f172a
+  });
+
+  const pureWireMaterial = new THREE.MeshBasicMaterial({
+    color: 0x6f8dff,
+    wireframe: true
+  });
+
+  function initThree() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0e0f11);
+
+    const aspect = threeWrapper.clientWidth / threeWrapper.clientHeight || 1;
+    camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 2000);
+    camera.position.set(120, 100, 140);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(threeWrapper.clientWidth, threeWrapper.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    threeWrapper.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
 
-    // Ground Grid (Subtle Blender Grid)
-    const gridHelper = new THREE.GridHelper(300, 30, 0x3d3d3d, 0x272727);
-    gridHelper.position.y = -0.1;
-    scene.add(gridHelper);
-
-    // Studio Lighting (Blender Viewport Studio Lighting)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+    // Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
-    keyLight.position.set(150, 200, 150);
-    scene.add(keyLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight1.position.set(150, 200, 150);
+    scene.add(dirLight1);
 
-    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.4);
-    fillLight.position.set(-150, 100, -150);
-    scene.add(fillLight);
+    const dirLight2 = new THREE.DirectionalLight(0x6f8dff, 0.35);
+    dirLight2.position.set(-150, 100, -150);
+    scene.add(dirLight2);
 
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-    rimLight.position.set(0, -100, 0);
-    scene.add(rimLight);
+    // Grid helper
+    const grid = new THREE.GridHelper(300, 30, 0x2a2c31, 0x1d1f23);
+    grid.position.y = -0.1;
+    scene.add(grid);
 
-    // CAD Solid Mesh Hierarchy Group
-    const cadRootGroup = new THREE.Group();
     scene.add(cadRootGroup);
 
-    // Materials for Shading Modes
-    let currentShadingMode = 'wire_on_solid'; // 'solid', 'wire_on_solid', 'pure_wire'
-
-    const cadSolidMaterial = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8, // Slate / Steel CAD material
-      roughness: 0.35,
-      metalness: 0.15,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1
-    });
-
-    const cadEdgeMaterial = new THREE.LineBasicMaterial({
-      color: 0x0f172a, // Crisp deep slate/black CAD edges
-      linewidth: 1.5
-    });
-
-    const pureWireMaterial = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      wireframe: true
-    });
-
-    // Handle Window Resizing
-    window.addEventListener('resize', () => {
-      if (!threeContainer) return;
-      const w = threeContainer.clientWidth;
-      const h = threeContainer.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
-
-    // Animation Loop
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
+    window.addEventListener('resize', onWindowResize);
     animate();
+  }
 
-    // -----------------------------------------------------------------
-    // 4.2 CAMERA VIEW CONTROLS (BLENDER NUMPAD STYLE)
-    // -----------------------------------------------------------------
-    function setCameraView(azimuthDeg, elevationDeg, distance = 180) {
-      const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
-      const theta = THREE.MathUtils.degToRad(azimuthDeg + 90);
+  function onWindowResize() {
+    if (!renderer || !camera || !threeWrapper) return;
+    const width = threeWrapper.clientWidth || 300;
+    const height = threeWrapper.clientHeight || 300;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
 
-      const x = distance * Math.sin(phi) * Math.cos(theta);
-      const y = distance * Math.cos(phi);
-      const z = distance * Math.sin(phi) * Math.sin(theta);
+  function animate() {
+    requestAnimationFrame(animate);
+    if (controls) controls.update();
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  }
 
-      camera.position.set(x, y, z);
-      camera.lookAt(controls.target);
-      controls.update();
+  function clearSceneMeshes() {
+    while (cadRootGroup.children.length > 0) {
+      const obj = cadRootGroup.children[0];
+      if (obj.geometry) obj.geometry.dispose();
+      cadRootGroup.remove(obj);
+    }
+  }
 
+  function renderCadMeshes(meshesDict) {
+    clearSceneMeshes();
+    if (!meshesDict || Object.keys(meshesDict).length === 0) return;
 
+    for (const [partId, partData] of Object.entries(meshesDict)) {
+      if (!partData.vertices || !partData.faces) continue;
+
+      const geom = new THREE.BufferGeometry();
+      const positions = [];
+      for (const f of partData.faces) {
+        for (const idx of f) {
+          const pt = partData.vertices[idx];
+          if (pt) positions.push(pt[0], pt[2], -pt[1]); // Convert Z-up to Three.js Y-up
+        }
+      }
+
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geom.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geom, cadSolidMaterial);
+      cadRootGroup.add(mesh);
+
+      // Add crisp edges
+      const edgesGeom = new THREE.EdgesGeometry(geom, 24);
+      const edgesLine = new THREE.LineSegments(edgesGeom, cadEdgeMaterial);
+      edgesLine.visible = (currentShadingMode === 'wire_on_solid');
+      cadRootGroup.add(edgesLine);
     }
 
-    function frameSelectedObject() {
-      const box = new THREE.Box3().setFromObject(cadRootGroup);
-      if (box.isEmpty()) return;
-
+    // Frame camera on model
+    const box = new THREE.Box3().setFromObject(cadRootGroup);
+    if (!box.isEmpty()) {
       const center = new THREE.Vector3();
       box.getCenter(center);
       controls.target.copy(center);
-
-      // Align ground grid immediately beneath the model's bottom base
-      gridHelper.position.y = box.min.y - 0.05;
-      gridHelper.position.x = center.x;
-      gridHelper.position.z = center.z;
-
       const size = new THREE.Vector3();
       box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
       const dist = Math.max(maxDim * 2.2, 80);
-
-      setCameraView(-32.0, 28.0, dist);
+      camera.position.set(center.x + dist * 0.7, center.y + dist * 0.6, center.z + dist * 0.8);
+      camera.lookAt(center);
     }
+  }
 
-    document.getElementById('camIsoBtn').addEventListener('click', () => setCameraView(-32.0, 28.0));
-    document.getElementById('camTopBtn').addEventListener('click', () => setCameraView(0.0, 89.9));
-    document.getElementById('camFrontBtn').addEventListener('click', () => setCameraView(0.0, 0.0));
-    document.getElementById('camRightBtn').addEventListener('click', () => setCameraView(90.0, 0.0));
-    document.getElementById('camResetBtn').addEventListener('click', frameSelectedObject);
+  function setShadingMode(mode) {
+    currentShadingMode = mode;
+    document.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('active'));
+    if (mode === 'wire_on_solid') document.getElementById('btnShaded').classList.add('active');
+    else if (mode === 'pure_wire') document.getElementById('btnWire').classList.add('active');
+    else if (mode === 'solid') document.getElementById('btnSolid').classList.add('active');
 
-    // -----------------------------------------------------------------
-    // 4.3 VIEWPORT SHADING MODES
-    // -----------------------------------------------------------------
-    const shadeSolidBtn = document.getElementById('shadeSolidBtn');
-    const shadeWireOnSolidBtn = document.getElementById('shadeWireOnSolidBtn');
-    const shadePureWireBtn = document.getElementById('shadePureWireBtn');
-
-    function setShadingMode(mode) {
-      currentShadingMode = mode;
-      [shadeSolidBtn, shadeWireOnSolidBtn, shadePureWireBtn].forEach(b => {
-        b.classList.remove('bg-[#2e2e2e]', 'text-white');
-        b.classList.add('text-[#888888]');
-      });
-
-      if (mode === 'solid') {
-        shadeSolidBtn.classList.add('bg-[#2e2e2e]', 'text-white');
-      } else if (mode === 'wire_on_solid') {
-        shadeWireOnSolidBtn.classList.add('bg-[#2e2e2e]', 'text-white');
-      } else if (mode === 'pure_wire') {
-        shadePureWireBtn.classList.add('bg-[#2e2e2e]', 'text-white');
+    cadRootGroup.traverse(child => {
+      if (child.isMesh) {
+        child.material = (mode === 'pure_wire') ? pureWireMaterial : cadSolidMaterial;
       }
-
-      cadRootGroup.traverse(child => {
-        if (child.isMesh) {
-          if (mode === 'pure_wire') {
-            child.material = pureWireMaterial;
-          } else {
-            child.material = cadSolidMaterial;
-          }
-        }
-        if (child.isLineSegments) {
-          child.visible = (mode === 'wire_on_solid');
-        }
-      });
-    }
-
-    shadeSolidBtn.addEventListener('click', () => setShadingMode('solid'));
-    shadeWireOnSolidBtn.addEventListener('click', () => setShadingMode('wire_on_solid'));
-    shadePureWireBtn.addEventListener('click', () => setShadingMode('pure_wire'));
-
-    // -----------------------------------------------------------------
-    // 4.4 2D DIAGNOSTIC SHEET TABS
-    // -----------------------------------------------------------------
-    const tabSheet = document.getElementById('tabSheet');
-    const tabHlr = document.getElementById('tabHlr');
-    const tabViews = document.getElementById('tabViews');
-
-    const sheetPreviewImg = document.getElementById('sheetPreviewImg');
-    const hlrOverlayImg = document.getElementById('hlrOverlayImg');
-    const viewsOverlayImg = document.getElementById('viewsOverlayImg');
-
-    function setActiveSheetTab(tab) {
-      [tabSheet, tabHlr, tabViews].forEach(b => {
-        b.classList.remove('bg-[#2e2e2e]', 'text-white');
-        b.classList.add('text-[#888888]');
-      });
-      [sheetPreviewImg, hlrOverlayImg, viewsOverlayImg].forEach(img => img.classList.add('hidden'));
-
-      if (tab === 'sheet') {
-        tabSheet.classList.add('bg-[#2e2e2e]', 'text-white');
-        sheetPreviewImg.classList.remove('hidden');
-      } else if (tab === 'hlr') {
-        tabHlr.classList.add('bg-[#2e2e2e]', 'text-white');
-        hlrOverlayImg.classList.remove('hidden');
-      } else if (tab === 'views') {
-        tabViews.classList.add('bg-[#2e2e2e]', 'text-white');
-        viewsOverlayImg.classList.remove('hidden');
+      if (child.isLineSegments) {
+        child.visible = (mode === 'wire_on_solid');
       }
-    }
-
-    tabSheet.addEventListener('click', () => setActiveSheetTab('sheet'));
-    tabHlr.addEventListener('click', () => setActiveSheetTab('hlr'));
-    tabViews.addEventListener('click', () => setActiveSheetTab('views'));
-
-    // -----------------------------------------------------------------
-    // 4.5 CAD MESH RENDERING PIPELINE
-    // -----------------------------------------------------------------
-    let currentStlBase64 = "";
-    let currentStepBase64 = "";
-    let currentGlbBase64 = "";
-    let currentDxfFilename = "case_0000_clean.dxf";
-
-    function clearSceneMeshes() {
-      while (cadRootGroup.children.length > 0) {
-        const obj = cadRootGroup.children[0];
-        if (obj.geometry) obj.geometry.dispose();
-        cadRootGroup.remove(obj);
-      }
-    }
-
-    function renderCadMeshes(meshesDict) {
-      clearSceneMeshes();
-      if (!meshesDict || Object.keys(meshesDict).length === 0) return;
-
-      let totalVerts = 0;
-      let totalFaces = 0;
-
-      for (const [partId, partData] of Object.entries(meshesDict)) {
-        if (!partData.vertices || !partData.faces) continue;
-
-        const geom = new THREE.BufferGeometry();
-        const positions = [];
-        const indices = [];
-
-        // Build flat vertices array
-        for (const v of partData.vertices) {
-          positions.push(v[0], v[1], v[2]);
-        }
-
-        // Build face indices
-        for (const f of partData.faces) {
-          if (f.length === 3) {
-            indices.push(f[0], f[1], f[2]);
-          } else if (f.length === 4) {
-            indices.push(f[0], f[1], f[2]);
-            indices.push(f[0], f[2], f[3]);
-          }
-        }
-
-        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geom.setIndex(indices);
-        geom.computeVertexNormals();
-
-        // Solid Mesh
-        const mesh = new THREE.Mesh(geom, currentShadingMode === 'pure_wire' ? pureWireMaterial : cadSolidMaterial);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        cadRootGroup.add(mesh);
-
-        // B-Rep Edges
-        const edgesGeom = new THREE.EdgesGeometry(geom, 24);
-        const edgesLine = new THREE.LineSegments(edgesGeom, cadEdgeMaterial);
-        edgesLine.visible = (currentShadingMode === 'wire_on_solid');
-        cadRootGroup.add(edgesLine);
-
-        totalVerts += partData.vertices.length;
-        totalFaces += partData.faces.length;
-      }
-
-      const svc = document.getElementById('statusVertCount'); if (svc) svc.innerText = `Verts: ${totalVerts}`;
-      const spc = document.getElementById('statusPolyCount'); if (spc) spc.innerText = `Faces: ${totalFaces}`;
-
-      frameSelectedObject();
-    }
-
-    // -----------------------------------------------------------------
-    // 4.6 APPLY SYNTHESIS TELEMETRY & RESULTS
-    // -----------------------------------------------------------------
-    function applySynthesisData(res, filename) {
-      currentDxfFilename = filename || currentDxfFilename;
-      document.getElementById('sheetFilenameText').innerText = currentDxfFilename;
-      const sf = document.getElementById('statusFile'); if (sf) sf.innerText = `Active: ${currentDxfFilename}`;
-
-      // 1. Header & Verification Status
-      const rep = res.reprojection || {};
-      const f1Val = rep.f1 !== undefined ? rep.f1 : (rep.mean_vis_f1 !== undefined ? rep.mean_vis_f1 : (res.iou ? parseFloat(res.iou) : 1.0));
-      const f1Pct = (f1Val * 100).toFixed(1) + '%';
-
-      document.getElementById('sheetF1Badge').innerText = `Reproj F1: ${f1Pct}`;
-      document.getElementById('propF1').innerText = f1Pct;
-
-      const isFlagged = rep.flagged || res.status === 'needs_review';
-      const gateBadge = document.getElementById('gateDecisionBadge');
-      const solidTag = document.getElementById('solidStatusTag');
-
-      if (isFlagged) {
-        if (gateBadge) {
-          gateBadge.className = 'text-rose-400 font-bold';
-          gateBadge.innerText = '[FLAGGED - NEEDS REVIEW]';
-        }
-        if (solidTag) {
-          solidTag.className = 'text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800/60 text-[9px]';
-          solidTag.innerText = 'NEEDS REVIEW';
-        }
-      } else {
-        if (gateBadge) {
-          gateBadge.className = 'text-emerald-400 font-bold';
-          gateBadge.innerText = '[CONVERGED]';
-        }
-        if (solidTag) {
-          solidTag.className = 'text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]';
-          solidTag.innerText = 'WATERTIGHT';
-        }
-      }
-
-      if (res.summary_line) {
-        
-        const sm = document.getElementById('statusMessage'); if (sm) sm.innerText = res.summary_line;
-      }
-
-      // 2. Projection Standard & Scale
-      const stdText = res.standard === 'first' ? 'First Angle (ISO/European)' : 'Third Angle (ASME/US)';
-      document.getElementById('propStandard').innerText = stdText;
-
-      const scaleText = (res.scale ? `${res.scale}:1` : '1:1') + ` (${res.units || 'mm'})`;
-      document.getElementById('propScale').innerText = scaleText;
-      const su = document.getElementById('statusUnits'); if (su) su.innerText = `Units: Millimeters (${scaleText})`;
-
-      if (rep.mean_vis_precision !== undefined) {
-        document.getElementById('propPrecision').innerText = Number(rep.mean_vis_precision).toFixed(3);
-      }
-      if (rep.mean_vis_recall !== undefined) {
-        document.getElementById('propRecall').innerText = Number(rep.mean_vis_recall).toFixed(3);
-      }
-      if (res.execution_time_ms) {
-        document.getElementById('propTime').innerText = `${res.execution_time_ms.toFixed(0)} ms`;
-        const sl = document.getElementById('statusLatency'); if (sl) sl.innerText = `${res.execution_time_ms.toFixed(0)} ms`;
-      }
-
-      // 3. View Line Counts in Outliner
-      if (rep.views) {
-        if (rep.views.front) {
-          const vis = rep.views.front.drawn_counts ? rep.views.front.drawn_counts.vis : 4;
-          document.getElementById('frontLinesCount').innerText = `${vis} lines`;
-        }
-        if (rep.views.top) {
-          const vis = rep.views.top.drawn_counts ? rep.views.top.drawn_counts.vis : 13;
-          document.getElementById('topLinesCount').innerText = `${vis} lines`;
-        }
-        if (rep.views.right) {
-          const vis = rep.views.right.drawn_counts ? rep.views.right.drawn_counts.vis : 7;
-          document.getElementById('rightLinesCount').innerText = `${vis} lines`;
-        }
-      }
-
-      // 4. Dimensions Table
-      const dimContainer = document.getElementById('dimensionsList');
-      if (res.dimensions && res.dimensions.length > 0) {
-        document.getElementById('dimCountBadge').innerText = `${res.dimensions.length} items`;
-        dimContainer.innerHTML = res.dimensions.map(d => `
-          <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
-            <span class="text-[#aaaaaa]">${d.label || d.name || 'Dimension'}:</span>
-            <span class="text-white font-bold">${Number(d.value).toFixed(2)} mm</span>
-          </div>
-        `).join('');
-      }
-
-      // 5. Image Overlays
-      if (res.sheet_preview_base64) {
-        sheetPreviewImg.src = `data:image/png;base64,${res.sheet_preview_base64}`;
-      }
-      if (res.overlay_base64) {
-        hlrOverlayImg.src = `data:image/png;base64,${res.overlay_base64}`;
-      }
-      if (res.views_base64) {
-        viewsOverlayImg.src = `data:image/png;base64,${res.views_base64}`;
-      }
-      setActiveSheetTab('sheet');
-
-      // 6. Render 3D Solid
-      if (res.meshes) {
-        renderCadMeshes(res.meshes);
-      }
-
-      // Store downloads
-      currentStlBase64 = res.stl_base64 || "";
-      currentStepBase64 = res.step_base64 || "";
-      currentGlbBase64 = res.glb_base64 || "";
-    }
-
-    // -----------------------------------------------------------------
-    // 4.7 INGESTION & SAMPLE CASE LOADING
-    // -----------------------------------------------------------------
-    async function loadSampleCase(caseName) {
-      const reconstructBtnText = document.getElementById('reconstructBtnText');
-      reconstructBtnText.innerText = "Reconstructing...";
-
-      try {
-        const resp = await fetch(`http://127.0.0.1:8085/api/v1/sample_cad?case=${caseName}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        applySynthesisData(data, `${caseName}.dxf`);
-      } catch (e) {
-        console.error("Failed to load sample:", e);
-        const sm = document.getElementById('statusMessage'); if (sm) sm.innerText = `Error loading ${caseName}: ${e.message}`;
-      } finally {
-        reconstructBtnText.innerText = "Reconstruct Solid";
-      }
-    }
-
-    const caseSelector = document.getElementById('caseSelector');
-    if (caseSelector) {
-      caseSelector.addEventListener('change', (e) => {
-        loadSampleCase(e.target.value);
-      });
-    }
-
-    // Reconstruct Button triggers re-loading or re-processing current drawing
-    const reconstructBtn = document.getElementById('reconstructBtn');
-    if (reconstructBtn) {
-      reconstructBtn.addEventListener('click', () => {
-        const caseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
-        loadSampleCase(caseName);
-      });
-    }
-
-    // -----------------------------------------------------------------
-    // 4.8 FILE DRAG-AND-DROP & UPLOAD
-    // -----------------------------------------------------------------
-    const sheetDropZone = document.getElementById('sheetDropZone');
-    const dropOverlay = document.getElementById('dropOverlay');
-    const dxfFileInput = document.getElementById('dxfFileInput');
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-      window.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropOverlay.classList.remove('hidden');
-      });
     });
+  }
 
-    ['dragleave', 'drop'].forEach(eventName => {
-      window.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.target === dropOverlay || eventName === 'drop') {
-          dropOverlay.classList.add('hidden');
-        }
-      });
-    });
+  // =================================================================
+  // 3. BACKEND API INTEGRATION & SAMPLE LOADING
+  // =================================================================
+  async function loadSampleCase(caseName) {
+    try {
+      const resp = await fetch(`http://127.0.0.1:8085/api/v1/sample_cad?case=${caseName}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      applySynthesisData(data, `${caseName}.dxf`);
+      setPage('edit');
+    } catch (e) {
+      console.error("Failed to load sample:", e);
+    }
+  }
 
-    window.addEventListener('drop', (e) => {
+  function applySynthesisData(res, filename) {
+    currentDxfFilename = filename || "drawing.dxf";
+    document.getElementById('topbarFilename').innerText = currentDxfFilename;
+
+    const f1Percent = ((res.iou || res.mean_vis_f1 || 1.0) * 100).toFixed(1);
+    document.getElementById('statF1').innerText = `${f1Percent}%`;
+    document.getElementById('confF1').innerText = (res.iou || res.mean_vis_f1 || 1.0).toFixed(2);
+    document.getElementById('barF1').style.width = `${f1Percent}%`;
+
+    const prec = (res.prec || res.visible_precision || 1.0).toFixed(3);
+    const rec = (res.recall || res.visible_recall || 1.0).toFixed(3);
+    document.getElementById('statPrecision').innerText = prec;
+    document.getElementById('statRecall').innerText = rec;
+    document.getElementById('confPrec').innerText = prec;
+    document.getElementById('barPrec').style.width = `${(prec * 100).toFixed(0)}%`;
+
+    if (res.reconstruction_time_ms) {
+      document.getElementById('statLatency').innerText = `${Math.round(res.reconstruction_time_ms)} ms`;
+    }
+
+    // Status badge
+    const badge = document.getElementById('topbarStatusBadge');
+    if (res.status === 'ok') {
+      badge.innerText = "converged";
+      badge.className = "badge converged";
+    } else {
+      badge.innerText = "needs_review";
+      badge.className = "badge warning";
+    }
+
+    // Dimensions
+    if (res.dimensions && res.dimensions.length >= 3) {
+      document.getElementById('dimX').innerText = `${Number(res.dimensions[0].value).toFixed(1)} mm`;
+      document.getElementById('inputX').value = `${Number(res.dimensions[0].value).toFixed(1)} mm`;
+      document.getElementById('dimY').innerText = `${Number(res.dimensions[1].value).toFixed(1)} mm`;
+      document.getElementById('inputY').value = `${Number(res.dimensions[1].value).toFixed(1)} mm`;
+      document.getElementById('dimZ').innerText = `${Number(res.dimensions[2].value).toFixed(1)} mm`;
+      document.getElementById('inputZ').value = `${Number(res.dimensions[2].value).toFixed(1)} mm`;
+    }
+
+    // Render 3D solid
+    if (res.meshes) {
+      renderCadMeshes(res.meshes);
+    }
+
+    currentStepBase64 = res.step_base64 || "";
+    currentStlBase64 = res.stl_base64 || "";
+    currentGlbBase64 = res.glb_base64 || "";
+
+    document.getElementById('viewerStatusText').innerText = 
+      `Reprojection Edge F1: ${f1Percent}% · Watertight Manifold · ${filename}`;
+  }
+
+  function triggerReconstruction() {
+    loadSampleCase(currentDxfFilename.replace(/\.[^/.]+$/, ""));
+  }
+
+  // =================================================================
+  // 4. FILE DRAG & DROP
+  // =================================================================
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('hiddenFileInput');
+
+  ['dragenter', 'dragover'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      dropOverlay.classList.add('hidden');
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleDxfFile(e.dataTransfer.files[0]);
-      }
+      dropZone.classList.add('drag-over');
     });
+  });
 
-    dxfFileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleDxfFile(e.target.files[0]);
-      }
+  ['dragleave', 'drop'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
     });
+  });
 
-    async function handleDxfFile(file) {
-      if (!file.name.toLowerCase().endsWith('.dxf')) {
-        alert("Please drop a 2D CAD (.dxf) technical drawing file.");
-        return;
+  dropZone.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+    }
+  });
+
+  async function handleFileUpload(file) {
+    if (!file.name.toLowerCase().endsWith('.dxf')) {
+      alert("Please upload a 2D CAD (.dxf) technical drawing.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/dxf", {
+        method: "POST",
+        body: formData
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      applySynthesisData(data, file.name);
+      setPage('edit');
+    } catch (err) {
+      alert("Error reconstructing DXF: " + err.message);
+    }
+  }
+
+  // =================================================================
+  // 5. PARAMETRIC CAD EDIT ENGINE (B-REP)
+  // =================================================================
+  let cadEditSessionId = "default";
+
+  function setPreset(type) {
+    const el = document.getElementById('cadOpsInput');
+    if (type === 'hole') {
+      el.value = JSON.stringify([
+        {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
+      ], null, 2);
+    } else if (type === 'fillet') {
+      el.value = JSON.stringify([
+        {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
+      ], null, 2);
+    } else if (type === 'bolt') {
+      el.value = JSON.stringify([
+        {"op": "add", "feature": {"kind": "bolt_pattern", "face": "top", "n": 4, "pcd": 14, "d": 3}}
+      ], null, 2);
+    } else if (type === 'resize') {
+      el.value = JSON.stringify([
+        {"op": "resize", "W": 60}
+      ], null, 2);
+    } else if (type === 'shell') {
+      el.value = JSON.stringify([
+        {"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": 2}}
+      ], null, 2);
+    } else if (type === 'reject') {
+      el.value = JSON.stringify([
+        {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6, "at": {"u": {"ref": "min", "offset": 500}}}}
+      ], null, 2);
+    }
+  }
+
+  async function cadEditPropose() {
+    const raw = document.getElementById('cadOpsInput').value;
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/propose", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
+      });
+      const data = await resp.json();
+      displayGateReport(data);
+    } catch (err) {
+      displayGateReport({ok: false, errors: [err.message]});
+    }
+  }
+
+  async function cadEditApply() {
+    const raw = document.getElementById('cadOpsInput').value;
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/apply", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
+      });
+      const data = await resp.json();
+      displayGateReport(data);
+      if (data.ok) {
+        updateCadEditState(data);
       }
+    } catch (err) {
+      displayGateReport({ok: false, errors: [err.message]});
+    }
+  }
 
-      const sm = document.getElementById('statusMessage'); if (sm) sm.innerText = `Uploading and reconstructing ${file.name}...`;
-      const reconstructBtnText = document.getElementById('reconstructBtnText');
-      reconstructBtnText.innerText = "Processing DXF...";
+  async function cadEditUndo() {
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/undo", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId})
+      });
+      const data = await resp.json();
+      updateCadEditState(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
+  async function cadEditRedo() {
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/redo", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId})
+      });
+      const data = await resp.json();
+      updateCadEditState(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
-        const resp = await fetch("http://127.0.0.1:8085/api/v1/dxf", {
-          method: "POST",
-          body: formData
-        });
+  async function cadEditReset() {
+    try {
+      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/init", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId, W: 40, D: 20, H: 10})
+      });
+      const data = await resp.json();
+      updateCadEditState(data);
+      document.getElementById('cadGateReport').style.display = 'none';
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.error || `HTTP ${resp.status}`);
-        }
+  function displayGateReport(data) {
+    const rep = document.getElementById('cadGateReport');
+    rep.style.display = 'block';
 
-        const res = await resp.json();
-        applySynthesisData(res, file.name);
-      } catch (err) {
-        console.error("DXF upload failed:", err);
-        alert(`DXF Processing Error: ${err.message}`);
-        const sm = document.getElementById('statusMessage'); if (sm) sm.innerText = `Error: ${err.message}`;
-      } finally {
-        reconstructBtnText.innerText = "Reconstruct Solid";
-      }
+    let html = `<div style="font-weight:600;margin-bottom:4px;color:${data.ok ? 'var(--emerald)' : '#f87171'};">
+      Gate: ${data.ok ? 'PASSED' : 'REJECTED'}
+    </div>`;
+
+    if (data.diff && data.diff.volume_before) {
+      html += `<div style="color:var(--muted);font-size:10.5px;">Vol: ${data.diff.volume_before.toFixed(1)} → ${data.diff.volume_after.toFixed(1)} mm³ (Δ -${(data.diff.removed||0).toFixed(1)} / +${(data.diff.added||0).toFixed(1)})</div>`;
+    }
+    if (data.messages && data.messages.length) {
+      html += `<div style="margin-top:4px;">` + data.messages.map(m => `<div>• ${m}</div>`).join('') + `</div>`;
+    }
+    if (data.warnings && data.warnings.length) {
+      html += `<div style="color:#fbbf24;margin-top:4px;">` + data.warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
+    }
+    if (data.errors && data.errors.length) {
+      html += `<div style="color:#f87171;margin-top:4px;">` + data.errors.map(e => `<div>✕ ${e}</div>`).join('') + `</div>`;
+    }
+    rep.innerHTML = html;
+  }
+
+  function updateCadEditState(data) {
+    document.getElementById('cadVersionTag').innerText = `v${data.version}`;
+    if (data.stats && data.stats.volume) {
+      document.getElementById('confVol').innerText = `${Number(data.stats.volume).toLocaleString(undefined, {maximumFractionDigits:1})} mm³`;
     }
 
-    // -----------------------------------------------------------------
-    // 4.9 EXPORT DOWNLOAD HELPERS
-    // -----------------------------------------------------------------
-    function downloadBase64File(base64Data, filename, mimeType) {
-      if (!base64Data) {
-        alert(`No ${filename} data available for export.`);
-        return;
-      }
-      const byteChars = atob(base64Data);
-      const byteNums = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteNums[i] = byteChars.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNums);
-      const blob = new Blob([byteArray], { type: mimeType });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(link.href);
+    // Update feature tree in left column
+    if (data.tree) {
+      const base = data.tree.base || {W:40, D:20, H:10};
+      document.getElementById('dimX').innerText = `${base.W} mm`;
+      document.getElementById('inputX').value = `${base.W} mm`;
+      document.getElementById('dimY').innerText = `${base.D} mm`;
+      document.getElementById('inputY').value = `${base.D} mm`;
+      document.getElementById('dimZ').innerText = `${base.H} mm`;
+      document.getElementById('inputZ').value = `${base.H} mm`;
+
+      const feats = data.tree.features || [];
+      document.getElementById('featuresCount').innerText = `${feats.length + 1}`;
+      const list = document.getElementById('featuresList');
+      let html = `<div class="part-row sel"><span>base block</span><span class="src measured">${base.W}×${base.D}×${base.H}</span></div>`;
+      feats.forEach(f => {
+        const dimStr = f.d ? `Ø${f.d}` : (f.radius ? `R${f.radius}` : (f.pcd ? `PCD${f.pcd}` : ''));
+        html += `<div class="part-row"><span>${f.id || f.kind}</span><span class="src inferred">${dimStr || f.face || ''}</span></div>`;
+      });
+      list.innerHTML = html;
     }
 
-    document.getElementById('exportStepBtn').addEventListener('click', () => {
-      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
-      downloadBase64File(currentStepBase64, `${baseName}.step`, 'application/step');
-    });
+    // Update 3D viewport
+    if (data.mesh && data.mesh.vertices && data.mesh.vertices.length > 0) {
+      renderCadMeshes({"cad_edit_solid": data.mesh});
+    }
+  }
 
-    document.getElementById('exportStlBtn').addEventListener('click', () => {
-      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
-      downloadBase64File(currentStlBase64, `${baseName}.stl`, 'application/vnd.ms-pki.stl');
-    });
-
-    document.getElementById('exportGlbBtn').addEventListener('click', () => {
-      const baseName = currentDxfFilename.replace(/\.[^/.]+$/, "");
-      downloadBase64File(currentGlbBase64, `${baseName}.glb`, 'model/gltf-binary');
-    });
-
-    document.getElementById('downloadCurrentDxfBtn').addEventListener('click', () => {
+  // =================================================================
+  // 6. EXPORTS DOWNLOAD
+  // =================================================================
+  function downloadExport(fmt) {
+    if (fmt === 'step') {
+      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/step?session_id=${cadEditSessionId}`;
+    } else if (fmt === 'stl') {
+      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/stl?session_id=${cadEditSessionId}`;
+    } else if (fmt === 'dxf') {
       window.location.href = `http://127.0.0.1:8085/api/v1/download_dxf/${currentDxfFilename}`;
-    });
-
-    // -----------------------------------------------------------------
-    // 4.10 CAD EDIT ENGINE CLIENT (PARAMETRIC FEATURE TREE + GATE + HISTORY)
-    // -----------------------------------------------------------------
-    let cadEditSessionId = "default";
-    let cadEditCurrentState = null;
-
-    function switchRightTab(tab) {
-      const btnInspect = document.getElementById('tabBtnInspect');
-      const btnEdit = document.getElementById('tabBtnEdit');
-      const panelInspect = document.getElementById('panelInspect');
-      const panelEdit = document.getElementById('panelEdit');
-
-      if (tab === 'inspect') {
-        btnInspect.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium";
-        btnEdit.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium";
-        panelInspect.classList.remove('hidden');
-        panelEdit.classList.add('hidden');
+    } else if (fmt === 'glb') {
+      if (currentGlbBase64) {
+        downloadBase64(currentGlbBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.glb`, 'model/gltf-binary');
       } else {
-        btnEdit.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium";
-        btnInspect.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium";
-        panelEdit.classList.remove('hidden');
-        panelInspect.classList.add('hidden');
-        if (!cadEditCurrentState) {
-          fetchCadEditState();
-        }
-      }
-      lucide.createIcons();
-    }
-
-    async function fetchCadEditState() {
-      try {
-        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/state?session_id=${cadEditSessionId}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        updateCadEditUI(data);
-      } catch (err) {
-        console.error("fetchCadEditState error:", err);
+        alert("GLB asset available on DXF reconstruction.");
       }
     }
+  }
 
-    function updateCadEditUI(data) {
-      cadEditCurrentState = data;
-      document.getElementById('cadEditVersion').innerText = `v${data.version}`;
-      if (data.stats && data.stats.volume !== undefined) {
-        document.getElementById('cadEditVolume').innerText = Number(data.stats.volume).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1});
-      }
-
-      // Update Feature Tree
-      if (data.tree) {
-        const base = data.tree.base || {W: 40, D: 20, H: 10};
-        document.getElementById('cadTreeBaseDims').innerText = `${base.W} × ${base.D} × ${base.H} mm`;
-
-        const feats = data.tree.features || [];
-        document.getElementById('featureCountBadge').innerText = `${feats.length}`;
-        const featList = document.getElementById('cadTreeFeaturesList');
-        if (feats.length === 0) {
-          featList.innerHTML = '<div class="text-[#71717a] text-[11px] py-1.5 text-center">No features applied</div>';
-        } else {
-          featList.innerHTML = feats.map(f => `
-            <div class="bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32] flex items-center justify-between text-xs">
-              <span class="text-white font-medium flex items-center gap-1.5">
-                <span class="text-sky-400 font-mono text-[10px] font-semibold">${f.id || f.kind}</span>
-                <span class="text-[#9ca3af]">${f.kind}</span>
-              </span>
-              <span class="font-mono text-[#71717a] text-[10px]">${f.d ? `Ø${f.d} mm` : (f.radius ? `R${f.radius} mm` : (f.pcd ? `PCD ${f.pcd} mm` : (f.thickness ? `t=${f.thickness} mm` : (f.face || ''))))}</span>
-            </div>
-          `).join('');
-        }
-      }
-
-      // Update 3D viewport if mesh provided
-      if (data.mesh && data.mesh.vertices && data.mesh.vertices.length > 0) {
-        renderCadMeshes({"cad_edit_solid": data.mesh});
-      }
-      lucide.createIcons();
+  function downloadBase64(base64Data, filename, mimeType) {
+    const byteChars = atob(base64Data);
+    const byteNums = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+      byteNums[i] = byteChars.charCodeAt(i);
     }
+    const blob = new Blob([new Uint8Array(byteNums)], { type: mimeType });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
-    async function cadEditInit() {
-      try {
-        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/init`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({session_id: cadEditSessionId, W: 40, D: 20, H: 10})
-        });
-        const data = await resp.json();
-        updateCadEditUI(data);
-        hideGateReport();
-      } catch (err) {
-        alert("Init failed: " + err.message);
-      }
-    }
-
-    async function cadEditUndo() {
-      try {
-        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/undo`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({session_id: cadEditSessionId})
-        });
-        const data = await resp.json();
-        updateCadEditUI(data);
-      } catch (err) {
-        alert("Undo failed: " + err.message);
-      }
-    }
-
-    async function cadEditRedo() {
-      try {
-        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/redo`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({session_id: cadEditSessionId})
-        });
-        const data = await resp.json();
-        updateCadEditUI(data);
-      } catch (err) {
-        alert("Redo failed: " + err.message);
-      }
-    }
-
-    function showGateReport(ok, messages, diff, warnings, errors) {
-      const card = document.getElementById('cadEditGateReportCard');
-      const badge = document.getElementById('cadEditGateBadge');
-      const disp = document.getElementById('cadEditDiffDisplay');
-      card.classList.remove('hidden');
-
-      if (ok) {
-        badge.innerText = "PASSED";
-        badge.className = "text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20";
-      } else {
-        badge.innerText = "REJECTED";
-        badge.className = "text-[9.5px] font-mono tracking-wider font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20";
-      }
-
-      let html = "";
-      if (diff && diff.volume_before !== undefined) {
-        html += `<div class="flex justify-between items-center text-[11px] text-[#9ca3af] pb-1 border-b border-[#24242b]">
-          <span>Vol: ${diff.volume_before.toFixed(1)} → ${diff.volume_after.toFixed(1)}</span>
-          <span class="text-emerald-400 font-medium">Δ -${(diff.removed || 0).toFixed(1)} / +${(diff.added || 0).toFixed(1)} mm³</span>
-        </div>`;
-      }
-      if (messages && messages.length > 0) {
-        html += `<div class="space-y-1 text-[11px] text-[#e5e7eb]">` + messages.map(m => `<div>${m}</div>`).join('') + `</div>`;
-      }
-      if (warnings && warnings.length > 0) {
-        html += `<div class="pt-1 text-[11px] text-yellow-400 space-y-0.5 border-t border-[#24242b]">` + warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
-      }
-      if (errors && errors.length > 0) {
-        html += `<div class="pt-1 text-[11px] text-rose-400 space-y-0.5 border-t border-[#24242b]">` + errors.map(e => `<div>✕ ${e}</div>`).join('') + `</div>`;
-      }
-      disp.innerHTML = html;
-      lucide.createIcons();
-    }
-
-    function hideGateReport() {
-      const card = document.getElementById('cadEditGateReportCard');
-      if (card) card.classList.add('hidden');
-    }
-
-    async function cadEditPropose() {
-      const raw = document.getElementById('cadEditJsonInput').value;
-      try {
-        const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/propose", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
-        });
-        const data = await resp.json();
-        showGateReport(data.ok, data.messages, data.diff, data.warnings, data.errors);
-      } catch (err) {
-        showGateReport(false, [], null, [], [err.message]);
-      }
-    }
-
-    async function cadEditApply() {
-      const raw = document.getElementById('cadEditJsonInput').value;
-      try {
-        const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/apply", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
-        });
-        const data = await resp.json();
-        showGateReport(data.ok, data.messages, data.diff, data.warnings, data.errors);
-        if (data.ok) {
-          updateCadEditUI(data);
-        }
-      } catch (err) {
-        showGateReport(false, [], null, [], [err.message]);
-      }
-    }
-
-    function setTestPreset(type) {
-      const input = document.getElementById('cadEditJsonInput');
-      if (type === 'hole') {
-        input.value = JSON.stringify([
-          {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
-        ], null, 2);
-      } else if (type === 'fillet') {
-        input.value = JSON.stringify([
-          {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
-        ], null, 2);
-      } else if (type === 'bolt_pattern') {
-        input.value = JSON.stringify([
-          {"op": "add", "feature": {"kind": "bolt_pattern", "face": "top", "n": 4, "pcd": 14, "d": 3}}
-        ], null, 2);
-      } else if (type === 'resize') {
-        input.value = JSON.stringify([
-          {"op": "resize", "W": 60}
-        ], null, 2);
-      } else if (type === 'shell') {
-        input.value = JSON.stringify([
-          {"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": 2}}
-        ], null, 2);
-      } else if (type === 'gate_reject') {
-        input.value = JSON.stringify([
-          {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6, "at": {"u": {"ref": "min", "offset": 500}}}}
-        ], null, 2);
-      }
-    }
-
-    function downloadCadEditExport(type) {
-      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/${type}?session_id=${cadEditSessionId}`;
-    }
-
-    // -----------------------------------------------------------------
-    // 4.11 INITIAL BOOTSTRAP
-    // -----------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', () => {
-      loadSampleCase('case_0000_clean');
-    });
-  </script>
+  // =================================================================
+  // 7. INITIAL BOOTSTRAP
+  // =================================================================
+  window.addEventListener('DOMContentLoaded', () => {
+    initThree();
+    loadSampleCase('case_0000_clean');
+  });
+</script>
 </body>
 </html>
