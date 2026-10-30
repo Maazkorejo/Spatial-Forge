@@ -66,10 +66,10 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = ({ mesh, viewMode }) 
     dirLight2.position.set(-120, -60, -100);
     scene.add(dirLight2);
 
-    // Subtle CAD Ground Grid
-    const grid = new THREE.GridHelper(300, 30, 0x7a93b4, 0xb8cbdf);
+    // Subtle CAD Ground Grid in grey palette
+    const grid = new THREE.GridHelper(300, 30, 0x334761, 0x1f2c3d);
     grid.position.y = -0.5;
-    (grid.material as THREE.Material).opacity = 0.35;
+    (grid.material as THREE.Material).opacity = 0.45;
     (grid.material as THREE.Material).transparent = true;
     scene.add(grid);
 
