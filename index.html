@@ -241,16 +241,37 @@
     padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;transition:border-color .15s ease;}
   .num-input:focus{outline:none;border-color:var(--accent);}
 
-  /* Operations input & preset chips */
-  .presets-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
-  .preset-btn{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:11px;
-    color:var(--ink);cursor:pointer;text-align:left;transition:all .15s ease;font-weight:500;}
-  .preset-btn:hover{border-color:var(--accent);color:var(--text);}
-  .cad-textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;
-    color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical;min-height:90px;line-height:1.4;margin-bottom:10px;}
-  .cad-textarea:focus{outline:none;border-color:var(--accent);}
+  /* Size & Scale buttons */
+  .scale-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+  .scale-btn{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 8px;font-size:11.5px;
+    font-weight:600;color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all .15s ease;}
+  .scale-btn:hover{border-color:var(--accent);background:rgba(111,141,255,0.08);color:var(--accent);}
 
-  .history-row{display:flex;gap:6px;margin-bottom:14px;}
+  /* Stepper controls for Dimensions */
+  .stepper-row{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:8px;}
+  .stepper-label{font-size:12px;color:var(--muted);font-weight:500;}
+  .stepper-controls{display:flex;align-items:center;gap:6px;}
+  .step-btn{background:var(--panel);border:1px solid var(--line);width:26px;height:26px;border-radius:6px;
+    color:var(--text);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s ease;}
+  .step-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .step-val{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;min-width:62px;text-align:center;}
+
+  /* Cut Parts grid */
+  .cuts-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+  .cut-action-btn{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 8px;font-size:11.5px;
+    font-weight:500;color:var(--ink);cursor:pointer;text-align:left;display:flex;align-items:center;gap:6px;transition:all .15s ease;}
+  .cut-action-btn:hover{border-color:var(--accent);color:var(--text);background:rgba(111,141,255,0.06);}
+
+  /* Applied Cuts List (Remove Parts) */
+  .cuts-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:160px;overflow-y:auto;}
+  .cut-item{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:6px;padding:6px 10px;font-size:11.5px;}
+  .cut-item-title{font-family:'JetBrains Mono',monospace;color:var(--text);display:flex;align-items:center;gap:6px;}
+  .cut-remove-btn{background:transparent;border:none;color:#f87171;cursor:pointer;font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;transition:background .15s ease;}
+  .cut-remove-btn:hover{background:rgba(248,113,113,0.12);}
+  .empty-cuts{font-size:11.5px;color:var(--muted);font-style:italic;padding:8px 2px;}
+
+  .history-row{display:flex;gap:6px;margin-bottom:10px;}
   .history-row .btn{flex:1;justify-content:center;padding:6px 0;font-size:11.5px;}
 
   /* ===================== PAGE: EXPORT ===================== */
@@ -439,66 +460,108 @@
             </div>
           </div>
 
-          <!-- Right: Properties & Parametric B-Rep Edit -->
+          <!-- Right: Edit & Adjust Controls -->
           <div class="edit-col">
             <div class="edit-col-head">
-              <span id="rightColTitle">Properties & Edit</span>
+              <span id="rightColTitle">Edit & Adjust Solid</span>
               <span class="mono" id="cadVersionTag" style="font-size:10px;color:var(--emerald);">v0</span>
             </div>
             <div class="edit-col-body">
 
-              <!-- Measured Dimensions -->
+              <!-- Make Big / Make Small -->
               <div class="prop-group">
-                <h4>Dimensions</h4>
-                <div class="prop-field"><div class="fl"><span>Length (X)</span><b id="dimX">40.0 mm</b></div><input class="num-input" id="inputX" value="40.0 mm" readonly></div>
-                <div class="prop-field"><div class="fl"><span>Width (Y)</span><b id="dimY">20.0 mm</b></div><input class="num-input" id="inputY" value="20.0 mm" readonly></div>
-                <div class="prop-field"><div class="fl"><span>Thickness (Z)</span><b id="dimZ">10.0 mm</b></div><input class="num-input" id="inputZ" value="10.0 mm" readonly></div>
+                <h4>Scale Size</h4>
+                <div class="scale-row">
+                  <button class="scale-btn" onclick="scaleModel(1.2)" title="Enlarge model by 20%">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    Make Big (+20%)
+                  </button>
+                  <button class="scale-btn" onclick="scaleModel(0.8)" title="Shrink model by 20%">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+                    Make Small (-20%)
+                  </button>
+                </div>
               </div>
 
-              <!-- Confidence / Verification Gate -->
+              <!-- Adjust Parts (Dimensions) -->
               <div class="prop-group">
-                <h4>Confidence</h4>
-                <div class="prop-field"><div class="fl"><span>Reprojection F1</span><b id="confF1">1.00</b></div><div class="bar"><i id="barF1" style="width:100%"></i></div></div>
-                <div class="prop-field"><div class="fl"><span>Precision</span><b id="confPrec">1.00</b></div><div class="bar"><i id="barPrec" style="width:100%"></i></div></div>
-                <div class="prop-field"><div class="fl"><span>Solid Volume</span><b id="confVol">8,000 mm³</b></div></div>
-              </div>
-
-              <!-- Parametric B-Rep Edit Engine -->
-              <div class="prop-group">
-                <h4>Parametric Edit (B-Rep)</h4>
+                <h4>Adjust Parts (Dimensions)</h4>
                 
-                <!-- Quick contextual presets -->
-                <div class="presets-grid">
-                  <div class="preset-btn" onclick="setPreset('hole')">+ Ø6 Hole</div>
-                  <div class="preset-btn" onclick="setPreset('fillet')">+ R2 Fillet</div>
-                  <div class="preset-btn" onclick="setPreset('bolt')">+ 4×M3 PCD14</div>
-                  <div class="preset-btn" onclick="setPreset('resize')">Resize 60</div>
-                  <div class="preset-btn" onclick="setPreset('shell')">Shell 2mm</div>
-                  <div class="preset-btn" onclick="setPreset('reject')">Gate Test</div>
+                <div class="stepper-row">
+                  <span class="stepper-label">Length (X)</span>
+                  <div class="stepper-controls">
+                    <button class="step-btn" onclick="adjustDim('W', -5)" title="Decrease length by 5mm">−</button>
+                    <span class="step-val" id="dimX">40.0 mm</span>
+                    <button class="step-btn" onclick="adjustDim('W', 5)" title="Increase length by 5mm">+</button>
+                  </div>
                 </div>
 
-                <!-- JSON Operations Input -->
-                <textarea class="cad-textarea" id="cadOpsInput" spellcheck="false">[
-  {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
-]</textarea>
+                <div class="stepper-row">
+                  <span class="stepper-label">Width (Y)</span>
+                  <div class="stepper-controls">
+                    <button class="step-btn" onclick="adjustDim('D', -5)" title="Decrease width by 5mm">−</button>
+                    <span class="step-val" id="dimY">20.0 mm</span>
+                    <button class="step-btn" onclick="adjustDim('D', 5)" title="Increase width by 5mm">+</button>
+                  </div>
+                </div>
 
-                <!-- Actions: Verify & Apply -->
-                <div style="display:flex;gap:6px;margin-bottom:8px;">
-                  <button class="btn" style="flex:1;justify-content:center;" onclick="cadEditPropose()">Verify</button>
-                  <button class="btn btn-emerald" style="flex:1;justify-content:center;" onclick="cadEditApply()">Apply</button>
+                <div class="stepper-row">
+                  <span class="stepper-label">Thickness (Z)</span>
+                  <div class="stepper-controls">
+                    <button class="step-btn" onclick="adjustDim('H', -2)" title="Decrease thickness by 2mm">−</button>
+                    <span class="step-val" id="dimZ">10.0 mm</span>
+                    <button class="step-btn" onclick="adjustDim('H', 2)" title="Increase thickness by 2mm">+</button>
+                  </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);padding:4px 2px 0;">
+                  <span>Solid Volume</span>
+                  <b id="confVol" style="color:var(--text);font-family:'JetBrains Mono',monospace;">8,000 mm³</b>
+                </div>
+              </div>
+
+              <!-- Cut Parts -->
+              <div class="prop-group">
+                <h4>Cut Parts</h4>
+                <div class="cuts-grid">
+                  <button class="cut-action-btn" onclick="quickCutHole(6)" title="Cut Ø6 through hole">
+                    <span style="font-size:13px;">⚪</span> Cut Hole (Ø6)
+                  </button>
+                  <button class="cut-action-btn" onclick="quickCutPocket(20, 10, 5)" title="Cut 20×10 pocket (5mm deep)">
+                    <span style="font-size:13px;">⏹</span> Cut Pocket
+                  </button>
+                  <button class="cut-action-btn" onclick="quickCutSlot(24, 6)" title="Cut 24×6 slot">
+                    <span style="font-size:13px;">⬭</span> Cut Slot
+                  </button>
+                  <button class="cut-action-btn" onclick="quickFilletEdges(2)" title="Round top edges R2">
+                    <span style="font-size:13px;">⌒</span> Round Edges
+                  </button>
+                  <button class="cut-action-btn" onclick="quickChamfer(1.5)" title="Chamfer edges 1.5mm">
+                    <span style="font-size:13px;">⏢</span> Chamfer (1.5)
+                  </button>
+                  <button class="cut-action-btn" onclick="quickShell(2)" title="Hollow solid into 2mm shell">
+                    <span style="font-size:13px;">◰</span> Hollow Shell
+                  </button>
+                </div>
+              </div>
+
+              <!-- Remove Parts & History -->
+              <div class="prop-group">
+                <h4>Applied Cuts & Parts</h4>
+                <div class="cuts-list" id="appliedCutsList">
+                  <div class="empty-cuts">No cut parts applied yet.</div>
                 </div>
 
                 <!-- History: Undo / Redo / Reset -->
                 <div class="history-row">
-                  <button class="btn" onclick="cadEditUndo()">↺ Undo</button>
-                  <button class="btn" onclick="cadEditRedo()">↻ Redo</button>
-                  <button class="btn" onclick="cadEditReset()">Reset</button>
+                  <button class="btn" onclick="cadEditUndo()" title="Undo last action">↺ Undo</button>
+                  <button class="btn" onclick="cadEditRedo()" title="Redo action">↻ Redo</button>
+                  <button class="btn" onclick="cadEditReset()" title="Reset solid">Reset</button>
                 </div>
 
-                <!-- Gate check diff status -->
-                <div id="cadGateReport" style="display:none;background:var(--panel-2);padding:10px;border-radius:6px;border:1px solid var(--line);font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.4;">
+                <!-- Gate check / status alert -->
+                <div id="cadGateReport" style="display:none;padding:8px 10px;border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.4;">
                 </div>
-
               </div>
 
             </div>
@@ -868,14 +931,21 @@
       badge.className = "badge warning";
     }
 
-    // Dimensions
+    // Dimensions & Parametric Init
     if (res.dimensions && res.dimensions.length >= 3) {
-      document.getElementById('dimX').innerText = `${Number(res.dimensions[0].value).toFixed(1)} mm`;
-      document.getElementById('inputX').value = `${Number(res.dimensions[0].value).toFixed(1)} mm`;
-      document.getElementById('dimY').innerText = `${Number(res.dimensions[1].value).toFixed(1)} mm`;
-      document.getElementById('inputY').value = `${Number(res.dimensions[1].value).toFixed(1)} mm`;
-      document.getElementById('dimZ').innerText = `${Number(res.dimensions[2].value).toFixed(1)} mm`;
-      document.getElementById('inputZ').value = `${Number(res.dimensions[2].value).toFixed(1)} mm`;
+      const wVal = Number(res.dimensions[0].value) || 40.0;
+      const dVal = Number(res.dimensions[1].value) || 20.0;
+      const hVal = Number(res.dimensions[2].value) || 10.0;
+      currentDimensions = { W: wVal, D: dVal, H: hVal };
+      document.getElementById('dimX').innerText = `${currentDimensions.W.toFixed(1)} mm`;
+      document.getElementById('dimY').innerText = `${currentDimensions.D.toFixed(1)} mm`;
+      document.getElementById('dimZ').innerText = `${currentDimensions.H.toFixed(1)} mm`;
+
+      fetch("http://127.0.0.1:8085/api/v1/cad_edit/init", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: cadEditSessionId, W: currentDimensions.W, D: currentDimensions.D, H: currentDimensions.H})
+      }).then(r => r.json()).then(d => { if (d.ok || d.status === "ok") updateCadEditState(d); }).catch(console.error);
     }
 
     if (res.volume) {
@@ -994,63 +1064,68 @@
   // 5. PARAMETRIC CAD EDIT ENGINE (B-REP)
   // =================================================================
   let cadEditSessionId = "default";
+  let currentDimensions = { W: 40.0, D: 20.0, H: 10.0 };
 
-  function setPreset(type) {
-    const el = document.getElementById('cadOpsInput');
-    if (type === 'hole') {
-      el.value = JSON.stringify([
-        {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
-      ], null, 2);
-    } else if (type === 'fillet') {
-      el.value = JSON.stringify([
-        {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
-      ], null, 2);
-    } else if (type === 'bolt') {
-      el.value = JSON.stringify([
-        {"op": "add", "feature": {"kind": "bolt_pattern", "face": "top", "n": 4, "pcd": 14, "d": 3}}
-      ], null, 2);
-    } else if (type === 'resize') {
-      el.value = JSON.stringify([
-        {"op": "resize", "W": 60}
-      ], null, 2);
-    } else if (type === 'shell') {
-      el.value = JSON.stringify([
-        {"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": 2}}
-      ], null, 2);
-    } else if (type === 'reject') {
-      el.value = JSON.stringify([
-        {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6, "at": {"u": {"ref": "min", "offset": 500}}}}
-      ], null, 2);
+  async function scaleModel(factor) {
+    const newW = Math.max(5, Math.round(currentDimensions.W * factor * 10) / 10);
+    const newD = Math.max(5, Math.round(currentDimensions.D * factor * 10) / 10);
+    const newH = Math.max(2, Math.round(currentDimensions.H * factor * 10) / 10);
+
+    // Responsive 3D feedback
+    if (cadRootGroup) {
+      cadRootGroup.scale.multiplyScalar(factor);
     }
+
+    await cadEditExecute([{"op": "resize", "W": newW, "D": newD, "H": newH}]);
   }
 
-  async function cadEditPropose() {
-    const raw = document.getElementById('cadOpsInput').value;
-    try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/propose", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
-      });
-      const data = await resp.json();
-      displayGateReport(data);
-    } catch (err) {
-      displayGateReport({ok: false, errors: [err.message]});
-    }
+  async function adjustDim(axis, delta) {
+    const newVal = Math.max(2, Math.round((currentDimensions[axis] + delta) * 10) / 10);
+    await cadEditExecute([{"op": "resize", [axis]: newVal}]);
   }
 
-  async function cadEditApply() {
-    const raw = document.getElementById('cadOpsInput').value;
+  async function quickCutHole(d) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "hole", "face": "top", "d": d, "depth": "through"}}]);
+  }
+
+  async function quickCutPocket(w, d, depth) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "pocket_rect", "face": "top", "size_u": w, "size_v": d, "depth": depth, "corner_radius": 2}}]);
+  }
+
+  async function quickCutSlot(length, width) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "slot", "face": "top", "length": length, "width": width, "depth": "through"}}]);
+  }
+
+  async function quickFilletEdges(radius) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": radius}}]);
+  }
+
+  async function quickChamfer(dist) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "chamfer", "selector": "top_edges", "distance": dist}}]);
+  }
+
+  async function quickShell(thickness) {
+    await cadEditExecute([{"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": thickness}}]);
+  }
+
+  async function removeCut(featureId) {
+    await cadEditExecute([{"op": "delete", "id": featureId}]);
+  }
+
+  async function cadEditExecute(ops) {
     try {
       const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/apply", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
+        body: JSON.stringify({session_id: cadEditSessionId, ops: ops})
       });
       const data = await resp.json();
       displayGateReport(data);
       if (data.ok) {
         updateCadEditState(data);
+        if (cadRootGroup) {
+          cadRootGroup.scale.set(1, 1, 1);
+        }
       }
     } catch (err) {
       displayGateReport({ok: false, errors: [err.message]});
@@ -1066,6 +1141,7 @@
       });
       const data = await resp.json();
       updateCadEditState(data);
+      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
     } catch (e) {
       console.error(e);
     }
@@ -1080,6 +1156,7 @@
       });
       const data = await resp.json();
       updateCadEditState(data);
+      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
     } catch (e) {
       console.error(e);
     }
@@ -1094,7 +1171,9 @@
       });
       const data = await resp.json();
       updateCadEditState(data);
-      document.getElementById('cadGateReport').style.display = 'none';
+      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
+      const rep = document.getElementById('cadGateReport');
+      if (rep) rep.style.display = 'none';
     } catch (e) {
       console.error(e);
     }
@@ -1102,52 +1181,86 @@
 
   function displayGateReport(data) {
     const rep = document.getElementById('cadGateReport');
-    rep.style.display = 'block';
-
-    let html = `<div style="font-weight:600;margin-bottom:4px;color:${data.ok ? 'var(--emerald)' : '#f87171'};">
-      Gate: ${data.ok ? 'PASSED' : 'REJECTED'}
-    </div>`;
-
-    if (data.diff && data.diff.volume_before) {
-      html += `<div style="color:var(--muted);font-size:10.5px;">Vol: ${data.diff.volume_before.toFixed(1)} → ${data.diff.volume_after.toFixed(1)} mm³ (Δ -${(data.diff.removed||0).toFixed(1)} / +${(data.diff.added||0).toFixed(1)})</div>`;
+    if (!rep) return;
+    if (data.ok) {
+      rep.style.display = 'block';
+      rep.style.background = 'rgba(52, 211, 153, 0.08)';
+      rep.style.border = '1px solid rgba(52, 211, 153, 0.25)';
+      rep.innerHTML = `<div style="color:var(--emerald);font-weight:600;display:flex;align-items:center;gap:6px;">
+        <span>✓</span> Applied successfully (v${data.version || ''})
+      </div>`;
+      setTimeout(() => { if (rep) rep.style.display = 'none'; }, 2600);
+    } else {
+      rep.style.display = 'block';
+      rep.style.background = 'rgba(248, 113, 113, 0.08)';
+      rep.style.border = '1px solid rgba(248, 113, 113, 0.25)';
+      const errMsg = (data.errors && data.errors.length) ? data.errors.join('; ') : 'Invalid operation';
+      rep.innerHTML = `<div style="color:#f87171;font-weight:600;display:flex;align-items:center;gap:6px;">
+        <span>✕</span> ${errMsg}
+      </div>`;
     }
-    if (data.messages && data.messages.length) {
-      html += `<div style="margin-top:4px;">` + data.messages.map(m => `<div>• ${m}</div>`).join('') + `</div>`;
-    }
-    if (data.warnings && data.warnings.length) {
-      html += `<div style="color:#fbbf24;margin-top:4px;">` + data.warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
-    }
-    if (data.errors && data.errors.length) {
-      html += `<div style="color:#f87171;margin-top:4px;">` + data.errors.map(e => `<div>✕ ${e}</div>`).join('') + `</div>`;
-    }
-    rep.innerHTML = html;
   }
 
   function updateCadEditState(data) {
-    document.getElementById('cadVersionTag').innerText = `v${data.version}`;
+    const vTag = document.getElementById('cadVersionTag');
+    if (vTag && data.version !== undefined) vTag.innerText = `v${data.version}`;
     if (data.stats && data.stats.volume) {
-      document.getElementById('confVol').innerText = `${Number(data.stats.volume).toLocaleString(undefined, {maximumFractionDigits:1})} mm³`;
+      const volEl = document.getElementById('confVol');
+      if (volEl) volEl.innerText = `${Number(data.stats.volume).toLocaleString(undefined, {maximumFractionDigits:1})} mm³`;
     }
 
-    // Update feature tree in left column
+    // Update feature tree in left column and dimension steppers
     if (data.tree) {
       const base = data.tree.base || {W:40, D:20, H:10};
-      document.getElementById('dimX').innerText = `${base.W} mm`;
-      document.getElementById('inputX').value = `${base.W} mm`;
-      document.getElementById('dimY').innerText = `${base.D} mm`;
-      document.getElementById('inputY').value = `${base.D} mm`;
-      document.getElementById('dimZ').innerText = `${base.H} mm`;
-      document.getElementById('inputZ').value = `${base.H} mm`;
+      currentDimensions.W = base.W;
+      currentDimensions.D = base.D;
+      currentDimensions.H = base.H;
+
+      const dx = document.getElementById('dimX');
+      const dy = document.getElementById('dimY');
+      const dz = document.getElementById('dimZ');
+      if (dx) dx.innerText = `${base.W.toFixed(1)} mm`;
+      if (dy) dy.innerText = `${base.D.toFixed(1)} mm`;
+      if (dz) dz.innerText = `${base.H.toFixed(1)} mm`;
 
       const feats = data.tree.features || [];
-      document.getElementById('featuresCount').innerText = `${feats.length + 1}`;
+      const fc = document.getElementById('featuresCount');
+      if (fc) fc.innerText = `${feats.length + 1}`;
+
       const list = document.getElementById('featuresList');
-      let html = `<div class="part-row sel"><span>base block</span><span class="src measured">${base.W}×${base.D}×${base.H}</span></div>`;
-      feats.forEach(f => {
-        const dimStr = f.d ? `Ø${f.d}` : (f.radius ? `R${f.radius}` : (f.pcd ? `PCD${f.pcd}` : ''));
-        html += `<div class="part-row"><span>${f.id || f.kind}</span><span class="src inferred">${dimStr || f.face || ''}</span></div>`;
-      });
-      list.innerHTML = html;
+      if (list) {
+        let html = `<div class="part-row sel"><span>base block</span><span class="src measured">${base.W}×${base.D}×${base.H}</span></div>`;
+        feats.forEach(f => {
+          const dimStr = f.d ? `Ø${f.d}` : (f.radius ? `R${f.radius}` : (f.distance ? `${f.distance}mm` : (f.pcd ? `PCD${f.pcd}` : '')));
+          html += `<div class="part-row"><span>${f.id || f.kind}</span><span class="src inferred">${dimStr || f.face || ''}</span></div>`;
+        });
+        list.innerHTML = html;
+      }
+
+      // Update Applied Cuts & Parts List in right column
+      const cutsEl = document.getElementById('appliedCutsList');
+      if (cutsEl) {
+        if (feats.length === 0) {
+          cutsEl.innerHTML = '<div class="empty-cuts">No cut parts applied yet.</div>';
+        } else {
+          cutsEl.innerHTML = feats.map(f => {
+            let label = f.kind.replace('_', ' ');
+            if (f.kind === 'hole') label = `Hole Ø${f.d}`;
+            else if (f.kind === 'pocket_rect') label = `Pocket ${f.size_u}×${f.size_v}`;
+            else if (f.kind === 'slot') label = `Slot ${f.length}×${f.width}`;
+            else if (f.kind === 'fillet') label = `Fillet R${f.radius}`;
+            else if (f.kind === 'chamfer') label = `Chamfer ${f.distance}mm`;
+            else if (f.kind === 'shell') label = `Shell ${f.thickness}mm`;
+
+            return `<div class="cut-item">
+              <span class="cut-item-title">
+                <span style="color:var(--accent);">•</span> ${label} <small style="color:var(--muted);font-size:10px;">(${f.id})</small>
+              </span>
+              <button class="cut-remove-btn" onclick="removeCut('${f.id}')" title="Remove part ${f.id}">✕ Remove</button>
+            </div>`;
+          }).join('');
+        }
+      }
     }
 
     // Update 3D viewport
