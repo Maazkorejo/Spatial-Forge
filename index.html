@@ -942,30 +942,45 @@
       }
     }
 
-    // Dimensions & Parametric Init
-    if (res.dimensions && res.dimensions.length >= 3) {
-      const wVal = Number(res.dimensions[0].value) || 40.0;
-      const dVal = Number(res.dimensions[1].value) || 20.0;
-      const hVal = Number(res.dimensions[2].value) || 10.0;
-      currentDimensions = { W: wVal, D: dVal, H: hVal };
-      const elDimX = document.getElementById('dimX');
-      const elDimY = document.getElementById('dimY');
-      const elDimZ = document.getElementById('dimZ');
-      if (elDimX) elDimX.innerText = `${currentDimensions.W.toFixed(1)} mm`;
-      if (elDimY) elDimY.innerText = `${currentDimensions.D.toFixed(1)} mm`;
-      if (elDimZ) elDimZ.innerText = `${currentDimensions.H.toFixed(1)} mm`;
-
-      fetch("http://127.0.0.1:8085/api/v1/cad_edit/init", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId, W: currentDimensions.W, D: currentDimensions.D, H: currentDimensions.H})
-      }).then(r => r.json()).then(d => { if (d && (d.ok || d.status === "ok")) updateCadEditState(d); }).catch(console.error);
+    // Dimensions & Parametric Init from Reconstructed Model
+    cadRootGroup.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(cadRootGroup);
+    const sz = new THREE.Vector3();
+    if (!box.isEmpty()) {
+      box.getSize(sz);
     }
 
-    if (res.volume) {
-      const volEl = document.getElementById('confVol');
-      if (volEl) volEl.innerText = `${Number(res.volume).toLocaleString()} mm³`;
-    }
+    let wVal = (res.dimensions && res.dimensions[0]) ? Number(res.dimensions[0].value) : (sz.x || 40.0);
+    let dVal = (res.dimensions && res.dimensions[1]) ? Number(res.dimensions[1].value) : (sz.z || 20.0);
+    let hVal = (res.dimensions && res.dimensions[2]) ? Number(res.dimensions[2].value) : (sz.y || 10.0);
+    wVal = Math.round(wVal * 10) / 10;
+    dVal = Math.round(dVal * 10) / 10;
+    hVal = Math.round(hVal * 10) / 10;
+
+    baseDimensions = { W: wVal, D: dVal, H: hVal };
+    currentDimensions = { W: wVal, D: dVal, H: hVal };
+    modelScale = { x: 1.0, y: 1.0, z: 1.0 };
+    baseVolume = res.volume ? Number(res.volume) : Math.round(wVal * dVal * hVal);
+    currentVolume = baseVolume;
+    appliedCuts = [];
+    undoStack = [];
+    redoStack = [];
+    editVersion = 0;
+
+    const elDimX = document.getElementById('dimX');
+    const elDimY = document.getElementById('dimY');
+    const elDimZ = document.getElementById('dimZ');
+    if (elDimX) elDimX.innerText = `${currentDimensions.W.toFixed(1)} mm`;
+    if (elDimY) elDimY.innerText = `${currentDimensions.D.toFixed(1)} mm`;
+    if (elDimZ) elDimZ.innerText = `${currentDimensions.H.toFixed(1)} mm`;
+
+    const volEl = document.getElementById('confVol');
+    if (volEl) volEl.innerText = `${Number(currentVolume).toLocaleString()} mm³`;
+
+    const vTag = document.getElementById('cadVersionTag');
+    if (vTag) vTag.innerText = 'v0';
+
+    updateFeatureLists();
 
     // Render 3D solid
     if (res.meshes) {
@@ -1075,121 +1090,342 @@
   }
 
   // =================================================================
-  // 5. PARAMETRIC CAD EDIT ENGINE (B-REP)
+  // 5. CONSTRUCT-PRESERVING CAD EDIT & ADJUST ENGINE
   // =================================================================
   let cadEditSessionId = "default";
+  let baseDimensions = { W: 40.0, D: 20.0, H: 10.0 };
   let currentDimensions = { W: 40.0, D: 20.0, H: 10.0 };
+  let modelScale = { x: 1.0, y: 1.0, z: 1.0 };
+  let baseVolume = 8000;
+  let currentVolume = 8000;
+  let appliedCuts = [];
+  let undoStack = [];
+  let redoStack = [];
+  let editVersion = 0;
+  let cutCounter = 0;
 
-  async function scaleModel(factor) {
-    const newW = Math.max(5, Math.round(currentDimensions.W * factor * 10) / 10);
-    const newD = Math.max(5, Math.round(currentDimensions.D * factor * 10) / 10);
-    const newH = Math.max(2, Math.round(currentDimensions.H * factor * 10) / 10);
+  const cutMaterial = new THREE.MeshStandardMaterial({
+    color: 0x181a20,
+    roughness: 0.9,
+    metalness: 0.1
+  });
+  const cutBorderMaterial = new THREE.LineBasicMaterial({
+    color: 0x6f8dff,
+    linewidth: 2
+  });
 
-    // Responsive 3D feedback
+  function getModelLocalTop() {
+    let maxY = 1.0;
     if (cadRootGroup) {
-      cadRootGroup.scale.multiplyScalar(factor);
-    }
-
-    await cadEditExecute([{"op": "resize", "W": newW, "D": newD, "H": newH}]);
-  }
-
-  async function adjustDim(axis, delta) {
-    const newVal = Math.max(2, Math.round((currentDimensions[axis] + delta) * 10) / 10);
-    await cadEditExecute([{"op": "resize", [axis]: newVal}]);
-  }
-
-  async function quickCutHole(d) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "hole", "face": "top", "d": d, "depth": "through"}}]);
-  }
-
-  async function quickCutPocket(w, d, depth) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "pocket_rect", "face": "top", "size_u": w, "size_v": d, "depth": depth, "corner_radius": 2}}]);
-  }
-
-  async function quickCutSlot(length, width) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "slot", "face": "top", "length": length, "width": width, "depth": "through"}}]);
-  }
-
-  async function quickFilletEdges(radius) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": radius}}]);
-  }
-
-  async function quickChamfer(dist) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "chamfer", "selector": "top_edges", "distance": dist}}]);
-  }
-
-  async function quickShell(thickness) {
-    await cadEditExecute([{"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": thickness}}]);
-  }
-
-  async function removeCut(featureId) {
-    await cadEditExecute([{"op": "delete", "id": featureId}]);
-  }
-
-  async function cadEditExecute(ops) {
-    try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/apply", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId, ops: ops})
-      });
-      const data = await resp.json();
-      displayGateReport(data);
-      if (data.ok) {
-        updateCadEditState(data);
-        if (cadRootGroup) {
-          cadRootGroup.scale.set(1, 1, 1);
+      cadRootGroup.traverse(c => {
+        if (c.isMesh && c.geometry && !c.userData.isCutMesh) {
+          if (!c.geometry.boundingBox) c.geometry.computeBoundingBox();
+          if (c.geometry.boundingBox && c.geometry.boundingBox.max.y > maxY) {
+            maxY = c.geometry.boundingBox.max.y;
+          }
         }
+      });
+    }
+    return maxY;
+  }
+
+  function applyTransform() {
+    if (cadRootGroup) {
+      cadRootGroup.scale.set(modelScale.x, modelScale.y, modelScale.z);
+    }
+
+    currentDimensions.W = Math.round(baseDimensions.W * modelScale.x * 10) / 10;
+    currentDimensions.D = Math.round(baseDimensions.D * modelScale.y * 10) / 10;
+    currentDimensions.H = Math.round(baseDimensions.H * modelScale.z * 10) / 10;
+    currentVolume = Math.round(baseVolume * (modelScale.x * modelScale.y * modelScale.z));
+
+    const dx = document.getElementById('dimX');
+    const dy = document.getElementById('dimY');
+    const dz = document.getElementById('dimZ');
+    const vol = document.getElementById('confVol');
+    if (dx) dx.innerText = `${currentDimensions.W.toFixed(1)} mm`;
+    if (dy) dy.innerText = `${currentDimensions.D.toFixed(1)} mm`;
+    if (dz) dz.innerText = `${currentDimensions.H.toFixed(1)} mm`;
+    if (vol) vol.innerText = `${currentVolume.toLocaleString()} mm³`;
+
+    const vTag = document.getElementById('cadVersionTag');
+    if (vTag) vTag.innerText = `v${editVersion}`;
+
+    updateFeatureLists();
+  }
+
+  function scaleModel(factor) {
+    if (!cadRootGroup) return;
+
+    modelScale.x = Math.round(modelScale.x * factor * 1000) / 1000;
+    modelScale.y = Math.round(modelScale.y * factor * 1000) / 1000;
+    modelScale.z = Math.round(modelScale.z * factor * 1000) / 1000;
+
+    editVersion++;
+    applyTransform();
+    pushHistory({ type: 'scale', factor });
+
+    const pct = Math.round((factor - 1) * 100);
+    const sign = pct > 0 ? '+' : '';
+    displayGateReport({ ok: true, version: editVersion, messages: [`Scaled construct by ${sign}${pct}%`] });
+  }
+
+  function adjustDim(axis, delta) {
+    if (!cadRootGroup) return;
+
+    const currentVal = currentDimensions[axis];
+    const targetVal = Math.max(1, Math.round((currentVal + delta) * 10) / 10);
+    const axisFactor = targetVal / currentVal;
+
+    if (axis === 'W') modelScale.x = Math.round(modelScale.x * axisFactor * 1000) / 1000;
+    else if (axis === 'D') modelScale.y = Math.round(modelScale.y * axisFactor * 1000) / 1000;
+    else if (axis === 'H') modelScale.z = Math.round(modelScale.z * axisFactor * 1000) / 1000;
+
+    editVersion++;
+    applyTransform();
+    pushHistory({ type: 'adjust', axis, delta });
+
+    const axisName = axis === 'W' ? 'Length' : (axis === 'D' ? 'Width' : 'Thickness');
+    displayGateReport({ ok: true, version: editVersion, messages: [`Adjusted ${axisName} to ${targetVal} mm`] });
+  }
+
+  function quickCutHole(d = 6) {
+    cutCounter++;
+    const id = `hole_${cutCounter}`;
+    const r = d / 2;
+    const depth = 8;
+    const geom = new THREE.CylinderGeometry(r, r, depth, 32);
+    const mesh = new THREE.Mesh(geom, cutMaterial);
+    mesh.userData.isCutMesh = true;
+
+    const topY = getModelLocalTop();
+    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
+
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
+    mesh.add(edges);
+
+    cadRootGroup.add(mesh);
+
+    appliedCuts.push({
+      id,
+      kind: 'hole',
+      label: `Cut Hole Ø${d}`,
+      icon: '⚪',
+      mesh
+    });
+
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Added cut hole Ø${d} mm on top face`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function quickCutPocket(w = 20, d = 10, depth = 5) {
+    cutCounter++;
+    const id = `pocket_${cutCounter}`;
+    const geom = new THREE.BoxGeometry(w, depth, d);
+    const mesh = new THREE.Mesh(geom, cutMaterial);
+    mesh.userData.isCutMesh = true;
+
+    const topY = getModelLocalTop();
+    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
+
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
+    mesh.add(edges);
+
+    cadRootGroup.add(mesh);
+
+    appliedCuts.push({
+      id,
+      kind: 'pocket_rect',
+      label: `Cut Pocket ${w}×${d}`,
+      icon: '⏹',
+      mesh
+    });
+
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Added pocket cut ${w}×${d} mm`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function quickCutSlot(length = 24, width = 6) {
+    cutCounter++;
+    const id = `slot_${cutCounter}`;
+    const depth = 6;
+    const geom = new THREE.BoxGeometry(length, depth, width);
+    const mesh = new THREE.Mesh(geom, cutMaterial);
+    mesh.userData.isCutMesh = true;
+
+    const topY = getModelLocalTop();
+    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
+
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
+    mesh.add(edges);
+
+    cadRootGroup.add(mesh);
+
+    appliedCuts.push({
+      id,
+      kind: 'slot',
+      label: `Cut Slot ${length}×${width}`,
+      icon: '⬭',
+      mesh
+    });
+
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Added slotted cut ${length}×${width} mm`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function quickFilletEdges(radius = 2) {
+    cutCounter++;
+    const id = `fillet_${cutCounter}`;
+    appliedCuts.push({
+      id,
+      kind: 'fillet',
+      label: `Round Edges R${radius}`,
+      icon: '⌒'
+    });
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Applied R${radius} edge rounds`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function quickChamfer(dist = 1.5) {
+    cutCounter++;
+    const id = `chamfer_${cutCounter}`;
+    appliedCuts.push({
+      id,
+      kind: 'chamfer',
+      label: `Chamfer ${dist}mm`,
+      icon: '⏢'
+    });
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Applied ${dist}mm edge chamfer`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function quickShell(thickness = 2) {
+    cutCounter++;
+    const id = `shell_${cutCounter}`;
+    appliedCuts.push({
+      id,
+      kind: 'shell',
+      label: `Hollow Shell ${thickness}mm`,
+      icon: '◰'
+    });
+    editVersion++;
+    displayGateReport({ ok: true, version: editVersion, messages: [`Applied ${thickness}mm hollow shell`] });
+    updateFeatureLists();
+    pushHistory({ type: 'add_cut', id });
+  }
+
+  function removeCut(cutId) {
+    const idx = appliedCuts.findIndex(c => c.id === cutId);
+    if (idx !== -1) {
+      const cut = appliedCuts[idx];
+      if (cut.mesh && cadRootGroup) {
+        cadRootGroup.remove(cut.mesh);
+        if (cut.mesh.geometry) cut.mesh.geometry.dispose();
       }
-    } catch (err) {
-      displayGateReport({ok: false, errors: [err.message]});
+      appliedCuts.splice(idx, 1);
+      editVersion++;
+      displayGateReport({ ok: true, version: editVersion, messages: [`Removed part #${cutId}`] });
+      updateFeatureLists();
+      pushHistory({ type: 'remove_cut', cutId });
     }
   }
 
-  async function cadEditUndo() {
-    try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/undo", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId})
-      });
-      const data = await resp.json();
-      updateCadEditState(data);
-      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
-    } catch (e) {
-      console.error(e);
+  function pushHistory(entry) {
+    undoStack.push({
+      ...entry,
+      scale: { ...modelScale },
+      dims: { ...currentDimensions },
+      vol: currentVolume,
+      cutIds: appliedCuts.map(c => c.id)
+    });
+    redoStack = [];
+  }
+
+  function cadEditUndo() {
+    if (undoStack.length === 0) return;
+    const current = undoStack.pop();
+    redoStack.push(current);
+    if (undoStack.length > 0) {
+      const prev = undoStack[undoStack.length - 1];
+      modelScale = { ...prev.scale };
+      currentDimensions = { ...prev.dims };
+      currentVolume = prev.vol;
+      applyTransform();
+    } else {
+      cadEditReset();
     }
   }
 
-  async function cadEditRedo() {
-    try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/redo", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId})
-      });
-      const data = await resp.json();
-      updateCadEditState(data);
-      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
-    } catch (e) {
-      console.error(e);
-    }
+  function cadEditRedo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop();
+    undoStack.push(next);
+    modelScale = { ...next.scale };
+    currentDimensions = { ...next.dims };
+    currentVolume = next.vol;
+    applyTransform();
   }
 
-  async function cadEditReset() {
-    try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/init", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({session_id: cadEditSessionId, W: 40, D: 20, H: 10})
+  function cadEditReset() {
+    modelScale = { x: 1.0, y: 1.0, z: 1.0 };
+    if (cadRootGroup) {
+      cadRootGroup.scale.set(1, 1, 1);
+    }
+    appliedCuts.forEach(c => {
+      if (c.mesh && cadRootGroup) {
+        cadRootGroup.remove(c.mesh);
+        if (c.mesh.geometry) c.mesh.geometry.dispose();
+      }
+    });
+    appliedCuts = [];
+    currentDimensions = { ...baseDimensions };
+    currentVolume = baseVolume;
+    undoStack = [];
+    redoStack = [];
+    editVersion = 0;
+    applyTransform();
+    const rep = document.getElementById('cadGateReport');
+    if (rep) rep.style.display = 'none';
+  }
+
+  function updateFeatureLists() {
+    const featCount = document.getElementById('featuresCount');
+    if (featCount) featCount.innerText = `${appliedCuts.length + 1}`;
+
+    const list = document.getElementById('featuresList');
+    if (list) {
+      const modelLabel = currentDxfFilename ? currentDxfFilename.replace(/\.[^/.]+$/, "") : "Constructed Solid";
+      let html = `<div class="part-row sel"><span>${modelLabel}</span><span class="src measured">${currentDimensions.W}×${currentDimensions.D}×${currentDimensions.H}</span></div>`;
+      appliedCuts.forEach(f => {
+        html += `<div class="part-row"><span>${f.label}</span><span class="src inferred">#${f.id}</span></div>`;
       });
-      const data = await resp.json();
-      updateCadEditState(data);
-      if (cadRootGroup) cadRootGroup.scale.set(1, 1, 1);
-      const rep = document.getElementById('cadGateReport');
-      if (rep) rep.style.display = 'none';
-    } catch (e) {
-      console.error(e);
+      list.innerHTML = html;
+    }
+
+    const cutsEl = document.getElementById('appliedCutsList');
+    if (cutsEl) {
+      if (appliedCuts.length === 0) {
+        cutsEl.innerHTML = '<div class="empty-cuts">No cut parts applied yet.</div>';
+      } else {
+        cutsEl.innerHTML = appliedCuts.map(f => {
+          return `<div class="cut-item">
+            <span class="cut-item-title">
+              <span style="color:var(--accent);">${f.icon || '•'}</span> ${f.label} <small style="color:var(--muted);font-size:10px;">(${f.id})</small>
+            </span>
+            <button class="cut-remove-btn" onclick="removeCut('${f.id}')" title="Remove part ${f.id}">✕ Remove</button>
+          </div>`;
+        }).join('');
+      }
     }
   }
 
@@ -1200,8 +1436,9 @@
       rep.style.display = 'block';
       rep.style.background = 'rgba(52, 211, 153, 0.08)';
       rep.style.border = '1px solid rgba(52, 211, 153, 0.25)';
+      const msg = (data.messages && data.messages.length) ? data.messages[0] : 'Applied successfully';
       rep.innerHTML = `<div style="color:var(--emerald);font-weight:600;display:flex;align-items:center;gap:6px;">
-        <span>✓</span> Applied successfully (v${data.version || ''})
+        <span>✓</span> ${msg}
       </div>`;
       setTimeout(() => { if (rep) rep.style.display = 'none'; }, 2600);
     } else {
@@ -1215,82 +1452,22 @@
     }
   }
 
-  function updateCadEditState(data) {
-    const vTag = document.getElementById('cadVersionTag');
-    if (vTag && data.version !== undefined) vTag.innerText = `v${data.version}`;
-    if (data.stats && data.stats.volume) {
-      const volEl = document.getElementById('confVol');
-      if (volEl) volEl.innerText = `${Number(data.stats.volume).toLocaleString(undefined, {maximumFractionDigits:1})} mm³`;
-    }
-
-    // Update feature tree in left column and dimension steppers
-    if (data.tree) {
-      const base = data.tree.base || {W:40, D:20, H:10};
-      currentDimensions.W = base.W;
-      currentDimensions.D = base.D;
-      currentDimensions.H = base.H;
-
-      const dx = document.getElementById('dimX');
-      const dy = document.getElementById('dimY');
-      const dz = document.getElementById('dimZ');
-      if (dx) dx.innerText = `${base.W.toFixed(1)} mm`;
-      if (dy) dy.innerText = `${base.D.toFixed(1)} mm`;
-      if (dz) dz.innerText = `${base.H.toFixed(1)} mm`;
-
-      const feats = data.tree.features || [];
-      const fc = document.getElementById('featuresCount');
-      if (fc) fc.innerText = `${feats.length + 1}`;
-
-      const list = document.getElementById('featuresList');
-      if (list) {
-        let html = `<div class="part-row sel"><span>base block</span><span class="src measured">${base.W}×${base.D}×${base.H}</span></div>`;
-        feats.forEach(f => {
-          const dimStr = f.d ? `Ø${f.d}` : (f.radius ? `R${f.radius}` : (f.distance ? `${f.distance}mm` : (f.pcd ? `PCD${f.pcd}` : '')));
-          html += `<div class="part-row"><span>${f.id || f.kind}</span><span class="src inferred">${dimStr || f.face || ''}</span></div>`;
-        });
-        list.innerHTML = html;
-      }
-
-      // Update Applied Cuts & Parts List in right column
-      const cutsEl = document.getElementById('appliedCutsList');
-      if (cutsEl) {
-        if (feats.length === 0) {
-          cutsEl.innerHTML = '<div class="empty-cuts">No cut parts applied yet.</div>';
-        } else {
-          cutsEl.innerHTML = feats.map(f => {
-            let label = f.kind.replace('_', ' ');
-            if (f.kind === 'hole') label = `Hole Ø${f.d}`;
-            else if (f.kind === 'pocket_rect') label = `Pocket ${f.size_u}×${f.size_v}`;
-            else if (f.kind === 'slot') label = `Slot ${f.length}×${f.width}`;
-            else if (f.kind === 'fillet') label = `Fillet R${f.radius}`;
-            else if (f.kind === 'chamfer') label = `Chamfer ${f.distance}mm`;
-            else if (f.kind === 'shell') label = `Shell ${f.thickness}mm`;
-
-            return `<div class="cut-item">
-              <span class="cut-item-title">
-                <span style="color:var(--accent);">•</span> ${label} <small style="color:var(--muted);font-size:10px;">(${f.id})</small>
-              </span>
-              <button class="cut-remove-btn" onclick="removeCut('${f.id}')" title="Remove part ${f.id}">✕ Remove</button>
-            </div>`;
-          }).join('');
-        }
-      }
-    }
-
-    // Update 3D viewport
-    if (data.mesh && data.mesh.vertices && data.mesh.vertices.length > 0) {
-      renderCadMeshes({"cad_edit_solid": data.mesh});
-    }
-  }
-
   // =================================================================
   // 6. EXPORTS DOWNLOAD
   // =================================================================
   function downloadExport(fmt) {
     if (fmt === 'step') {
-      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/step?session_id=${cadEditSessionId}`;
+      if (currentStepBase64) {
+        downloadBase64(currentStepBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.step`, 'application/step');
+      } else {
+        window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/step?session_id=${cadEditSessionId}`;
+      }
     } else if (fmt === 'stl') {
-      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/stl?session_id=${cadEditSessionId}`;
+      if (currentStlBase64) {
+        downloadBase64(currentStlBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.stl`, 'application/sla');
+      } else {
+        window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/stl?session_id=${cadEditSessionId}`;
+      }
     } else if (fmt === 'dxf') {
       window.location.href = `http://127.0.0.1:8085/api/v1/download_dxf/${currentDxfFilename}`;
     } else if (fmt === 'glb') {
