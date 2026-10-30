@@ -1,0 +1,194 @@
+{
+  "case_0000_clean.dxf": {
+    "type": "dxf",
+    "status": "ok",
+    "iou": 1.0,
+    "n_vertices": 822,
+    "n_faces": 804,
+    "dimensions": {
+      "W": 80.0,
+      "D": 40.0,
+      "H": 20.0
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "ce59b8513acc29c01ea0225af80e3be63991eff6bc37396aee8815ded9f81e74",
+    "step_len": 64496
+  },
+  "case_0000_heavy.dxf": {
+    "type": "dxf",
+    "status": "needs_review",
+    "iou": 0.872,
+    "n_vertices": 828,
+    "n_faces": 808,
+    "dimensions": {
+      "W": 80.413,
+      "D": 40.727,
+      "H": 20.403
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "fa5b65a8f857f6c6ca26e3e7c7014ef243122fc8845229629fcd0de326e08a85",
+    "step_len": 72176
+  },
+  "case_0001_clean.dxf": {
+    "type": "dxf",
+    "status": "ok",
+    "iou": 1.0,
+    "n_vertices": 556,
+    "n_faces": 540,
+    "dimensions": {
+      "W": 100.0,
+      "D": 80.0,
+      "H": 15.0
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "49b67e9ad2238bb93cc10ffc3223774a4969ef975bc712012f3abd0a30b777b5",
+    "step_len": 49396
+  },
+  "case_0001_heavy.dxf": {
+    "type": "dxf",
+    "status": "ok",
+    "iou": 0.915,
+    "n_vertices": 556,
+    "n_faces": 540,
+    "dimensions": {
+      "W": 100.139,
+      "D": 80.153,
+      "H": 15.765
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "8b1c90c1c1b5f6b864ed9b9e08f8ea5e3231d0bb03761f5cb526b1a011bedf6a",
+    "step_len": 52156
+  },
+  "case_0002_clean.dxf": {
+    "type": "dxf",
+    "status": "ok",
+    "iou": 0.986,
+    "n_vertices": 762,
+    "n_faces": 794,
+    "dimensions": {
+      "W": 45.0,
+      "D": 45.0,
+      "H": 25.0
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "c32d198c7c235e1d50bc8f1156491a88534ae82cb71e3bc057d655df175a9f03",
+    "step_len": 64400
+  },
+  "case_0002_heavy.dxf": {
+    "type": "dxf",
+    "status": "needs_review",
+    "iou": 0.851,
+    "n_vertices": 842,
+    "n_faces": 842,
+    "dimensions": {
+      "W": 45.115,
+      "D": 45.008,
+      "H": 25.761
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "fe9d52a950cbb153eb7e5703624a5a40aadca0f66a72cf6f026f58d7b8ed4c30",
+    "step_len": 140176
+  },
+  "case_0003_clean.dxf": {
+    "type": "dxf",
+    "status": "ok",
+    "iou": 0.938,
+    "n_vertices": 544,
+    "n_faces": 532,
+    "dimensions": {
+      "W": 55.0,
+      "D": 40.0,
+      "H": 20.0
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "9345555bc3d3c44d6040e770f5d3fc7607fc3c30b68182a927f33447fbca979d",
+    "step_len": 40012
+  },
+  "case_0003_heavy.dxf": {
+    "type": "dxf",
+    "status": "needs_review",
+    "iou": 0.813,
+    "n_vertices": 590,
+    "n_faces": 562,
+    "dimensions": {
+      "W": 55.362,
+      "D": 40.348,
+      "H": 20.068
+    },
+    "object_class": "2D CAD (Prismatic)",
+    "step_sha256": "4ccf2a8915b6153c64c959dcd57273468006d914144db92e356f82553323ad7a",
+    "step_len": 82436
+  },
+  "f35_jet.dxf": {
+    "type": "dxf_named",
+    "status": "needs_review",
+    "iou": 0.105,
+    "n_vertices": 942,
+    "n_faces": 818,
+    "dimensions": {
+      "W": 80.0,
+      "D": 40.0,
+      "H": 20.0
+    },
+    "object_class": "2D CAD (F35_Jet)",
+    "step_sha256": "50eac1a1bc0517b1846746adc139f4adc1d774d2da4be202df6b14ce29051990",
+    "step_len": 386228
+  },
+  "wheel.dxf": {
+    "type": "dxf_named",
+    "status": "needs_review",
+    "iou": 0.061,
+    "n_vertices": 4370,
+    "n_faces": 4240,
+    "dimensions": {
+      "W": 80.0,
+      "D": 40.0,
+      "H": 20.0
+    },
+    "object_class": "2D CAD (Wheel)",
+    "step_sha256": "fdcf1c71f7798fe13b3628c62617c5801afac95321432f03de4edab2b0dc92a5",
+    "step_len": 474284
+  },
+  "engine_block.dxf": {
+    "type": "dxf_named",
+    "status": "needs_review",
+    "iou": 0.044,
+    "n_vertices": 1228,
+    "n_faces": 1176,
+    "dimensions": {
+      "W": 80.0,
+      "D": 40.0,
+      "H": 20.0
+    },
+    "object_class": "2D CAD (Engine)",
+    "step_sha256": "bf98121a23541e491fd56f1a9f4159accb4976d5f5de9da0dff8b8014e6f097f",
+    "step_len": 248584
+  },
+  "sample_sketch.png": {
+    "type": "image",
+    "status": "ok",
+    "family": "image_silhouette_extrude",
+    "n_vertices": 24,
+    "n_faces": 12,
+    "volume": 12960.0,
+    "dimensions": [
+      {
+        "name": "Width",
+        "value": 36.0,
+        "units": "mm"
+      },
+      {
+        "name": "Depth",
+        "value": 36.0,
+        "units": "mm"
+      },
+      {
+        "name": "Height",
+        "value": 10.0,
+        "units": "mm"
+      }
+    ],
+    "step_sha256": "3b8f060c0506765c909add0b0401640d1f5c2f433a402c419ca68aa8b54f3ef7",
+    "step_len": 20668
+  }
+}

@@ -15,12 +15,27 @@ import cadquery as cq
 import numpy as np
 from scipy.spatial import cKDTree
 
-BENCHMARK_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen"))
-if BENCHMARK_DIR not in sys.path:
-    sys.path.insert(0, BENCHMARK_DIR)
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+for d in [
+    os.path.abspath(os.path.join(CUR_DIR, "..", "drawing_gen", "drawing_gen")),
+    os.path.abspath(os.path.join(CUR_DIR, "..", "..", "drawing_gen", "drawing_gen"))
+]:
+    if os.path.exists(d) and d not in sys.path:
+        sys.path.insert(0, d)
 
 from metrics import edge_prf, flag_stats
 from project import project_view, sample
+
+try:
+    from app.core.config import settings
+    F1_GATE_THRESH = settings.F1_NEEDS_REVIEW_THRESHOLD
+    RECALL_GATE_THRESH = settings.EDGE_RECALL_THRESHOLD
+    PRECISION_GATE_THRESH = settings.EDGE_PRECISION_THRESHOLD
+except Exception:
+    import os
+    F1_GATE_THRESH = float(os.getenv("F1_NEEDS_REVIEW_THRESHOLD", "0.85"))
+    RECALL_GATE_THRESH = float(os.getenv("EDGE_RECALL_THRESHOLD", "0.80"))
+    PRECISION_GATE_THRESH = float(os.getenv("EDGE_PRECISION_THRESHOLD", "0.75"))
 
 
 def _prim_to_eval_ent(p: Dict[str, Any], role: str = "visible") -> Dict[str, Any]:
@@ -110,8 +125,8 @@ def verify_reconstruction(
     mean_prec = float(np.mean(prec_vis_list))
 
     # Self-Flagging Decision:
-    # Flag if visible edge F1 is below 0.85, or if precision or recall drops below 0.80
-    flagged = bool(mean_f1 < 0.85 or mean_rec < 0.80 or mean_prec < 0.75)
+    # Flag if visible edge F1 is below threshold, or if precision or recall drops below threshold
+    flagged = bool(mean_f1 < F1_GATE_THRESH or mean_rec < RECALL_GATE_THRESH or mean_prec < PRECISION_GATE_THRESH)
     status = "needs_review" if flagged else "ok"
     confidence = round(mean_f1, 3)
 

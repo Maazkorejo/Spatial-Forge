@@ -10,6 +10,10 @@
 <!-- Three.js & OrbitControls -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script type="module" src="/js/three-scene.js"></script>
+<script type="module" src="/js/pip-overlay.js"></script>
+  <script type="module" src="/js/cad-edit-ui.js"></script>
+<script type="module" src="/js/exporter.js"></script>
 <style>
   :root{
     --bg:#0e0f11; --panel:#17181b; --panel-2:#1d1f23; --line:#2a2c31;
@@ -147,6 +151,42 @@
   .vt-btn{font-size:11.5px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);color:var(--muted);background:var(--panel);cursor:pointer;font-weight:500;transition:all .15s ease;}
   .vt-btn:hover{color:var(--text);border-color:var(--muted);}
   .vt-btn.active{color:var(--text);border-color:var(--accent);background:var(--panel-2);font-weight:600;}
+
+  /* Fidelity Tier Indicator */
+  .fidelity-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--line); background: var(--panel);
+    transition: all .2s ease;
+  }
+  .fidelity-badge.reconstructed {
+    border-color: rgba(52, 211, 153, 0.4); color: #34d399; background: rgba(16, 36, 26, 0.7);
+  }
+  .fidelity-badge.preview {
+    border-color: rgba(234, 179, 8, 0.4); color: #facc15; background: rgba(38, 33, 13, 0.7);
+  }
+  .fidelity-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .fidelity-dot.green { background: #34d399; }
+  .fidelity-dot.amber { background: #facc15; }
+
+  /* Reprojection Gate Alert Banner */
+  .review-gate-banner {
+    position: absolute; top: 56px; left: 16px; right: 16px; z-index: 25;
+    background: rgba(35, 20, 10, 0.95); backdrop-filter: blur(10px);
+    border: 1px solid rgba(245, 158, 11, 0.6); border-radius: 8px;
+    padding: 10px 14px; display: none; align-items: center; justify-content: space-between;
+    gap: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.65);
+  }
+  .review-gate-banner.visible { display: flex; }
+  .rgb-left { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #fef3c7; }
+  .rgb-icon { color: #f59e0b; flex: none; width: 18px; height: 18px; }
+  .rgb-msg { line-height: 1.4; }
+  .rgb-btn {
+    background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fef3c7; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: all .15s ease; flex: none;
+  }
+  .rgb-btn:hover { background: rgba(245, 158, 11, 0.35); }
 
   /* Floating 2D Drawing PiP Screen */
   .pip-screen{
@@ -456,6 +496,21 @@
                 <div class="vt-btn active" id="btnShaded" onclick="setShadingMode('wire_on_solid')">Shaded</div>
                 <div class="vt-btn" id="btnWire" onclick="setShadingMode('pure_wire')">Wireframe</div>
                 <div class="vt-btn" id="btnSolid" onclick="setShadingMode('solid')">Solid</div>
+                <div id="fidelityBadge" class="fidelity-badge reconstructed">
+                  <span id="fidelityDot" class="fidelity-dot green"></span>
+                  <span id="fidelityText">RECONSTRUCTED (Multi-View B-Rep)</span>
+                </div>
+              </div>
+
+              <!-- Reprojection Verification Gate Warning Banner -->
+              <div id="reviewGateBanner" class="review-gate-banner">
+                <div class="rgb-left">
+                  <svg class="rgb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <div class="rgb-msg">
+                    <b>Reprojection Reliability Gate:</b> <span id="reviewGateReason">Chamfer Edge F1 &lt; 85%. Ambiguous contours detected.</span> Inspect geometry before manufacturing.
+                  </div>
+                </div>
+                <button class="rgb-btn" onclick="document.getElementById('reviewGateBanner').classList.remove('visible')">Acknowledge</button>
               </div>
             </div>
           </div>
@@ -645,230 +700,10 @@
   });
 
   // =================================================================
-  // 2. THREE.JS 3D CAD ENGINE INITIALIZATION
-  // =================================================================
-  let scene, camera, renderer, controls;
-  const threeWrapper = document.getElementById('threeCanvasWrapper');
-  const cadRootGroup = new THREE.Group();
-  let currentShadingMode = 'wire_on_solid';
-  let currentDxfFilename = "case_0000_clean.dxf";
-  let currentStepBase64 = "";
-  let currentStlBase64 = "";
-  let currentGlbBase64 = "";
-  let currentPreviewBase64 = "";
+  // Subsystem: Three.js 3D CAD Scene Engine loaded via /js/three-scene.js
 
-  const cadSolidMaterial = new THREE.MeshStandardMaterial({
-    color: 0x94a3b8,
-    roughness: 0.35,
-    metalness: 0.15,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1
-  });
-
-  const cadEdgeMaterial = new THREE.LineBasicMaterial({
-    color: 0x0f172a
-  });
-
-  const pureWireMaterial = new THREE.MeshBasicMaterial({
-    color: 0x6f8dff,
-    wireframe: true
-  });
-
-  function initThree() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0e0f11);
-
-    const aspect = threeWrapper.clientWidth / threeWrapper.clientHeight || 1;
-    camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 2000);
-    camera.position.set(120, 100, 140);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(threeWrapper.clientWidth, threeWrapper.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    threeWrapper.appendChild(renderer.domElement);
-
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.target.set(0, 0, 0);
-
-    // Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
-    scene.add(ambientLight);
-
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
-    dirLight1.position.set(150, 200, 150);
-    scene.add(dirLight1);
-
-    const dirLight2 = new THREE.DirectionalLight(0x6f8dff, 0.35);
-    dirLight2.position.set(-150, 100, -150);
-    scene.add(dirLight2);
-
-    // Grid helper
-    const grid = new THREE.GridHelper(300, 30, 0x2a2c31, 0x1d1f23);
-    grid.position.y = -0.1;
-    scene.add(grid);
-
-    scene.add(cadRootGroup);
-
-    window.addEventListener('resize', onWindowResize);
-    animate();
-  }
-
-  function onWindowResize() {
-    if (!renderer || !camera || !threeWrapper) return;
-    const width = threeWrapper.clientWidth || 300;
-    const height = threeWrapper.clientHeight || 300;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
-  }
-
-  function animate() {
-    requestAnimationFrame(animate);
-    if (controls) controls.update();
-    if (renderer && scene && camera) renderer.render(scene, camera);
-  }
-
-  function clearSceneMeshes() {
-    cadRootGroup.rotation.set(0, 0, 0);
-    cadRootGroup.position.set(0, 0, 0);
-    while (cadRootGroup.children.length > 0) {
-      const obj = cadRootGroup.children[0];
-      if (obj.geometry) obj.geometry.dispose();
-      cadRootGroup.remove(obj);
-    }
-  }
-
-  function renderCadMeshes(meshesDict) {
-    clearSceneMeshes();
-    if (!meshesDict || Object.keys(meshesDict).length === 0) return;
-
-    for (const [partId, partData] of Object.entries(meshesDict)) {
-      if (!partData.vertices || !partData.faces) continue;
-
-      const geom = new THREE.BufferGeometry();
-      const positions = [];
-      for (const f of partData.faces) {
-        for (const idx of f) {
-          const pt = partData.vertices[idx];
-          if (pt) positions.push(pt[0], pt[2], -pt[1]); // Convert Z-up to Three.js Y-up
-        }
-      }
-
-      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geom.computeVertexNormals();
-
-      const mesh = new THREE.Mesh(geom, cadSolidMaterial);
-      cadRootGroup.add(mesh);
-
-      // Add crisp edges
-      const edgesGeom = new THREE.EdgesGeometry(geom, 24);
-      const edgesLine = new THREE.LineSegments(edgesGeom, cadEdgeMaterial);
-      edgesLine.visible = (currentShadingMode === 'wire_on_solid');
-      cadRootGroup.add(edgesLine);
-    }
-
-    // AI Orientation & Viewport Middle-Centering
-    cadRootGroup.updateMatrixWorld(true);
-    let box = new THREE.Box3().setFromObject(cadRootGroup);
-    if (!box.isEmpty()) {
-      let size = new THREE.Vector3();
-      box.getSize(size);
-
-      // Smart AI Orientation (Horizontal vs. Vertical):
-      // In 2D drawings/sketches, planar profiles, wings, aircraft, vehicles,
-      // and plates are typically drawn along the paper height.
-      // When standing tall on an edge/end, orient them horizontally flat on the ground plane.
-      const isStandingVertically = (size.y > size.z * 1.35 && size.y > size.x * 1.05) || (size.y > size.z * 2.2);
-      if (isStandingVertically) {
-        cadRootGroup.rotation.x = -Math.PI / 2;
-        cadRootGroup.updateMatrixWorld(true);
-        box.setFromObject(cadRootGroup);
-        box.getSize(size);
-      }
-
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-
-      // Center model in the exact middle of the grid, flush on y = 0
-      cadRootGroup.position.x = -center.x;
-      cadRootGroup.position.z = -center.z;
-      cadRootGroup.position.y = -box.min.y;
-      cadRootGroup.updateMatrixWorld(true);
-
-      // Focus camera on the exact center of the model in the middle of the screen
-      const modelH = size.y;
-      controls.target.set(0, modelH * 0.45, 0);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const dist = Math.max(maxDim * 1.85, 80);
-      camera.position.set(dist * 0.72, modelH * 0.5 + dist * 0.55, dist * 0.82);
-      camera.lookAt(0, modelH * 0.45, 0);
-      controls.update();
-    }
-  }
-
-  function setShadingMode(mode) {
-    currentShadingMode = mode;
-    document.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('active'));
-    if (mode === 'wire_on_solid') document.getElementById('btnShaded').classList.add('active');
-    else if (mode === 'pure_wire') document.getElementById('btnWire').classList.add('active');
-    else if (mode === 'solid') document.getElementById('btnSolid').classList.add('active');
-
-    cadRootGroup.traverse(child => {
-      if (child.isMesh) {
-        child.material = (mode === 'pure_wire') ? pureWireMaterial : cadSolidMaterial;
-      }
-      if (child.isLineSegments) {
-        child.visible = (mode === 'wire_on_solid');
-      }
-    });
-  }
-
-  // =================================================================
   // 3. BACKEND API INTEGRATION & SAMPLE LOADING
   // =================================================================
-  // PiP (Picture-in-Picture) 2D Drawing Preview state & controls
-  let isPipMinimized = false;
-
-  function togglePip(minimize) {
-    isPipMinimized = (minimize !== undefined) ? minimize : !isPipMinimized;
-    const screen = document.getElementById('pipScreen');
-    const pill = document.getElementById('pipPill');
-    if (screen && pill) {
-      if (isPipMinimized) {
-        screen.style.display = 'none';
-        pill.style.display = 'flex';
-      } else {
-        screen.style.display = 'flex';
-        pill.style.display = 'none';
-      }
-    }
-  }
-
-  function togglePipSize() {
-    const screen = document.getElementById('pipScreen');
-    if (screen) {
-      screen.classList.toggle('enlarged');
-    }
-  }
-
-  // Rolling Wheel Construction Loader controls
-  function showReconLoader(title = "Constructing 3D CAD B-Rep...", sub = "Vectorizing contours & extruding solid...") {
-    const el = document.getElementById('reconstructSpinner');
-    const t = document.getElementById('reconStatusTitle');
-    const s = document.getElementById('reconStatusSub');
-    if (t) t.innerText = title;
-    if (s) s.innerText = sub;
-    if (el) el.style.display = 'flex';
-  }
-
-  function hideReconLoader() {
-    const el = document.getElementById('reconstructSpinner');
-    if (el) el.style.display = 'none';
-  }
-
   async function loadSampleCase(caseName) {
     try {
       showReconLoader("Loading CAD drawing...", `${caseName}.dxf`);
@@ -940,15 +775,42 @@
       if (elLat) elLat.innerText = `${Math.round(res.reconstruction_time_ms)} ms`;
     }
 
-    // Status badge
+    // Status badge and Reprojection Reliability Gate Banner
     const badge = document.getElementById('topbarStatusBadge');
-    if (badge) {
-      if (res.status === 'ok') {
+    const rgb = document.getElementById('reviewGateBanner');
+    const rgbReason = document.getElementById('reviewGateReason');
+    if (res.status === 'ok') {
+      if (badge) {
         badge.innerText = "converged";
         badge.className = "badge converged";
-      } else {
+      }
+      if (rgb) rgb.classList.remove('visible');
+    } else {
+      if (badge) {
         badge.innerText = "needs_review";
         badge.className = "badge warning";
+      }
+      if (rgb) {
+        if (rgbReason) {
+          rgbReason.innerText = res.failure_reason || "Chamfer Edge F1 < 85%. Ambiguous contours detected.";
+        }
+        rgb.classList.add('visible');
+      }
+    }
+
+    // Fidelity Tier Display
+    const fBadge = document.getElementById('fidelityBadge');
+    const fText = document.getElementById('fidelityText');
+    const fDot = document.getElementById('fidelityDot');
+    if (fBadge && fText && fDot) {
+      if (res.fidelity === 'preview') {
+        fBadge.className = 'fidelity-badge preview';
+        fDot.className = 'fidelity-dot amber';
+        fText.innerText = 'PREVIEW (Flat Silhouette Extrude)';
+      } else {
+        fBadge.className = 'fidelity-badge reconstructed';
+        fDot.className = 'fidelity-dot green';
+        fText.innerText = 'RECONSTRUCTED (Multi-View B-Rep)';
       }
     }
 
@@ -1101,790 +963,11 @@
   }
 
   // =================================================================
-  // 5. CONSTRUCT-PRESERVING CAD EDIT & ADJUST ENGINE
-  // =================================================================
-  let cadEditSessionId = "default";
-  let baseDimensions = { W: 40.0, D: 20.0, H: 10.0 };
-  let currentDimensions = { W: 40.0, D: 20.0, H: 10.0 };
-  let modelScale = { x: 1.0, y: 1.0, z: 1.0 };
-  let baseVolume = 8000;
-  let currentVolume = 8000;
-  let appliedCuts = [];
-  let undoStack = [];
-  let redoStack = [];
-  let editVersion = 0;
-  let cutCounter = 0;
+  // Subsystem: CAD Edit UI & Parametric Engine loaded via /js/cad-edit-ui.js
 
-  const cutMaterial = new THREE.MeshStandardMaterial({
-    color: 0x181a20,
-    roughness: 0.9,
-    metalness: 0.1
-  });
-  const cutBorderMaterial = new THREE.LineBasicMaterial({
-    color: 0x6f8dff,
-    linewidth: 2
-  });
+  <script type="module" src="/js/cad-edit-ui.js"></script>
+  // Subsystem: Exporter loaded via /js/exporter.js
 
-  function getModelLocalTop() {
-    let maxY = 1.0;
-    if (cadRootGroup) {
-      cadRootGroup.traverse(c => {
-        if (c.isMesh && c.geometry && !c.userData.isCutMesh) {
-          if (!c.geometry.boundingBox) c.geometry.computeBoundingBox();
-          if (c.geometry.boundingBox && c.geometry.boundingBox.max.y > maxY) {
-            maxY = c.geometry.boundingBox.max.y;
-          }
-        }
-      });
-    }
-    return maxY;
-  }
-
-  function applyTransform() {
-    if (cadRootGroup) {
-      cadRootGroup.scale.set(modelScale.x, modelScale.y, modelScale.z);
-    }
-
-    currentDimensions.W = Math.round(baseDimensions.W * modelScale.x * 10) / 10;
-    currentDimensions.D = Math.round(baseDimensions.D * modelScale.y * 10) / 10;
-    currentDimensions.H = Math.round(baseDimensions.H * modelScale.z * 10) / 10;
-    currentVolume = Math.round(baseVolume * (modelScale.x * modelScale.y * modelScale.z));
-
-    const dx = document.getElementById('dimX');
-    const dy = document.getElementById('dimY');
-    const dz = document.getElementById('dimZ');
-    const vol = document.getElementById('confVol');
-    if (dx) dx.innerText = `${currentDimensions.W.toFixed(1)} mm`;
-    if (dy) dy.innerText = `${currentDimensions.D.toFixed(1)} mm`;
-    if (dz) dz.innerText = `${currentDimensions.H.toFixed(1)} mm`;
-    if (vol) vol.innerText = `${currentVolume.toLocaleString()} mm³`;
-
-    const vTag = document.getElementById('cadVersionTag');
-    if (vTag) vTag.innerText = `v${editVersion}`;
-
-    updateFeatureLists();
-  }
-
-  function scaleModel(factor) {
-    if (!cadRootGroup) return;
-
-    modelScale.x = Math.round(modelScale.x * factor * 1000) / 1000;
-    modelScale.y = Math.round(modelScale.y * factor * 1000) / 1000;
-    modelScale.z = Math.round(modelScale.z * factor * 1000) / 1000;
-
-    editVersion++;
-    applyTransform();
-    pushHistory({ type: 'scale', factor });
-
-    const pct = Math.round((factor - 1) * 100);
-    const sign = pct > 0 ? '+' : '';
-    displayGateReport({ ok: true, version: editVersion, messages: [`Scaled construct by ${sign}${pct}%`] });
-  }
-
-  function adjustDim(axis, delta) {
-    if (!cadRootGroup) return;
-
-    const currentVal = currentDimensions[axis];
-    const targetVal = Math.max(1, Math.round((currentVal + delta) * 10) / 10);
-    const axisFactor = targetVal / currentVal;
-
-    if (axis === 'W') modelScale.x = Math.round(modelScale.x * axisFactor * 1000) / 1000;
-    else if (axis === 'D') modelScale.y = Math.round(modelScale.y * axisFactor * 1000) / 1000;
-    else if (axis === 'H') modelScale.z = Math.round(modelScale.z * axisFactor * 1000) / 1000;
-
-    editVersion++;
-    applyTransform();
-    pushHistory({ type: 'adjust', axis, delta });
-
-    const axisName = axis === 'W' ? 'Length' : (axis === 'D' ? 'Width' : 'Thickness');
-    displayGateReport({ ok: true, version: editVersion, messages: [`Adjusted ${axisName} to ${targetVal} mm`] });
-  }
-
-  function quickCutHole(d = 6) {
-    cutCounter++;
-    const id = `hole_${cutCounter}`;
-    const r = d / 2;
-    const depth = 8;
-    const geom = new THREE.CylinderGeometry(r, r, depth, 32);
-    const mesh = new THREE.Mesh(geom, cutMaterial);
-    mesh.userData.isCutMesh = true;
-
-    const topY = getModelLocalTop();
-    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
-
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
-    mesh.add(edges);
-
-    cadRootGroup.add(mesh);
-
-    appliedCuts.push({
-      id,
-      kind: 'hole',
-      label: `Cut Hole Ø${d}`,
-      icon: '⚪',
-      mesh
-    });
-
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Added cut hole Ø${d} mm on top face`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function quickCutPocket(w = 20, d = 10, depth = 5) {
-    cutCounter++;
-    const id = `pocket_${cutCounter}`;
-    const geom = new THREE.BoxGeometry(w, depth, d);
-    const mesh = new THREE.Mesh(geom, cutMaterial);
-    mesh.userData.isCutMesh = true;
-
-    const topY = getModelLocalTop();
-    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
-
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
-    mesh.add(edges);
-
-    cadRootGroup.add(mesh);
-
-    appliedCuts.push({
-      id,
-      kind: 'pocket_rect',
-      label: `Cut Pocket ${w}×${d}`,
-      icon: '⏹',
-      mesh
-    });
-
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Added pocket cut ${w}×${d} mm`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function quickCutSlot(length = 24, width = 6) {
-    cutCounter++;
-    const id = `slot_${cutCounter}`;
-    const depth = 6;
-    const geom = new THREE.BoxGeometry(length, depth, width);
-    const mesh = new THREE.Mesh(geom, cutMaterial);
-    mesh.userData.isCutMesh = true;
-
-    const topY = getModelLocalTop();
-    mesh.position.set(0, topY - depth / 2 + 0.1, 0);
-
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom, 30), cutBorderMaterial);
-    mesh.add(edges);
-
-    cadRootGroup.add(mesh);
-
-    appliedCuts.push({
-      id,
-      kind: 'slot',
-      label: `Cut Slot ${length}×${width}`,
-      icon: '⬭',
-      mesh
-    });
-
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Added slotted cut ${length}×${width} mm`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function quickFilletEdges(radius = 2) {
-    cutCounter++;
-    const id = `fillet_${cutCounter}`;
-    appliedCuts.push({
-      id,
-      kind: 'fillet',
-      label: `Round Edges R${radius}`,
-      icon: '⌒'
-    });
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Applied R${radius} edge rounds`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function quickChamfer(dist = 1.5) {
-    cutCounter++;
-    const id = `chamfer_${cutCounter}`;
-    appliedCuts.push({
-      id,
-      kind: 'chamfer',
-      label: `Chamfer ${dist}mm`,
-      icon: '⏢'
-    });
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Applied ${dist}mm edge chamfer`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function quickShell(thickness = 2) {
-    cutCounter++;
-    const id = `shell_${cutCounter}`;
-    appliedCuts.push({
-      id,
-      kind: 'shell',
-      label: `Hollow Shell ${thickness}mm`,
-      icon: '◰'
-    });
-    editVersion++;
-    displayGateReport({ ok: true, version: editVersion, messages: [`Applied ${thickness}mm hollow shell`] });
-    updateFeatureLists();
-    pushHistory({ type: 'add_cut', id });
-  }
-
-  function removeCut(cutId) {
-    const idx = appliedCuts.findIndex(c => c.id === cutId);
-    if (idx !== -1) {
-      const cut = appliedCuts[idx];
-      if (cut.mesh && cadRootGroup) {
-        cadRootGroup.remove(cut.mesh);
-        if (cut.mesh.geometry) cut.mesh.geometry.dispose();
-      }
-      appliedCuts.splice(idx, 1);
-      editVersion++;
-      displayGateReport({ ok: true, version: editVersion, messages: [`Removed part #${cutId}`] });
-      updateFeatureLists();
-      pushHistory({ type: 'remove_cut', cutId });
-    }
-  }
-
-  function pushHistory(entry) {
-    undoStack.push({
-      ...entry,
-      scale: { ...modelScale },
-      dims: { ...currentDimensions },
-      vol: currentVolume,
-      cutIds: appliedCuts.map(c => c.id)
-    });
-    redoStack = [];
-  }
-
-  function cadEditUndo() {
-    if (undoStack.length === 0) return;
-    const current = undoStack.pop();
-    redoStack.push(current);
-    if (undoStack.length > 0) {
-      const prev = undoStack[undoStack.length - 1];
-      modelScale = { ...prev.scale };
-      currentDimensions = { ...prev.dims };
-      currentVolume = prev.vol;
-      applyTransform();
-    } else {
-      cadEditReset();
-    }
-  }
-
-  function cadEditRedo() {
-    if (redoStack.length === 0) return;
-    const next = redoStack.pop();
-    undoStack.push(next);
-    modelScale = { ...next.scale };
-    currentDimensions = { ...next.dims };
-    currentVolume = next.vol;
-    applyTransform();
-  }
-
-  function cadEditReset() {
-    modelScale = { x: 1.0, y: 1.0, z: 1.0 };
-    if (cadRootGroup) {
-      cadRootGroup.scale.set(1, 1, 1);
-    }
-    appliedCuts.forEach(c => {
-      if (c.mesh && cadRootGroup) {
-        cadRootGroup.remove(c.mesh);
-        if (c.mesh.geometry) c.mesh.geometry.dispose();
-      }
-    });
-    appliedCuts = [];
-    currentDimensions = { ...baseDimensions };
-    currentVolume = baseVolume;
-    undoStack = [];
-    redoStack = [];
-    editVersion = 0;
-    applyTransform();
-    const rep = document.getElementById('cadGateReport');
-    if (rep) rep.style.display = 'none';
-  }
-
-  function updateFeatureLists() {
-    const featCount = document.getElementById('featuresCount');
-    if (featCount) featCount.innerText = `${appliedCuts.length + 1}`;
-
-    const list = document.getElementById('featuresList');
-    if (list) {
-      const modelLabel = currentDxfFilename ? currentDxfFilename.replace(/\.[^/.]+$/, "") : "Constructed Solid";
-      let html = `<div class="part-row sel"><span>${modelLabel}</span><span class="src measured">${currentDimensions.W}×${currentDimensions.D}×${currentDimensions.H}</span></div>`;
-      appliedCuts.forEach(f => {
-        html += `<div class="part-row"><span>${f.label}</span><span class="src inferred">#${f.id}</span></div>`;
-      });
-      list.innerHTML = html;
-    }
-
-    const cutsEl = document.getElementById('appliedCutsList');
-    if (cutsEl) {
-      if (appliedCuts.length === 0) {
-        cutsEl.innerHTML = '<div class="empty-cuts">No cut parts applied yet.</div>';
-      } else {
-        cutsEl.innerHTML = appliedCuts.map(f => {
-          return `<div class="cut-item">
-            <span class="cut-item-title">
-              <span style="color:var(--accent);">${f.icon || '•'}</span> ${f.label} <small style="color:var(--muted);font-size:10px;">(${f.id})</small>
-            </span>
-            <button class="cut-remove-btn" onclick="removeCut('${f.id}')" title="Remove part ${f.id}">✕ Remove</button>
-          </div>`;
-        }).join('');
-      }
-    }
-  }
-
-  function displayGateReport(data) {
-    const rep = document.getElementById('cadGateReport');
-    if (!rep) return;
-    if (data.ok) {
-      rep.style.display = 'block';
-      rep.style.background = 'rgba(52, 211, 153, 0.08)';
-      rep.style.border = '1px solid rgba(52, 211, 153, 0.25)';
-      const msg = (data.messages && data.messages.length) ? data.messages[0] : 'Applied successfully';
-      rep.innerHTML = `<div style="color:var(--emerald);font-weight:600;display:flex;align-items:center;gap:6px;">
-        <span>✓</span> ${msg}
-      </div>`;
-      setTimeout(() => { if (rep) rep.style.display = 'none'; }, 2600);
-    } else {
-      rep.style.display = 'block';
-      rep.style.background = 'rgba(248, 113, 113, 0.08)';
-      rep.style.border = '1px solid rgba(248, 113, 113, 0.25)';
-      const errMsg = (data.errors && data.errors.length) ? data.errors.join('; ') : 'Invalid operation';
-      rep.innerHTML = `<div style="color:#f87171;font-weight:600;display:flex;align-items:center;gap:6px;">
-        <span>✕</span> ${errMsg}
-      </div>`;
-    }
-  }
-
-  // =================================================================
-  // 6. EXPORTS DOWNLOAD & STANDALONE HTML VIEWER
-  // =================================================================
-  function downloadExport(fmt) {
-    if (fmt === 'html') {
-      downloadStandaloneHtml();
-      return;
-    }
-    if (fmt === 'step') {
-      if (currentStepBase64) {
-        downloadBase64(currentStepBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.step`, 'application/step');
-      } else {
-        window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/step?session_id=${cadEditSessionId}`;
-      }
-    } else if (fmt === 'stl') {
-      if (currentStlBase64) {
-        downloadBase64(currentStlBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.stl`, 'application/sla');
-      } else {
-        window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/stl?session_id=${cadEditSessionId}`;
-      }
-    } else if (fmt === 'dxf') {
-      window.location.href = `http://127.0.0.1:8085/api/v1/download_dxf/${currentDxfFilename}`;
-    } else if (fmt === 'glb') {
-      if (currentGlbBase64) {
-        downloadBase64(currentGlbBase64, `${currentDxfFilename.replace(/\.[^/.]+$/, "")}.glb`, 'model/gltf-binary');
-      } else {
-        alert("GLB asset available on DXF reconstruction.");
-      }
-    }
-  }
-
-  function extractSceneMeshPayload() {
-    const meshList = [];
-    if (!cadRootGroup) return meshList;
-
-    cadRootGroup.updateMatrixWorld(true);
-    cadRootGroup.traverse(child => {
-      if (child.isMesh && child.geometry) {
-        const geom = child.geometry;
-        const posAttr = geom.getAttribute('position');
-        if (!posAttr) return;
-
-        const positions = [];
-        const worldMatrix = child.matrixWorld;
-        const v = new THREE.Vector3();
-
-        for (let i = 0; i < posAttr.count; i++) {
-          v.fromBufferAttribute(posAttr, i);
-          v.applyMatrix4(worldMatrix);
-          positions.push(Math.round(v.x * 1000) / 1000, Math.round(v.y * 1000) / 1000, Math.round(v.z * 1000) / 1000);
-        }
-
-        meshList.push({
-          positions: positions,
-          color: child.userData.isCutMesh ? 0x181a20 : 0x94a3b8,
-          roughness: child.userData.isCutMesh ? 0.9 : 0.35,
-          metalness: child.userData.isCutMesh ? 0.1 : 0.15,
-          isCut: !!child.userData.isCutMesh
-        });
-      }
-    });
-
-    return meshList;
-  }
-
-  function downloadStandaloneHtml() {
-    const filename = currentDxfFilename || "model.dxf";
-    const cleanName = filename.replace(/\.[^/.]+$/, "");
-    const modelTitle = cleanName.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
-    const meshPayload = extractSceneMeshPayload();
-    if (meshPayload.length === 0) {
-      alert("No 3D model currently loaded to export.");
-      return;
-    }
-
-    let previewSrc = "";
-    if (currentPreviewBase64) {
-      previewSrc = currentPreviewBase64.startsWith("data:") ? currentPreviewBase64 : `data:image/png;base64,${currentPreviewBase64}`;
-    } else {
-      const pipImg = document.getElementById('pipImage');
-      if (pipImg && pipImg.src) previewSrc = pipImg.src;
-    }
-
-    const dimText = `${currentDimensions.W} × ${currentDimensions.D} × ${currentDimensions.H} mm`;
-    const volText = `${currentVolume.toLocaleString()} mm³`;
-    const infoText = `Dimensions: ${dimText} · Solid Volume: ${volText}`;
-
-    const htmlContent = generateStandaloneViewerHtml({
-      title: modelTitle,
-      filename: filename,
-      info: infoText,
-      meshes: meshPayload,
-      previewSrc: previewSrc
-    });
-
-    const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${cleanName}_spatialforge_3d.html`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
-  function generateStandaloneViewerHtml(data) {
-    const meshesJson = JSON.stringify(data.meshes);
-    const hasPreview = data.previewSrc && data.previewSrc.length > 20;
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${data.title} - Spatial Forge 3D</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><` + `/script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><` + `/script>
-  <style>
-    :root {
-      --bg: #0b0c10;
-      --panel: rgba(18, 20, 26, 0.82);
-      --panel-border: rgba(255, 255, 255, 0.08);
-      --accent: #6f8dff;
-      --emerald: #34d399;
-      --text: #f3f4f6;
-      --muted: #9ca3af;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); }
-    #canvas3d { width: 100%; height: 100%; display: block; }
-
-    /* Minimal Top-Left Brand & Model Info */
-    .brand-badge {
-      position: absolute; top: 20px; left: 20px; z-index: 10;
-      background: var(--panel); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--panel-border); border-radius: 12px;
-      padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.4); max-width: 440px;
-    }
-    .brand-row { display: flex; align-items: center; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-    .brand-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-    .brand-row b { color: var(--text); font-weight: 700; letter-spacing: 0.04em; }
-    .model-title { font-size: 15px; font-weight: 800; color: #fff; margin-top: 2px; }
-    .model-desc { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
-
-    /* Top-Right Viewer Controls */
-    .view-controls {
-      position: absolute; top: 20px; right: 20px; z-index: 10;
-      display: flex; gap: 6px; background: var(--panel); backdrop-filter: blur(12px);
-      border: 1px solid var(--panel-border); border-radius: 10px; padding: 5px;
-    }
-    .v-btn {
-      background: transparent; border: 1px solid transparent; border-radius: 6px;
-      color: var(--muted); font-size: 11.5px; font-weight: 600; padding: 6px 11px;
-      cursor: pointer; transition: all .15s ease;
-    }
-    .v-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-    .v-btn.active { background: rgba(111,141,255,0.15); color: var(--accent); border-color: rgba(111,141,255,0.3); }
-
-    /* Floating 2D Drawing / Blueprint PiP Card */
-    .drawing-pip {
-      position: absolute; bottom: 24px; right: 24px; z-index: 10;
-      width: 250px; background: var(--panel); backdrop-filter: blur(14px);
-      border: 1px solid var(--panel-border); border-radius: 12px;
-      box-shadow: 0 16px 40px rgba(0,0,0,0.5); overflow: hidden;
-      display: ${hasPreview ? 'flex' : 'none'}; flex-direction: column; transition: all .2s ease;
-    }
-    .pip-header {
-      padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--panel-border); font-size: 11.5px; font-weight: 600; background: rgba(0,0,0,0.2);
-    }
-    .pip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; color: var(--muted); }
-    .pip-btns { display: flex; gap: 4px; }
-    .pip-btn {
-      background: transparent; border: none; color: var(--muted); cursor: pointer;
-      width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
-      font-size: 12px; transition: all .15s ease;
-    }
-    .pip-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
-    .pip-body {
-      background: #0f1015; padding: 8px; display: flex; align-items: center; justify-content: center; max-height: 220px; overflow: hidden;
-    }
-    .pip-body img {
-      max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 6px; filter: contrast(1.05);
-    }
-
-    /* Collapsed PiP Pill */
-    .pip-pill {
-      position: absolute; bottom: 24px; right: 24px; z-index: 10;
-      background: var(--panel); backdrop-filter: blur(12px);
-      border: 1px solid var(--panel-border); border-radius: 20px;
-      padding: 7px 14px; font-size: 11.5px; font-weight: 600; color: var(--muted);
-      cursor: pointer; display: none; align-items: center; gap: 6px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4); transition: all .15s ease;
-    }
-    .pip-pill:hover { color: var(--text); border-color: var(--accent); }
-
-    /* Hint at bottom-center */
-    .hint-bar {
-      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 5;
-      font-size: 11px; color: rgba(255,255,255,0.3); font-family: 'JetBrains Mono', monospace; pointer-events: none;
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Top-Left Branding & Model Info -->
-  <div class="brand-badge">
-    <div class="brand-row">
-      <span class="brand-dot"></span>
-      <span>Constructed by <b>Spatial Forge</b></span>
-    </div>
-    <div class="model-title">${data.title}</div>
-    <div class="model-desc">${data.filename} · ${data.info}</div>
-  </div>
-
-  <!-- Top-Right Viewer Controls -->
-  <div class="view-controls">
-    <button class="v-btn active" id="btnShaded" onclick="setShading('shaded')">Shaded</button>
-    <button class="v-btn" id="btnWire" onclick="setShading('wire')">Wireframe</button>
-    <button class="v-btn active" id="btnRotate" onclick="toggleAutoRotate()">Auto-Rotate</button>
-    <button class="v-btn" onclick="resetView()">Reset View</button>
-  </div>
-
-  <!-- 2D Blueprint Picture-in-Picture -->
-  <div class="drawing-pip" id="drawingPip">
-    <div class="pip-header">
-      <span class="pip-title">${data.filename}</span>
-      <div class="pip-btns">
-        <button class="pip-btn" onclick="minimizePip()" title="Minimize">−</button>
-        <button class="pip-btn" onclick="closePip()" title="Close">✕</button>
-      </div>
-    </div>
-    <div class="pip-body">
-      <img src="${data.previewSrc}" alt="2D CAD Drawing" />
-    </div>
-  </div>
-
-  <!-- Collapsed Pill -->
-  <div class="pip-pill" id="drawingPill" onclick="restorePip()">
-    <span>◰</span> Show 2D Drawing
-  </div>
-
-  <div class="hint-bar">Left Drag: Orbit · Right Drag: Pan · Scroll: Zoom</div>
-
-  <canvas id="canvas3d"></canvas>
-
-  <script>
-    const meshPayload = ${meshesJson};
-    let scene, camera, renderer, controls;
-    let sceneGroup = new THREE.Group();
-    let isAutoRotating = true;
-    let currentShading = 'shaded';
-    let defaultCameraPos = new THREE.Vector3();
-    let defaultTarget = new THREE.Vector3();
-
-    function init() {
-      const canvas = document.getElementById('canvas3d');
-      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setClearColor(0x0b0c10, 1.0);
-
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 2000);
-
-      // Lighting
-      const ambient = new THREE.AmbientLight(0xffffff, 0.65);
-      scene.add(ambient);
-
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x1e2029, 0.7);
-      scene.add(hemi);
-
-      const dir1 = new THREE.DirectionalLight(0xffffff, 0.85);
-      dir1.position.set(120, 180, 140);
-      scene.add(dir1);
-
-      const dir2 = new THREE.DirectionalLight(0x6f8dff, 0.35);
-      dir2.position.set(-120, -60, -100);
-      scene.add(dir2);
-
-      // Architectural Ground Grid
-      const grid = new THREE.GridHelper(240, 48, 0x242838, 0x141620);
-      grid.position.y = 0;
-      scene.add(grid);
-
-      // Build model from extracted meshes
-      meshPayload.forEach(part => {
-        if (!part.positions || part.positions.length === 0) return;
-
-        const geom = new THREE.BufferGeometry();
-        geom.setAttribute('position', new THREE.Float32BufferAttribute(part.positions, 3));
-        geom.computeVertexNormals();
-
-        const mat = new THREE.MeshStandardMaterial({
-          color: part.color || 0x94a3b8,
-          roughness: part.roughness || 0.35,
-          metalness: part.metalness || 0.15,
-          polygonOffset: true,
-          polygonOffsetFactor: 1,
-          polygonOffsetUnits: 1
-        });
-
-        const mesh = new THREE.Mesh(geom, mat);
-        sceneGroup.add(mesh);
-
-        // Crisp edges
-        const edgesGeom = new THREE.EdgesGeometry(geom, 22);
-        const edgesLine = new THREE.LineSegments(edgesGeom, new THREE.LineBasicMaterial({ color: 0x0f172a }));
-        sceneGroup.add(edgesLine);
-      });
-
-      scene.add(sceneGroup);
-
-      // Middle-Center Model & Ground Flush
-      sceneGroup.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(sceneGroup);
-      const size = new THREE.Vector3();
-      const center = new THREE.Vector3();
-      box.getSize(size);
-      box.getCenter(center);
-
-      sceneGroup.position.set(-center.x, -box.min.y, -center.z);
-      sceneGroup.updateMatrixWorld(true);
-
-      // Setup Camera & Orbit Controls
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 1.0;
-
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const dist = Math.max(maxDim * 1.85, 75);
-      const modelH = size.y;
-
-      camera.position.set(dist * 0.72, modelH * 0.5 + dist * 0.55, dist * 0.82);
-      controls.target.set(0, modelH * 0.45, 0);
-      controls.update();
-
-      defaultCameraPos.copy(camera.position);
-      defaultTarget.copy(controls.target);
-
-      window.addEventListener('resize', onResize);
-      animate();
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      if (renderer && scene && camera) renderer.render(scene, camera);
-    }
-
-    function onResize() {
-      if (!camera || !renderer) return;
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function setShading(mode) {
-      currentShading = mode;
-      document.getElementById('btnShaded').classList.toggle('active', mode === 'shaded');
-      document.getElementById('btnWire').classList.toggle('active', mode === 'wire');
-
-      sceneGroup.traverse(child => {
-        if (child.isMesh) {
-          child.material.wireframe = (mode === 'wire');
-        }
-        if (child.isLineSegments) {
-          child.visible = (mode === 'shaded');
-        }
-      });
-    }
-
-    function toggleAutoRotate() {
-      isAutoRotating = !isAutoRotating;
-      controls.autoRotate = isAutoRotating;
-      document.getElementById('btnRotate').classList.toggle('active', isAutoRotating);
-    }
-
-    function resetView() {
-      camera.position.copy(defaultCameraPos);
-      controls.target.copy(defaultTarget);
-      controls.update();
-    }
-
-    // PiP controls
-    function minimizePip() {
-      document.getElementById('drawingPip').style.display = 'none';
-      document.getElementById('drawingPill').style.display = 'flex';
-    }
-    function restorePip() {
-      document.getElementById('drawingPip').style.display = 'flex';
-      document.getElementById('drawingPill').style.display = 'none';
-    }
-    function closePip() {
-      document.getElementById('drawingPip').style.display = 'none';
-      document.getElementById('drawingPill').style.display = 'none';
-    }
-
-    window.addEventListener('DOMContentLoaded', init);
-  <` + `/script>
-</body>
-</html>`;
-  }
-
-  function downloadBase64(base64Data, filename, mimeType) {
-    const byteChars = atob(base64Data);
-    const byteNums = new Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) {
-      byteNums[i] = byteChars.charCodeAt(i);
-    }
-    const blob = new Blob([new Uint8Array(byteNums)], { type: mimeType });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
 
   // =================================================================
   // 7. INITIAL BOOTSTRAP

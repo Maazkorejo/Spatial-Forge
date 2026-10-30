@@ -10,7 +10,7 @@ import os
 import sys
 import base64
 
-V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2"))
+V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2"))
 if V2_DIR not in sys.path:
     sys.path.insert(0, V2_DIR)
 from dxf_pipeline import process_dxf_bytes
@@ -37,17 +37,21 @@ app = FastAPI(
 # Enable CORS for local Next.js / browser frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount static samples and UI
+# Mount static samples, js modules, and UI
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 samples_dir = os.path.join(repo_root, "samples")
 if os.path.exists(samples_dir):
     app.mount("/samples", StaticFiles(directory=samples_dir), name="samples")
+
+js_dir = os.path.join(repo_root, "js")
+os.makedirs(js_dir, exist_ok=True)
+app.mount("/js", StaticFiles(directory=js_dir), name="js")
 
 @app.get("/ui")
 @app.get("/app")
@@ -86,34 +90,13 @@ def is_dxf_data(contents: bytes, filename: Optional[str]) -> bool:
         return True
     return False
 
-@app.post(f"{settings.API_V1_STR}/draft")
-async def draft_blueprint(
-    file: UploadFile = File(...),
-    requested_class: Optional[str] = Form(None)
-):
+async def canonical_synthesize_handler(
+    file: UploadFile,
+    requested_class: Optional[str] = None
+) -> Any:
     """
-    Fast 2D CAD draft pass (<300ms).
-    """
-    try:
-        contents = await file.read()
-        if is_dxf_data(contents, file.filename):
-            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
-        else:
-            result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
-        return result
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.post(f"{settings.API_V1_STR}/synthesize")
-async def synthesize_blueprint(
-    file: UploadFile = File(...),
-    requested_class: Optional[str] = Form(None)
-):
-    """
-    Main 2D CAD & Image synthesis endpoint. Ingests a 2D orthographic technical drawing (.dxf)
-    or image sketch (.png, .webp, .jpg), executing feature reconstruction into a 3D B-Rep CAD model.
+    Canonical upload pipeline handler. Ingests 2D CAD (.dxf) or 2D image (.png, .webp, .jpg),
+    executing feature reconstruction into a 3D B-Rep CAD model.
     """
     try:
         contents = await file.read()
@@ -127,30 +110,10 @@ async def synthesize_blueprint(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post(f"{settings.API_V1_STR}/dxf")
-@app.post("/pipeline/dxf")
-async def process_dxf_endpoint(file: UploadFile = File(...)):
-    """
-    2D CAD (DXF) and Image to 3D B-Rep CAD synthesis endpoint.
-    """
-    try:
-        contents = await file.read()
-        if is_dxf_data(contents, file.filename):
-            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
-        else:
-            result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
-        return result
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post(f"{settings.API_V1_STR}/image")
-@app.post("/pipeline/image")
-async def process_image_endpoint(file: UploadFile = File(...)):
+async def canonical_image_handler(file: UploadFile) -> Any:
     """
-    Dedicated 2D Image (PNG, WEBP, JPG, SVG) to 3D B-Rep CAD synthesis endpoint.
-    Performs contour extraction, closed loop cleaning, and watertight 3D extrusion.
+    Canonical dedicated 2D image-to-CAD synthesis handler.
     """
     try:
         contents = await file.read()
@@ -160,6 +123,38 @@ async def process_image_endpoint(file: UploadFile = File(...)):
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post(f"{settings.API_V1_STR}/draft")
+async def draft_blueprint(
+    file: UploadFile = File(...),
+    requested_class: Optional[str] = Form(None)
+):
+    """Fast 2D CAD draft pass (<300ms). Thin alias to canonical synthesis."""
+    return await canonical_synthesize_handler(file, requested_class)
+
+
+@app.post(f"{settings.API_V1_STR}/synthesize")
+async def synthesize_blueprint(
+    file: UploadFile = File(...),
+    requested_class: Optional[str] = Form(None)
+):
+    """Main 2D CAD & Image synthesis endpoint."""
+    return await canonical_synthesize_handler(file, requested_class)
+
+
+@app.post(f"{settings.API_V1_STR}/dxf")
+@app.post("/pipeline/dxf")
+async def process_dxf_endpoint(file: UploadFile = File(...)):
+    """2D CAD (DXF) to 3D B-Rep CAD synthesis endpoint (alias to canonical synthesis)."""
+    return await canonical_synthesize_handler(file)
+
+
+@app.post(f"{settings.API_V1_STR}/image")
+@app.post("/pipeline/image")
+async def process_image_endpoint(file: UploadFile = File(...)):
+    """Dedicated 2D Image to 3D B-Rep CAD synthesis endpoint."""
+    return await canonical_image_handler(file)
 
 class CorrectionLog(BaseModel):
     image_hash: Optional[str] = "sketch"
@@ -198,7 +193,7 @@ async def patch_assembly(payload: PatchRequest):
     Locked parts (high IoU or user approved) are strictly immutable.
     """
     import sys
-    V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2", "spatialforge_v2"))
+    V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2"))
     if V2_DIR not in sys.path:
         sys.path.insert(0, V2_DIR)
     import patch_engine
@@ -567,4 +562,4 @@ async def websocket_telemetry_stream(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT, reload=True)

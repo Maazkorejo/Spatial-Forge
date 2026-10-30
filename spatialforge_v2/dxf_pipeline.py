@@ -21,9 +21,12 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 if CUR_DIR not in sys.path:
     sys.path.insert(0, CUR_DIR)
 
-BENCHMARK_DIR = os.path.abspath(os.path.join(CUR_DIR, "..", "..", "drawing_gen", "drawing_gen"))
-if BENCHMARK_DIR not in sys.path:
-    sys.path.insert(0, BENCHMARK_DIR)
+for d in [
+    os.path.abspath(os.path.join(CUR_DIR, "..", "drawing_gen", "drawing_gen")),
+    os.path.abspath(os.path.join(CUR_DIR, "..", "..", "drawing_gen", "drawing_gen"))
+]:
+    if os.path.exists(d) and d not in sys.path:
+        sys.path.insert(0, d)
 
 from dxf_ingest import (
     classify_and_filter_entities,
@@ -34,7 +37,12 @@ from dxf_ingest import (
 )
 from preview import render_dxf
 from reconstruction import reconstruct
-from reproject_verify import verify_reconstruction
+from reproject_verify import (
+    verify_reconstruction,
+    F1_GATE_THRESH,
+    RECALL_GATE_THRESH,
+    PRECISION_GATE_THRESH,
+)
 from view_segmentation import (
     cluster_drawing_entities,
     identify_views,
@@ -189,6 +197,11 @@ def process_dxf_bytes(
         # 3. 2.5D Feature-Based 3D B-Rep CAD Reconstruction
         body, recon = reconstruct(registered)
         family = recon["family"]
+        solver_dispatch = recon.get("solver_dispatch", {
+            "family": family,
+            "confidence": 1.0,
+            "reason": "Deterministic 2D orthographic projection CAD synthesis"
+        })
         vol = recon.get("volume", 0.0)
         is_valid = recon.get("valid", False)
 
@@ -290,20 +303,22 @@ def process_dxf_bytes(
         failure_reason = None
         if flagged:
             reasons = []
-            if mean_vis_f1 < 0.85:
-                reasons.append(f"Visible Edge F1 {round(mean_vis_f1 * 100, 1)}% < 85%")
-            if verify_res.get("mean_vis_recall", 1.0) < 0.80:
-                reasons.append(f"Edge Recall {round(verify_res['mean_vis_recall'] * 100, 1)}% < 80%")
-            if verify_res.get("mean_vis_precision", 1.0) < 0.75:
-                reasons.append(f"Edge Precision {round(verify_res['mean_vis_precision'] * 100, 1)}% < 75%")
+            if mean_vis_f1 < F1_GATE_THRESH:
+                reasons.append(f"Visible Edge F1 {round(mean_vis_f1 * 100, 1)}% < {round(F1_GATE_THRESH * 100, 0)}%")
+            if verify_res.get("mean_vis_recall", 1.0) < RECALL_GATE_THRESH:
+                reasons.append(f"Edge Recall {round(verify_res['mean_vis_recall'] * 100, 1)}% < {round(RECALL_GATE_THRESH * 100, 0)}%")
+            if verify_res.get("mean_vis_precision", 1.0) < PRECISION_GATE_THRESH:
+                reasons.append(f"Edge Precision {round(verify_res['mean_vis_precision'] * 100, 1)}% < {round(PRECISION_GATE_THRESH * 100, 0)}%")
             failure_reason = "; ".join(reasons) or "Flagged by Reprojection Gate"
 
         return {
             "status": status,
+            "fidelity": "reconstructed",
             "failure_reason": failure_reason,
             "object_class": f"2D CAD ({family.title()})",
-            "class_confidence": 1.0,
-            "class_reason": "Deterministic 2D orthographic projection CAD synthesis",
+            "class_confidence": solver_dispatch.get("confidence", 1.0),
+            "class_reason": solver_dispatch.get("reason", "Deterministic 2D orthographic projection CAD synthesis"),
+            "solver_dispatch": solver_dispatch,
             "execution_time_ms": elapsed_ms,
             "iou": mean_vis_f1,
             "initial_iou": mean_vis_f1,

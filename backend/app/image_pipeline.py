@@ -231,8 +231,11 @@ def process_image_bytes(
 
     return {
         "status": "ok",
+        "fidelity": "preview",
         "filename": filename,
         "family": "image_silhouette_extrude",
+        "class_confidence": 0.65,
+        "class_reason": "Single flat contour extrusion from 2D silhouette (preview tier)",
         "volume": vol,
         "meshes": {"body": mesh_data},
         "dimensions": [

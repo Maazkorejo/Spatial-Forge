@@ -1,0 +1,119 @@
+{
+  "endpoints": {
+    "/api/v1/synthesize": {
+      "method": "POST",
+      "content_type": "multipart/form-data",
+      "required_response_fields": [
+        "status",
+        "object_class",
+        "class_confidence",
+        "iou",
+        "dimensions",
+        "meshes",
+        "sheet_preview_base64",
+        "step_base64",
+        "stl_base64",
+        "glb_base64"
+      ],
+      "mesh_body_fields": [
+        "vertices",
+        "faces"
+      ]
+    },
+    "/api/v1/image": {
+      "method": "POST",
+      "content_type": "multipart/form-data",
+      "required_response_fields": [
+        "status",
+        "family",
+        "dimensions",
+        "volume",
+        "meshes",
+        "step_base64",
+        "stl_base64",
+        "glb_base64"
+      ],
+      "mesh_body_fields": [
+        "vertices",
+        "faces"
+      ]
+    },
+    "/api/v1/cad_edit/init": {
+      "method": "POST",
+      "content_type": "application/json",
+      "required_response_fields": [
+        "status",
+        "session_id",
+        "version",
+        "stats",
+        "tree",
+        "mesh"
+      ]
+    },
+    "/api/v1/cad_edit/state": {
+      "method": "GET",
+      "required_response_fields": [
+        "status",
+        "session_id",
+        "version",
+        "cursor",
+        "history_len",
+        "history",
+        "stats",
+        "tree",
+        "mesh"
+      ]
+    },
+    "/api/v1/cad_edit/propose": {
+      "method": "POST",
+      "content_type": "application/json",
+      "required_response_fields": [
+        "ok",
+        "messages",
+        "errors",
+        "warnings",
+        "stats",
+        "diff"
+      ]
+    },
+    "/api/v1/cad_edit/apply": {
+      "method": "POST",
+      "content_type": "application/json",
+      "required_response_fields": [
+        "ok",
+        "version",
+        "messages",
+        "warnings",
+        "stats",
+        "diff",
+        "tree",
+        "mesh",
+        "history"
+      ]
+    },
+    "/api/v1/cad_edit/undo": {
+      "method": "POST",
+      "content_type": "application/json",
+      "required_response_fields": [
+        "status",
+        "version",
+        "cursor",
+        "stats",
+        "tree",
+        "mesh"
+      ]
+    },
+    "/api/v1/cad_edit/redo": {
+      "method": "POST",
+      "content_type": "application/json",
+      "required_response_fields": [
+        "status",
+        "version",
+        "cursor",
+        "stats",
+        "tree",
+        "mesh"
+      ]
+    }
+  }
+}
