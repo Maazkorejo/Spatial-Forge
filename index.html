@@ -306,7 +306,7 @@
       </div>
       <div class="tb-right">
         <span id="topbarStatusBadge" class="badge converged">converged</span>
-        <button class="btn" onclick="document.getElementById('hiddenFileInput').click()">Open DXF</button>
+        <button class="btn" onclick="document.getElementById('hiddenFileInput').click()">Open File</button>
         <button class="btn btn-primary" onclick="triggerReconstruction()">Reconstruct</button>
       </div>
     </div>
@@ -887,22 +887,24 @@
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('hiddenFileInput');
 
+  // Support global drag & drop anywhere in workspace (Upload, Edit, Viewport)
   ['dragenter', 'dragover'].forEach(name => {
-    dropZone.addEventListener(name, (e) => {
+    window.addEventListener(name, (e) => {
       e.preventDefault();
-      dropZone.classList.add('drag-over');
+      if (dropZone) dropZone.classList.add('drag-over');
     });
   });
 
   ['dragleave', 'drop'].forEach(name => {
-    dropZone.addEventListener(name, (e) => {
+    window.addEventListener(name, (e) => {
       e.preventDefault();
-      dropZone.classList.remove('drag-over');
+      if (dropZone) dropZone.classList.remove('drag-over');
     });
   });
 
-  dropZone.addEventListener('drop', (e) => {
-    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileUpload(e.dataTransfer.files[0]);
     }
   });
@@ -910,6 +912,7 @@
   fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       handleFileUpload(e.target.files[0]);
+      e.target.value = '';
     }
   });
 
@@ -963,11 +966,6 @@
       alert("Error constructing 3D model: " + err.message);
     } finally {
       hideReconLoader();
-    }
-  }
-      setPage('edit');
-    } catch (err) {
-      alert("Error reconstructing DXF: " + err.message);
     }
   }
 
