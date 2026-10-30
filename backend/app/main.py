@@ -14,6 +14,7 @@ V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "sp
 if V2_DIR not in sys.path:
     sys.path.insert(0, V2_DIR)
 from dxf_pipeline import process_dxf_bytes
+from app.image_pipeline import process_image_bytes
 
 CAD_EDIT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "cad_edit"))
 if CAD_EDIT_DIR not in sys.path:
@@ -77,6 +78,14 @@ def root():
 def health():
     return {"status": "healthy"}
 
+def is_dxf_data(contents: bytes, filename: Optional[str]) -> bool:
+    fname = (filename or "").lower()
+    if fname.endswith(".dxf"):
+        return True
+    if contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]:
+        return True
+    return False
+
 @app.post(f"{settings.API_V1_STR}/draft")
 async def draft_blueprint(
     file: UploadFile = File(...),
@@ -87,10 +96,10 @@ async def draft_blueprint(
     """
     try:
         contents = await file.read()
-        is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
-        if not is_dxf:
-            return JSONResponse(status_code=400, content={"error": "SpatialForge now operates exclusively on 2D CAD (.dxf) technical drawings. Please upload a .dxf file."})
-        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        if is_dxf_data(contents, file.filename):
+            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        else:
+            result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
         return result
     except Exception as e:
         import traceback
@@ -103,15 +112,15 @@ async def synthesize_blueprint(
     requested_class: Optional[str] = Form(None)
 ):
     """
-    Main 2D CAD synthesis endpoint. Ingests a 2D orthographic technical drawing (.dxf),
-    executing view segmentation, standard inference, 2.5D reconstruction, and reprojection verification.
+    Main 2D CAD & Image synthesis endpoint. Ingests a 2D orthographic technical drawing (.dxf)
+    or image sketch (.png, .webp, .jpg), executing feature reconstruction into a 3D B-Rep CAD model.
     """
     try:
         contents = await file.read()
-        is_dxf = (file.filename and file.filename.lower().endswith(".dxf")) or contents.startswith(b"0\nSECTION") or contents.startswith(b"0\r\nSECTION") or b"HEADER" in contents[:200]
-        if not is_dxf:
-            return JSONResponse(status_code=400, content={"error": "SpatialForge now operates exclusively on 2D CAD (.dxf) technical drawings. Please upload a .dxf file."})
-        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        if is_dxf_data(contents, file.filename):
+            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        else:
+            result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
         return result
     except Exception as e:
         import traceback
@@ -122,13 +131,30 @@ async def synthesize_blueprint(
 @app.post("/pipeline/dxf")
 async def process_dxf_endpoint(file: UploadFile = File(...)):
     """
-    Dedicated 2D CAD (DXF) to 3D B-Rep CAD synthesis endpoint.
-    Performs ingestion, view segmentation, standard inference, 2.5D reconstruction,
-    and reprojection verification.
+    2D CAD (DXF) and Image to 3D B-Rep CAD synthesis endpoint.
     """
     try:
         contents = await file.read()
-        result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        if is_dxf_data(contents, file.filename):
+            result = await asyncio.to_thread(process_dxf_bytes, contents, file.filename or "drawing.dxf")
+        else:
+            result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post(f"{settings.API_V1_STR}/image")
+@app.post("/pipeline/image")
+async def process_image_endpoint(file: UploadFile = File(...)):
+    """
+    Dedicated 2D Image (PNG, WEBP, JPG, SVG) to 3D B-Rep CAD synthesis endpoint.
+    Performs contour extraction, closed loop cleaning, and watertight 3D extrusion.
+    """
+    try:
+        contents = await file.read()
+        result = await asyncio.to_thread(process_image_bytes, contents, file.filename or "drawing.png")
         return result
     except Exception as e:
         import traceback
@@ -516,8 +542,21 @@ async def websocket_telemetry_stream(websocket: WebSocket):
                     continue
                 else:
                     await websocket.send_json({
-                        "stage": "ERROR",
-                        "error": "SpatialForge operates exclusively on 2D CAD (.dxf) blueprints. Please upload a .dxf file."
+                        "stage": "VECTORIZING",
+                        "status": "Vectorizing 2D image contours & silhouette boundaries...",
+                        "progress": 35
+                    })
+                    await websocket.send_json({
+                        "stage": "RECONSTRUCTION",
+                        "status": "Extruding watertight 3D B-Rep CAD solid...",
+                        "progress": 70
+                    })
+                    result = await asyncio.to_thread(process_image_bytes, raw_bytes, filename)
+                    await websocket.send_json({
+                        "stage": "COMPLETE",
+                        "status": "2D Image CAD synthesis completed (WATERTIGHT)",
+                        "progress": 100,
+                        "payload": result
                     })
                     continue
 

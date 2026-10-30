@@ -203,6 +203,36 @@
   .pip-pill svg{width:14px;height:14px;color:var(--accent);}
   .pip-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
 
+  /* Rolling Wheel Construction Loader */
+  .recon-overlay{
+    position:absolute;inset:0;z-index:60;
+    background:rgba(14,15,17,0.78);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;
+    pointer-events:all;transition:opacity .2s ease;
+  }
+  .recon-modal{
+    background:rgba(23,24,27,0.96);border:1px solid var(--line);
+    border-radius:12px;padding:18px 24px;display:flex;align-items:center;
+    gap:16px;box-shadow:0 16px 36px rgba(0,0,0,0.65);
+  }
+  .wheel-loader{
+    width:42px;height:42px;flex:none;display:flex;align-items:center;justify-content:center;
+  }
+  .rolling-wheel{
+    width:42px;height:42px;
+    animation:rollWheel 1.0s linear infinite;
+    transform-origin:center center;
+    transform-box:fill-box;
+    filter:drop-shadow(0 0 10px rgba(111,141,255,0.45));
+  }
+  @keyframes rollWheel{
+    from{transform:rotate(0deg);}
+    to{transform:rotate(360deg);}
+  }
+  .recon-text{display:flex;flex-direction:column;gap:3px;}
+  .recon-title{font-size:13px;font-weight:600;color:var(--text);letter-spacing:-0.01em;}
+  .recon-sub{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+
   .prop-group{margin-bottom:20px;}
   .prop-group h4{font-size:11px;color:var(--muted);font-weight:600;margin:0 0 10px;text-transform:uppercase;letter-spacing:0.04em;}
   .prop-field{margin-bottom:10px;}
@@ -373,6 +403,35 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                 <span>Blueprint</span>
                 <span class="pip-dot"></span>
+              </div>
+
+              <!-- Rolling Wheel Construction Loader -->
+              <div id="reconstructSpinner" class="recon-overlay">
+                <div class="recon-modal">
+                  <div class="wheel-loader">
+                    <svg class="rolling-wheel" viewBox="0 0 48 48" fill="none">
+                      <!-- Outer wheel rim with tire tread marks -->
+                      <circle cx="24" cy="24" r="21" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="5 3"/>
+                      <circle cx="24" cy="24" r="16.5" stroke="var(--text)" stroke-width="1.6"/>
+                      <!-- Center axle hub -->
+                      <circle cx="24" cy="24" r="5" fill="var(--accent)" stroke="var(--bg)" stroke-width="1.5"/>
+                      <circle cx="24" cy="24" r="2" fill="var(--bg)"/>
+                      <!-- 8 Spokes -->
+                      <line x1="24" y1="7.5" x2="24" y2="19" stroke="var(--muted)" stroke-width="2"/>
+                      <line x1="24" y1="29" x2="24" y2="40.5" stroke="var(--muted)" stroke-width="2"/>
+                      <line x1="7.5" y1="24" x2="19" y2="24" stroke="var(--muted)" stroke-width="2"/>
+                      <line x1="29" y1="24" x2="40.5" y2="24" stroke="var(--muted)" stroke-width="2"/>
+                      <line x1="12.3" y1="12.3" x2="20.5" y2="20.5" stroke="var(--muted)" stroke-width="1.6"/>
+                      <line x1="27.5" y1="27.5" x2="35.7" y2="35.7" stroke="var(--muted)" stroke-width="1.6"/>
+                      <line x1="12.3" y1="35.7" x2="20.5" y2="27.5" stroke="var(--muted)" stroke-width="1.6"/>
+                      <line x1="27.5" y1="20.5" x2="35.7" y2="12.3" stroke="var(--muted)" stroke-width="1.6"/>
+                    </svg>
+                  </div>
+                  <div class="recon-text">
+                    <span class="recon-title" id="reconStatusTitle">Constructing 3D CAD B-Rep...</span>
+                    <span class="recon-sub" id="reconStatusSub">Vectorizing contours & extruding solid</span>
+                  </div>
+                </div>
               </div>
 
               <div class="viewer-toolbar">
@@ -680,6 +739,7 @@
   // =================================================================
   // 3. BACKEND API INTEGRATION & SAMPLE LOADING
   // =================================================================
+  // PiP (Picture-in-Picture) 2D Drawing Preview state & controls
   let isPipMinimized = false;
 
   function togglePip(minimize) {
@@ -704,8 +764,24 @@
     }
   }
 
+  // Rolling Wheel Construction Loader controls
+  function showReconLoader(title = "Constructing 3D CAD B-Rep...", sub = "Vectorizing contours & extruding solid...") {
+    const el = document.getElementById('reconstructSpinner');
+    const t = document.getElementById('reconStatusTitle');
+    const s = document.getElementById('reconStatusSub');
+    if (t) t.innerText = title;
+    if (s) s.innerText = sub;
+    if (el) el.style.display = 'flex';
+  }
+
+  function hideReconLoader() {
+    const el = document.getElementById('reconstructSpinner');
+    if (el) el.style.display = 'none';
+  }
+
   async function loadSampleCase(caseName) {
     try {
+      showReconLoader("Loading CAD drawing...", `${caseName}.dxf`);
       const resp = await fetch(`http://127.0.0.1:8085/api/v1/sample_cad?case=${caseName}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -713,6 +789,8 @@
       setPage('edit');
     } catch (e) {
       console.error("Failed to load sample:", e);
+    } finally {
+      hideReconLoader();
     }
   }
 
@@ -781,6 +859,11 @@
       document.getElementById('inputZ').value = `${Number(res.dimensions[2].value).toFixed(1)} mm`;
     }
 
+    if (res.volume) {
+      const volEl = document.getElementById('confVol');
+      if (volEl) volEl.innerText = `${Number(res.volume).toLocaleString()} mm³`;
+    }
+
     // Render 3D solid
     if (res.meshes) {
       renderCadMeshes(res.meshes);
@@ -831,7 +914,16 @@
   });
 
   async function handleFileUpload(file) {
-    if (file.type && file.type.startsWith('image/')) {
+    const isImage = (file.type && file.type.startsWith('image/')) || /\.(png|jpe?g|webp|bmp|svg)$/i.test(file.name);
+    const isDxf = file.name.toLowerCase().endsWith('.dxf');
+
+    if (!isImage && !isDxf) {
+      alert("Please upload a 2D CAD (.dxf) technical drawing or image preview (.png, .webp, .jpg).");
+      return;
+    }
+
+    // Immediately display preview in PiP screen
+    if (isImage) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const pipImg = document.getElementById('pipImage');
@@ -842,26 +934,37 @@
           pipTitle.title = file.name;
         }
         togglePip(false);
-        setPage('edit');
       };
       reader.readAsDataURL(file);
-      return;
     }
 
-    if (!file.name.toLowerCase().endsWith('.dxf')) {
-      alert("Please upload a 2D CAD (.dxf) technical drawing or image preview.");
-      return;
-    }
+    setPage('edit');
+    showReconLoader(
+      isImage ? "Constructing 3D CAD B-Rep from image..." : "Synthesizing 3D B-Rep from 2D CAD...",
+      isImage ? "Vectorizing contours & extruding solid..." : "Segmenting views & solving features..."
+    );
+
     const formData = new FormData();
     formData.append("file", file);
+    const endpoint = isImage ? "http://127.0.0.1:8085/api/v1/image" : "http://127.0.0.1:8085/api/v1/dxf";
+
     try {
-      const resp = await fetch("http://127.0.0.1:8085/api/v1/dxf", {
+      const resp = await fetch(endpoint, {
         method: "POST",
         body: formData
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${resp.status}`);
+      }
       const data = await resp.json();
       applySynthesisData(data, file.name);
+    } catch (err) {
+      alert("Error constructing 3D model: " + err.message);
+    } finally {
+      hideReconLoader();
+    }
+  }
       setPage('edit');
     } catch (err) {
       alert("Error reconstructing DXF: " + err.message);
