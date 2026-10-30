@@ -115,21 +115,21 @@
 
 
     <!-- Right: Export Group (STEP, STL, GLB, DXF) -->
-    <div class="flex items-center gap-1.5">
-      <button id="exportStepBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export B-Rep Solid STEP file for CAD tools">
-        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
+    <div class="flex items-center gap-1.5 text-xs font-medium">
+      <button id="exportStepBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export B-Rep STEP">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-sky-400"></i>
         <span>STEP</span>
       </button>
-      <button id="exportStlBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export 3D Mesh STL file">
-        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
+      <button id="exportStlBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export STL Mesh">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
         <span>STL</span>
       </button>
-      <button id="exportGlbBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Export glTF / GLB file">
-        <i data-lucide="download" class="w-3 h-3 text-[#3b82f6]"></i>
+      <button id="exportGlbBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Export GLB 3D">
+        <i data-lucide="download" class="w-3.5 h-3.5 text-purple-400"></i>
         <span>GLB</span>
       </button>
-      <button id="downloadCurrentDxfBtn" class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#2c2c2c] hover:bg-[#383838] border border-[#3d3d3d] text-[#e0e0e0] hover:text-white font-mono text-[10px] transition" title="Download raw 2D CAD DXF">
-        <i data-lucide="file-down" class="w-3 h-3 text-[#3b82f6]"></i>
+      <button id="downloadCurrentDxfBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#232328] hover:bg-[#2d2d34] border border-[#2d2d36] text-[#e0e0e0] hover:text-white transition active:scale-95" title="Download 2D DXF">
+        <i data-lucide="file-code" class="w-3.5 h-3.5 text-blue-400"></i>
         <span>DXF</span>
       </button>
     </div>
@@ -261,276 +261,288 @@
     </section>
 
     <!-- --------------------------------------------------------------- -->
-    <!-- 2C. RIGHT EDITOR: OUTLINER & PROPERTIES (BLENDER PROPERTIES, 24%)-->
+    <!-- 2C. RIGHT PANEL: INSPECT & CAD EDIT                             -->
     <!-- --------------------------------------------------------------- -->
-    <section class="w-[24%] border-l border-[#1c1c1c] flex flex-col bg-[#222222] relative flex-shrink-0">
+    <section class="w-[24%] border-l border-[#26262b] flex flex-col bg-[#161619] relative flex-shrink-0">
       
-      <!-- Outliner & CAD Edit Tab Switcher -->
-      <div class="h-9 bg-[#242424] border-b border-[#1c1c1c] px-2 flex items-center justify-between text-[#888888] flex-shrink-0">
-        <div class="flex items-center gap-1.5 text-[10.5px]">
-          <button id="tabBtnInspect" onclick="switchRightTab('inspect')" class="px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]">
-            <i data-lucide="layers" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
-            <span class="tracking-wide">INSPECT</span>
+      <!-- Segmented Tab Switcher -->
+      <div class="h-11 bg-[#1a1a1e] border-b border-[#26262b] px-3 flex items-center justify-between flex-shrink-0">
+        <div class="flex bg-[#121215] p-0.5 rounded-lg border border-[#26262b] text-xs font-medium w-full">
+          <button id="tabBtnInspect" onclick="switchRightTab('inspect')" class="flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span>Inspect</span>
           </button>
-          <button id="tabBtnEdit" onclick="switchRightTab('edit')" class="px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent">
+          <button id="tabBtnEdit" onclick="switchRightTab('edit')" class="flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium">
             <i data-lucide="wrench" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span class="tracking-wide">CAD EDIT (B-REP)</span>
+            <span>Edit</span>
           </button>
         </div>
-        <span id="headerEngineTag" class="text-[9px] text-[#666666] uppercase font-mono">CadQuery Engine</span>
       </div>
 
       <!-- Tab 1: Inspector Sections -->
-      <div id="panelInspect" class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
+      <div id="panelInspect" class="flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs text-[#cfcfcf]">
 
         <!-- Card 1: CAD Solid Outliner Hierarchy -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white">Scene Collection</span>
-            <span id="solidStatusTag" class="text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9px]">WATERTIGHT</span>
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="box" class="w-3.5 h-3.5 text-sky-400"></i>
+              Entities
+            </span>
+            <span id="solidStatusTag" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">WATERTIGHT</span>
           </div>
 
-          <div class="mt-2 space-y-1 text-[10.5px]">
-            <div class="flex items-center justify-between py-1 px-1.5 rounded bg-[#242424] text-white">
+          <div class="space-y-1 text-xs">
+            <div class="flex items-center justify-between py-1.5 px-2 rounded-md bg-[#232329] text-white">
+              <span class="flex items-center gap-1.5 font-medium">
+                <span id="solidNameLabel">Solid Body</span>
+              </span>
+              <span class="text-[#9ca3af] text-[10px] font-mono">Manifold</span>
+            </div>
+
+            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
               <span class="flex items-center gap-1.5">
-                <i data-lucide="box" class="w-3 h-3 text-[#3b82f6]"></i>
-                <span id="solidNameLabel">B-Rep Solid CAD</span>
+                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
+                <span>Front</span>
               </span>
-              <span class="text-[#888888] text-[9.5px]">Manifold</span>
+              <span id="frontLinesCount" class="font-mono text-[11px] text-[#71717a]">4 lines</span>
             </div>
 
-            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
-              <span class="flex items-center gap-1">
-                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
-                <span>Front Profile</span>
+            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
+                <span>Top</span>
               </span>
-              <span id="frontLinesCount" class="text-[#777777] text-[9.5px]">4 lines</span>
+              <span id="topLinesCount" class="font-mono text-[11px] text-[#71717a]">13 lines</span>
             </div>
 
-            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
-              <span class="flex items-center gap-1">
-                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
-                <span>Top Profile</span>
+            <div class="flex items-center justify-between py-1 px-2.5 text-[#9ca3af]">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="corner-down-right" class="w-3 h-3 text-[#52525b]"></i>
+                <span>Right</span>
               </span>
-              <span id="topLinesCount" class="text-[#777777] text-[9.5px]">13 lines</span>
-            </div>
-
-            <div class="flex items-center justify-between py-0.5 px-2 text-[#999999]">
-              <span class="flex items-center gap-1">
-                <i data-lucide="corner-down-right" class="w-2.5 h-2.5 text-[#666666]"></i>
-                <span>Right Profile</span>
-              </span>
-              <span id="rightLinesCount" class="text-[#777777] text-[9.5px]">7 lines</span>
+              <span id="rightLinesCount" class="font-mono text-[11px] text-[#71717a]">7 lines</span>
             </div>
           </div>
         </div>
 
         <!-- Card 2: Deterministic CAD Inference & Verification Metrics -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white">Verification Gate</span>
-            <span id="gateDecisionBadge" class="text-emerald-400 font-bold">[CONVERGED]</span>
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Verification
+            </span>
+            <span id="gateDecisionBadge" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">CONVERGED</span>
           </div>
 
-          <div class="space-y-1.5 text-[10.5px]">
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Projection Standard:</span>
-              <span id="propStandard" class="text-white font-medium">Third Angle (ASME)</span>
+          <div class="space-y-1.5 text-xs">
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Standard</span>
+              <span id="propStandard" class="text-white font-medium">Third Angle</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Drawing Scale:</span>
-              <span id="propScale" class="text-white font-medium">1:1 (Direct Millimeter)</span>
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Scale</span>
+              <span id="propScale" class="font-mono text-white">1:1</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Reprojection Edge F1:</span>
-              <span id="propF1" class="text-emerald-400 font-bold">100.0%</span>
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Edge F1</span>
+              <span id="propF1" class="font-mono text-emerald-400 font-semibold">100.0%</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Visible Precision:</span>
-              <span id="propPrecision" class="text-[#cccccc]">1.000</span>
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Precision</span>
+              <span id="propPrecision" class="font-mono text-[#d1d5db]">1.000</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Visible Recall:</span>
-              <span id="propRecall" class="text-[#cccccc]">1.000</span>
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Recall</span>
+              <span id="propRecall" class="font-mono text-[#d1d5db]">1.000</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-[#888888]">Reconstruction Time:</span>
-              <span id="propTime" class="text-sky-400">285 ms</span>
+            <div class="flex justify-between items-center py-0.5">
+              <span class="text-[#9ca3af]">Latency</span>
+              <span id="propTime" class="font-mono text-sky-400">285 ms</span>
             </div>
           </div>
         </div>
 
         <!-- Card 3: Measured 2D CAD Dimensions -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white">Measured Dimensions</span>
-            <span id="dimCountBadge" class="text-[#3b82f6] text-[9.5px]">3 items</span>
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="ruler" class="w-3.5 h-3.5 text-sky-400"></i>
+              Dimensions
+            </span>
+            <span id="dimCountBadge" class="text-[9.5px] font-mono text-[#9ca3af] bg-[#222228] px-1.5 py-0.5 rounded">3</span>
           </div>
 
-          <div id="dimensionsList" class="space-y-1 text-[10px]">
-            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
-              <span class="text-[#aaaaaa]">Width (X):</span>
-              <span class="text-white font-bold">40.00 mm</span>
+          <div id="dimensionsList" class="space-y-1 text-xs font-mono">
+            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
+              <span class="text-[#9ca3af] flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> X
+              </span>
+              <span class="text-white font-medium">40.00 mm</span>
             </div>
-            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
-              <span class="text-[#aaaaaa]">Depth (Y):</span>
-              <span class="text-white font-bold">20.00 mm</span>
+            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
+              <span class="text-[#9ca3af] flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Y
+              </span>
+              <span class="text-white font-medium">20.00 mm</span>
             </div>
-            <div class="flex justify-between bg-[#242424] px-2 py-1 rounded border border-[#2d2d2d]">
-              <span class="text-[#aaaaaa]">Height (Z):</span>
-              <span class="text-white font-bold">10.00 mm</span>
+            <div class="flex justify-between bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32]">
+              <span class="text-[#9ca3af] flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span> Z
+              </span>
+              <span class="text-white font-medium">10.00 mm</span>
             </div>
           </div>
         </div>
 
       </div>
 
-      <!-- Tab 2: CAD Edit Engine (Parametric Feature Tree + Gate + History) -->
-      <div id="panelEdit" class="hidden flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
+      <!-- Tab 2: CAD Edit Engine -->
+      <div id="panelEdit" class="hidden flex-1 overflow-y-auto p-3 space-y-2.5 font-sans text-xs text-[#cfcfcf]">
 
         <!-- Card E1: Session & Version History Control -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px]">
-            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
-              <i data-lucide="history" class="w-3 h-3 text-emerald-400"></i>
-              Session History
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="history" class="w-3.5 h-3.5 text-emerald-400"></i>
+              History
             </span>
-            <div class="flex items-center gap-1">
-              <span id="cadEditVersion" class="text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9.5px] font-bold">v0</span>
-            </div>
+            <span id="cadEditVersion" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">v0</span>
           </div>
 
-          <div class="flex items-center justify-between text-[10px] text-[#888888]">
-            <span>Volume: <strong id="cadEditVolume" class="text-white">8,000.0</strong> mm³</span>
-            <span id="cadEditSolidStatus" class="text-emerald-400 font-semibold">[1 Valid Solid]</span>
+          <div class="flex items-center justify-between py-1 px-2.5 rounded-md bg-[#232329]">
+            <span class="text-[#9ca3af] text-[11px]">Volume</span>
+            <span class="font-mono text-xs text-white font-medium">
+              <span id="cadEditVolume">8,000.0</span> <span class="text-[10px] text-[#71717a]">mm³</span>
+            </span>
           </div>
 
-          <div class="flex items-center gap-1.5 pt-1">
-            <button onclick="cadEditUndo()" class="flex-1 py-1 px-2 rounded bg-[#262626] hover:bg-[#303030] text-[#cccccc] hover:text-white text-[10px] font-medium border border-[#383838] flex items-center justify-center gap-1 transition-colors">
-              <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i> Undo
+          <div class="grid grid-cols-3 gap-1.5 pt-0.5">
+            <button onclick="cadEditUndo()" class="py-1.5 px-2 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-[#e5e7eb] text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
+              <i data-lucide="undo-2" class="w-3 h-3 text-[#9ca3af]"></i> Undo
             </button>
-            <button onclick="cadEditRedo()" class="flex-1 py-1 px-2 rounded bg-[#262626] hover:bg-[#303030] text-[#cccccc] hover:text-white text-[10px] font-medium border border-[#383838] flex items-center justify-center gap-1 transition-colors">
-              <i data-lucide="rotate-cw" class="w-2.5 h-2.5"></i> Redo
+            <button onclick="cadEditRedo()" class="py-1.5 px-2 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-[#e5e7eb] text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
+              <i data-lucide="redo-2" class="w-3 h-3 text-[#9ca3af]"></i> Redo
             </button>
-            <button onclick="cadEditInit()" class="py-1 px-2 rounded bg-[#222222] hover:bg-[#2a2a2a] text-[#888888] hover:text-[#cccccc] text-[10px] border border-[#333333] transition-colors" title="Reset to base block 40x20x10">
-              Reset
+            <button onclick="cadEditInit()" class="py-1.5 px-2 rounded-md bg-[#202025] hover:bg-[#282830] text-[#9ca3af] hover:text-white text-xs border border-white/5 flex items-center justify-center gap-1 transition active:scale-95" title="Reset base block">
+              <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
             </button>
           </div>
         </div>
 
         <!-- Card E2: Current Feature Tree -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
-              <i data-lucide="git-commit" class="w-3 h-3 text-[#3b82f6]"></i>
-              Feature Tree (Truth)
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="git-commit" class="w-3.5 h-3.5 text-sky-400"></i>
+              Features
             </span>
-            <span id="featureCountBadge" class="text-[#3b82f6] text-[9.5px]">0 features</span>
+            <span id="featureCountBadge" class="text-[9.5px] font-mono text-[#9ca3af] bg-[#222228] px-1.5 py-0.5 rounded">0</span>
           </div>
 
-          <div id="cadEditTreeDisplay" class="space-y-1.5 text-[10px]">
-            <div class="bg-[#242424] p-1.5 rounded border border-[#2d2d2d] flex items-center justify-between">
-              <span class="text-[#aaaaaa] flex items-center gap-1">
-                <i data-lucide="box" class="w-2.5 h-2.5 text-sky-400"></i> Base Block:
+          <div id="cadEditTreeDisplay" class="space-y-1.5">
+            <div class="bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32] flex items-center justify-between text-xs">
+              <span class="text-[#9ca3af] flex items-center gap-1.5">
+                <i data-lucide="box" class="w-3 h-3 text-sky-400"></i> Base Box
               </span>
-              <span id="cadTreeBaseDims" class="text-white font-bold">40.0 x 20.0 x 10.0 mm</span>
+              <span id="cadTreeBaseDims" class="font-mono text-white font-medium text-[11px]">40 × 20 × 10 mm</span>
             </div>
             <div id="cadTreeFeaturesList" class="space-y-1">
-              <div class="text-[#666666] italic text-[9.5px] py-1 text-center">No additional features added yet</div>
+              <div class="text-[#71717a] text-[11px] py-1.5 text-center">No features applied</div>
             </div>
           </div>
         </div>
 
-        <!-- Card E3: Contextual Quick Test Chips -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white">Quick Test Presets</span>
-            <span class="text-[9px] text-[#666666]">Click to populate</span>
+        <!-- Card E3: Contextual Quick Presets -->
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Presets
+            </span>
           </div>
 
-          <div class="flex flex-wrap gap-1 text-[9.5px]">
-            <button onclick="setTestPreset('hole')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-emerald-400 border border-[#333333] transition-colors">
-              + Hole d6 (through top)
+          <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+            <button onclick="setTestPreset('hole')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-emerald-400 border border-white/5 hover:border-emerald-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> + Ø6 Hole
             </button>
-            <button onclick="setTestPreset('fillet')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-emerald-400 border border-[#333333] transition-colors">
-              + Fillet R2 (top edges)
+            <button onclick="setTestPreset('fillet')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-emerald-400 border border-white/5 hover:border-emerald-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> + R2 Fillet
             </button>
-            <button onclick="setTestPreset('bolt_pattern')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-sky-400 border border-[#333333] transition-colors">
-              + 4x M3 PCD 14
+            <button onclick="setTestPreset('bolt_pattern')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-sky-400 border border-white/5 hover:border-sky-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> + 4×M3 PCD14
             </button>
-            <button onclick="setTestPreset('resize')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-sky-400 border border-[#333333] transition-colors">
-              Resize W=60
+            <button onclick="setTestPreset('resize')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-sky-400 border border-white/5 hover:border-sky-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> Resize 60
             </button>
-            <button onclick="setTestPreset('shell')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-purple-400 border border-[#333333] transition-colors">
-              Shell 2mm Open Top
+            <button onclick="setTestPreset('shell')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-purple-400 border border-white/5 hover:border-purple-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Shell 2mm
             </button>
-            <button onclick="setTestPreset('gate_reject')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-rose-400 border border-[#333333] transition-colors">
-              Test Gate Reject (Off-Part)
+            <button onclick="setTestPreset('gate_reject')" class="py-1.5 px-2 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-rose-400 border border-white/5 hover:border-rose-500/30 font-medium transition text-left flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Gate Test
             </button>
           </div>
         </div>
 
         <!-- Card E4: Operation JSON Input & Deterministic Executor -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
-          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px]">
-            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
-              <i data-lucide="terminal" class="w-3 h-3 text-emerald-400"></i>
-              Operation JSON
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Operations
             </span>
-            <span class="text-[9px] text-[#666666]">Validated by ops_schema</span>
+            <span class="text-[9.5px] font-mono text-[#71717a]">JSON</span>
           </div>
 
-          <textarea id="cadEditJsonInput" rows="5" class="w-full bg-[#111111] border border-[#333333] rounded p-2 text-[10px] font-mono text-emerald-300 focus:outline-none focus:border-emerald-500/60 resize-y leading-tight" spellcheck="false">[
+          <textarea id="cadEditJsonInput" rows="5" class="w-full bg-[#111114] border border-[#2a2a32] rounded-md p-2.5 text-[11px] font-mono text-emerald-400/95 focus:outline-none focus:border-emerald-500/50 resize-y leading-relaxed shadow-inner" spellcheck="false">[
   {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}},
   {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
 ]</textarea>
 
-          <div class="flex items-center gap-1.5">
-            <button onclick="cadEditPropose()" class="flex-1 py-1.5 px-2 rounded bg-[#2a2a2a] hover:bg-[#353535] text-white text-[10.5px] font-semibold border border-[#404040] transition-colors flex items-center justify-center gap-1">
-              <i data-lucide="check-circle" class="w-3 h-3 text-[#3b82f6]"></i> Propose & Gate
+          <div class="grid grid-cols-2 gap-2 pt-0.5">
+            <button onclick="cadEditPropose()" class="py-2 px-3 rounded-md bg-[#25252b] hover:bg-[#2f2f37] text-white text-xs font-medium border border-white/10 transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-sky-400"></i> Verify
             </button>
-            <button onclick="cadEditApply()" class="flex-1 py-1.5 px-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-semibold transition-colors shadow-sm flex items-center justify-center gap-1">
-              <i data-lucide="play" class="w-3 h-3 text-white"></i> Apply to Viewport
+            <button onclick="cadEditApply()" class="py-2 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm">
+              <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Apply
             </button>
           </div>
         </div>
 
         <!-- Card E5: Safety Gate & Analytic Diff Report -->
-        <div id="cadEditGateReportCard" class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-1.5 hidden">
-          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px]">
-            <span class="uppercase font-semibold text-white flex items-center gap-1">
-              <i data-lucide="shield-check" class="w-3 h-3 text-emerald-400"></i>
-              Safety Gate Report
+        <div id="cadEditGateReportCard" class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2 hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Gate Report
             </span>
-            <span id="cadEditGateBadge" class="text-emerald-400 font-bold">[PASSED]</span>
+            <span id="cadEditGateBadge" class="text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">PASSED</span>
           </div>
 
-          <div id="cadEditDiffDisplay" class="text-[9.5px] text-[#cccccc] space-y-1 bg-[#141414] p-1.5 rounded border border-[#262626]">
+          <div id="cadEditDiffDisplay" class="text-xs space-y-1.5 bg-[#141417] p-2.5 rounded-md border border-[#24242b] font-mono">
             <!-- Dynamic Diff / Messages -->
           </div>
         </div>
 
         <!-- Card E6: CAD Model Exports -->
-        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5">
-          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
-            <span class="uppercase font-semibold text-white">Export B-Rep Solid</span>
-            <span class="text-[9px] text-[#666666]">Round-Trip Verified</span>
+        <div class="bg-[#1c1c21] border border-[#27272e] rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] uppercase tracking-wider font-semibold text-[#9ca3af] flex items-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5 text-sky-400"></i>
+              Export
+            </span>
           </div>
-          <div class="flex items-center gap-2 mt-2">
-            <button onclick="downloadCadEditExport('step')" class="flex-1 py-1.5 px-2 rounded bg-[#242424] hover:bg-[#2c2c2c] text-white text-[10px] font-medium border border-[#333333] flex items-center justify-center gap-1 transition-colors">
-              <i data-lucide="download" class="w-2.5 h-2.5 text-[#3b82f6]"></i> Download STEP
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="downloadCadEditExport('step')" class="py-1.5 px-3 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-white text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
+              <i data-lucide="download" class="w-3 h-3 text-sky-400"></i> STEP
             </button>
-            <button onclick="downloadCadEditExport('stl')" class="flex-1 py-1.5 px-2 rounded bg-[#242424] hover:bg-[#2c2c2c] text-white text-[10px] font-medium border border-[#333333] flex items-center justify-center gap-1 transition-colors">
-              <i data-lucide="download" class="w-2.5 h-2.5 text-emerald-400"></i> Download STL
+            <button onclick="downloadCadEditExport('stl')" class="py-1.5 px-3 rounded-md bg-[#232329] hover:bg-[#2d2d35] text-white text-xs font-medium border border-white/5 flex items-center justify-center gap-1.5 transition active:scale-95">
+              <i data-lucide="download" class="w-3 h-3 text-emerald-400"></i> STL
             </button>
           </div>
         </div>
 
-      </div>
-
-      <!-- Quick Tips Box at Bottom of Properties -->
-      <div class="p-2.5 bg-[#1b1b1b] border-t border-[#1c1c1c] text-[9.5px] text-[#777777] font-mono leading-relaxed">
-        <span class="text-[#3b82f6] font-semibold">Tip:</span> Rotate with Left Click, Pan with Right Click / Shift+Left, Zoom with Mouse Wheel.
       </div>
     </section>
 
@@ -1101,13 +1113,13 @@
       const panelEdit = document.getElementById('panelEdit');
 
       if (tab === 'inspect') {
-        btnInspect.className = "px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]";
-        btnEdit.className = "px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent";
+        btnInspect.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium";
+        btnEdit.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium";
         panelInspect.classList.remove('hidden');
         panelEdit.classList.add('hidden');
       } else {
-        btnEdit.className = "px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]";
-        btnInspect.className = "px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent";
+        btnEdit.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 bg-[#25252b] text-white shadow-sm font-medium";
+        btnInspect.className = "flex-1 py-1 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 text-[#9ca3af] hover:text-white font-medium";
         panelEdit.classList.remove('hidden');
         panelInspect.classList.add('hidden');
         if (!cadEditCurrentState) {
@@ -1134,29 +1146,25 @@
       if (data.stats && data.stats.volume !== undefined) {
         document.getElementById('cadEditVolume').innerText = Number(data.stats.volume).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1});
       }
-      if (data.stats && data.stats.valid) {
-        document.getElementById('cadEditSolidStatus').innerText = `[${data.stats.n_solids || 1} Valid Solid]`;
-        document.getElementById('cadEditSolidStatus').className = "text-emerald-400 font-semibold";
-      }
 
       // Update Feature Tree
       if (data.tree) {
         const base = data.tree.base || {W: 40, D: 20, H: 10};
-        document.getElementById('cadTreeBaseDims').innerText = `${base.W} x ${base.D} x ${base.H} mm`;
+        document.getElementById('cadTreeBaseDims').innerText = `${base.W} × ${base.D} × ${base.H} mm`;
 
         const feats = data.tree.features || [];
-        document.getElementById('featureCountBadge').innerText = `${feats.length} feature${feats.length === 1 ? '' : 's'}`;
+        document.getElementById('featureCountBadge').innerText = `${feats.length}`;
         const featList = document.getElementById('cadTreeFeaturesList');
         if (feats.length === 0) {
-          featList.innerHTML = '<div class="text-[#666666] italic text-[9.5px] py-1 text-center">No additional features added yet</div>';
+          featList.innerHTML = '<div class="text-[#71717a] text-[11px] py-1.5 text-center">No features applied</div>';
         } else {
           featList.innerHTML = feats.map(f => `
-            <div class="bg-[#202020] px-2 py-1 rounded border border-[#2d2d2d] flex items-center justify-between">
+            <div class="bg-[#232329] px-2.5 py-1.5 rounded-md border border-[#2a2a32] flex items-center justify-between text-xs">
               <span class="text-white font-medium flex items-center gap-1.5">
-                <span class="text-[#3b82f6] font-bold text-[9px]">${f.id || f.kind}:</span>
-                <span class="text-[#cccccc]">${f.kind} on ${f.face || f.selector || ''}</span>
+                <span class="text-sky-400 font-mono text-[10px] font-semibold">${f.id || f.kind}</span>
+                <span class="text-[#9ca3af]">${f.kind}</span>
               </span>
-              <span class="text-[#888888] text-[9px]">${f.d ? `d=${f.d}mm` : (f.radius ? `R=${f.radius}mm` : (f.pcd ? `pcd=${f.pcd}mm` : (f.thickness ? `t=${f.thickness}mm` : '')))}</span>
+              <span class="font-mono text-[#71717a] text-[10px]">${f.d ? `Ø${f.d} mm` : (f.radius ? `R${f.radius} mm` : (f.pcd ? `PCD ${f.pcd} mm` : (f.thickness ? `t=${f.thickness} mm` : (f.face || ''))))}</span>
             </div>
           `).join('');
         }
@@ -1219,28 +1227,28 @@
       card.classList.remove('hidden');
 
       if (ok) {
-        badge.innerText = "[GATE PASSED]";
-        badge.className = "text-emerald-400 font-bold";
+        badge.innerText = "PASSED";
+        badge.className = "text-[9.5px] font-mono tracking-wider font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20";
       } else {
-        badge.innerText = "[GATE REJECTED]";
-        badge.className = "text-rose-400 font-bold";
+        badge.innerText = "REJECTED";
+        badge.className = "text-[9.5px] font-mono tracking-wider font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20";
       }
 
       let html = "";
       if (diff && diff.volume_before !== undefined) {
-        html += `<div class="text-[#aaaaaa] flex justify-between">
-          <span>Vol: ${diff.volume_before.toFixed(1)} -> ${diff.volume_after.toFixed(1)} mm³</span>
-          <span class="text-emerald-400 font-semibold">Diff: -${(diff.removed || 0).toFixed(1)} / +${(diff.added || 0).toFixed(1)} mm³</span>
+        html += `<div class="flex justify-between items-center text-[11px] text-[#9ca3af] pb-1 border-b border-[#24242b]">
+          <span>Vol: ${diff.volume_before.toFixed(1)} → ${diff.volume_after.toFixed(1)}</span>
+          <span class="text-emerald-400 font-medium">Δ -${(diff.removed || 0).toFixed(1)} / +${(diff.added || 0).toFixed(1)} mm³</span>
         </div>`;
       }
       if (messages && messages.length > 0) {
-        html += `<div class="border-t border-[#262626] pt-1 space-y-0.5">` + messages.map(m => `<div class="text-white">• ${m}</div>`).join('') + `</div>`;
+        html += `<div class="space-y-1 text-[11px] text-[#e5e7eb]">` + messages.map(m => `<div>${m}</div>`).join('') + `</div>`;
       }
       if (warnings && warnings.length > 0) {
-        html += `<div class="border-t border-[#262626] pt-1 text-yellow-400 space-y-0.5">` + warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
+        html += `<div class="pt-1 text-[11px] text-yellow-400 space-y-0.5 border-t border-[#24242b]">` + warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
       }
       if (errors && errors.length > 0) {
-        html += `<div class="border-t border-[#262626] pt-1 text-rose-400 space-y-0.5">` + errors.map(e => `<div>✖ ${e}</div>`).join('') + `</div>`;
+        html += `<div class="pt-1 text-[11px] text-rose-400 space-y-0.5 border-t border-[#24242b]">` + errors.map(e => `<div>✕ ${e}</div>`).join('') + `</div>`;
       }
       disp.innerHTML = html;
       lucide.createIcons();
