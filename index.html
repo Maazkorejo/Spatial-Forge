@@ -265,16 +265,23 @@
     <!-- --------------------------------------------------------------- -->
     <section class="w-[24%] border-l border-[#1c1c1c] flex flex-col bg-[#222222] relative flex-shrink-0">
       
-      <!-- Outliner Header -->
-      <div class="h-8 bg-[#282828] border-b border-[#1c1c1c] px-3 flex items-center justify-between text-[#888888] flex-shrink-0">
-        <div class="flex items-center gap-1.5 text-white font-medium text-[11px]">
-          <i data-lucide="layers" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
-          <span class="uppercase tracking-wider">Outliner & Properties</span>
+      <!-- Outliner & CAD Edit Tab Switcher -->
+      <div class="h-9 bg-[#242424] border-b border-[#1c1c1c] px-2 flex items-center justify-between text-[#888888] flex-shrink-0">
+        <div class="flex items-center gap-1.5 text-[10.5px]">
+          <button id="tabBtnInspect" onclick="switchRightTab('inspect')" class="px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-[#3b82f6]"></i>
+            <span class="tracking-wide">INSPECT</span>
+          </button>
+          <button id="tabBtnEdit" onclick="switchRightTab('edit')" class="px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent">
+            <i data-lucide="wrench" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span class="tracking-wide">CAD EDIT (B-REP)</span>
+          </button>
         </div>
+        <span id="headerEngineTag" class="text-[9px] text-[#666666] uppercase font-mono">CadQuery Engine</span>
       </div>
 
-      <!-- Tabs / Inspector Sections -->
-      <div class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
+      <!-- Tab 1: Inspector Sections -->
+      <div id="panelInspect" class="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
 
         <!-- Card 1: CAD Solid Outliner Hierarchy -->
         <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5">
@@ -373,6 +380,149 @@
               <span class="text-[#aaaaaa]">Height (Z):</span>
               <span class="text-white font-bold">10.00 mm</span>
             </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tab 2: CAD Edit Engine (Parametric Feature Tree + Gate + History) -->
+      <div id="panelEdit" class="hidden flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
+
+        <!-- Card E1: Session & Version History Control -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px]">
+            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
+              <i data-lucide="history" class="w-3 h-3 text-emerald-400"></i>
+              Session History
+            </span>
+            <div class="flex items-center gap-1">
+              <span id="cadEditVersion" class="text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60 text-[9.5px] font-bold">v0</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-[10px] text-[#888888]">
+            <span>Volume: <strong id="cadEditVolume" class="text-white">8,000.0</strong> mm³</span>
+            <span id="cadEditSolidStatus" class="text-emerald-400 font-semibold">[1 Valid Solid]</span>
+          </div>
+
+          <div class="flex items-center gap-1.5 pt-1">
+            <button onclick="cadEditUndo()" class="flex-1 py-1 px-2 rounded bg-[#262626] hover:bg-[#303030] text-[#cccccc] hover:text-white text-[10px] font-medium border border-[#383838] flex items-center justify-center gap-1 transition-colors">
+              <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i> Undo
+            </button>
+            <button onclick="cadEditRedo()" class="flex-1 py-1 px-2 rounded bg-[#262626] hover:bg-[#303030] text-[#cccccc] hover:text-white text-[10px] font-medium border border-[#383838] flex items-center justify-center gap-1 transition-colors">
+              <i data-lucide="rotate-cw" class="w-2.5 h-2.5"></i> Redo
+            </button>
+            <button onclick="cadEditInit()" class="py-1 px-2 rounded bg-[#222222] hover:bg-[#2a2a2a] text-[#888888] hover:text-[#cccccc] text-[10px] border border-[#333333] transition-colors" title="Reset to base block 40x20x10">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Card E2: Current Feature Tree -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
+              <i data-lucide="git-commit" class="w-3 h-3 text-[#3b82f6]"></i>
+              Feature Tree (Truth)
+            </span>
+            <span id="featureCountBadge" class="text-[#3b82f6] text-[9.5px]">0 features</span>
+          </div>
+
+          <div id="cadEditTreeDisplay" class="space-y-1.5 text-[10px]">
+            <div class="bg-[#242424] p-1.5 rounded border border-[#2d2d2d] flex items-center justify-between">
+              <span class="text-[#aaaaaa] flex items-center gap-1">
+                <i data-lucide="box" class="w-2.5 h-2.5 text-sky-400"></i> Base Block:
+              </span>
+              <span id="cadTreeBaseDims" class="text-white font-bold">40.0 x 20.0 x 10.0 mm</span>
+            </div>
+            <div id="cadTreeFeaturesList" class="space-y-1">
+              <div class="text-[#666666] italic text-[9.5px] py-1 text-center">No additional features added yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card E3: Contextual Quick Test Chips -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white">Quick Test Presets</span>
+            <span class="text-[9px] text-[#666666]">Click to populate</span>
+          </div>
+
+          <div class="flex flex-wrap gap-1 text-[9.5px]">
+            <button onclick="setTestPreset('hole')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-emerald-400 border border-[#333333] transition-colors">
+              + Hole d6 (through top)
+            </button>
+            <button onclick="setTestPreset('fillet')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-emerald-400 border border-[#333333] transition-colors">
+              + Fillet R2 (top edges)
+            </button>
+            <button onclick="setTestPreset('bolt_pattern')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-sky-400 border border-[#333333] transition-colors">
+              + 4x M3 PCD 14
+            </button>
+            <button onclick="setTestPreset('resize')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-sky-400 border border-[#333333] transition-colors">
+              Resize W=60
+            </button>
+            <button onclick="setTestPreset('shell')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-purple-400 border border-[#333333] transition-colors">
+              Shell 2mm Open Top
+            </button>
+            <button onclick="setTestPreset('gate_reject')" class="py-1 px-1.5 rounded bg-[#242424] hover:bg-[#2e2e2e] text-rose-400 border border-[#333333] transition-colors">
+              Test Gate Reject (Off-Part)
+            </button>
+          </div>
+        </div>
+
+        <!-- Card E4: Operation JSON Input & Deterministic Executor -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-2">
+          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px]">
+            <span class="uppercase font-semibold text-white flex items-center gap-1.5">
+              <i data-lucide="terminal" class="w-3 h-3 text-emerald-400"></i>
+              Operation JSON
+            </span>
+            <span class="text-[9px] text-[#666666]">Validated by ops_schema</span>
+          </div>
+
+          <textarea id="cadEditJsonInput" rows="5" class="w-full bg-[#111111] border border-[#333333] rounded p-2 text-[10px] font-mono text-emerald-300 focus:outline-none focus:border-emerald-500/60 resize-y leading-tight" spellcheck="false">[
+  {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}},
+  {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
+]</textarea>
+
+          <div class="flex items-center gap-1.5">
+            <button onclick="cadEditPropose()" class="flex-1 py-1.5 px-2 rounded bg-[#2a2a2a] hover:bg-[#353535] text-white text-[10.5px] font-semibold border border-[#404040] transition-colors flex items-center justify-center gap-1">
+              <i data-lucide="check-circle" class="w-3 h-3 text-[#3b82f6]"></i> Propose & Gate
+            </button>
+            <button onclick="cadEditApply()" class="flex-1 py-1.5 px-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-semibold transition-colors shadow-sm flex items-center justify-center gap-1">
+              <i data-lucide="play" class="w-3 h-3 text-white"></i> Apply to Viewport
+            </button>
+          </div>
+        </div>
+
+        <!-- Card E5: Safety Gate & Analytic Diff Report -->
+        <div id="cadEditGateReportCard" class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5 space-y-1.5 hidden">
+          <div class="flex items-center justify-between pb-1 border-b border-[#282828] text-[10px]">
+            <span class="uppercase font-semibold text-white flex items-center gap-1">
+              <i data-lucide="shield-check" class="w-3 h-3 text-emerald-400"></i>
+              Safety Gate Report
+            </span>
+            <span id="cadEditGateBadge" class="text-emerald-400 font-bold">[PASSED]</span>
+          </div>
+
+          <div id="cadEditDiffDisplay" class="text-[9.5px] text-[#cccccc] space-y-1 bg-[#141414] p-1.5 rounded border border-[#262626]">
+            <!-- Dynamic Diff / Messages -->
+          </div>
+        </div>
+
+        <!-- Card E6: CAD Model Exports -->
+        <div class="bg-[#1a1a1a] border border-[#303030] rounded p-2.5">
+          <div class="flex items-center justify-between pb-1.5 border-b border-[#282828] text-[10px] text-[#888888]">
+            <span class="uppercase font-semibold text-white">Export B-Rep Solid</span>
+            <span class="text-[9px] text-[#666666]">Round-Trip Verified</span>
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <button onclick="downloadCadEditExport('step')" class="flex-1 py-1.5 px-2 rounded bg-[#242424] hover:bg-[#2c2c2c] text-white text-[10px] font-medium border border-[#333333] flex items-center justify-center gap-1 transition-colors">
+              <i data-lucide="download" class="w-2.5 h-2.5 text-[#3b82f6]"></i> Download STEP
+            </button>
+            <button onclick="downloadCadEditExport('stl')" class="flex-1 py-1.5 px-2 rounded bg-[#242424] hover:bg-[#2c2c2c] text-white text-[10px] font-medium border border-[#333333] flex items-center justify-center gap-1 transition-colors">
+              <i data-lucide="download" class="w-2.5 h-2.5 text-emerald-400"></i> Download STL
+            </button>
           </div>
         </div>
 
@@ -939,7 +1089,236 @@
     });
 
     // -----------------------------------------------------------------
-    // 4.10 INITIAL BOOTSTRAP
+    // 4.10 CAD EDIT ENGINE CLIENT (PARAMETRIC FEATURE TREE + GATE + HISTORY)
+    // -----------------------------------------------------------------
+    let cadEditSessionId = "default";
+    let cadEditCurrentState = null;
+
+    function switchRightTab(tab) {
+      const btnInspect = document.getElementById('tabBtnInspect');
+      const btnEdit = document.getElementById('tabBtnEdit');
+      const panelInspect = document.getElementById('panelInspect');
+      const panelEdit = document.getElementById('panelEdit');
+
+      if (tab === 'inspect') {
+        btnInspect.className = "px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]";
+        btnEdit.className = "px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent";
+        panelInspect.classList.remove('hidden');
+        panelEdit.classList.add('hidden');
+      } else {
+        btnEdit.className = "px-2.5 py-1 rounded font-medium transition-colors bg-[#333333] text-white flex items-center gap-1.5 border border-[#404040]";
+        btnInspect.className = "px-2.5 py-1 rounded font-medium transition-colors text-[#aaaaaa] hover:text-white hover:bg-[#2c2c2c] flex items-center gap-1.5 border border-transparent";
+        panelEdit.classList.remove('hidden');
+        panelInspect.classList.add('hidden');
+        if (!cadEditCurrentState) {
+          fetchCadEditState();
+        }
+      }
+      lucide.createIcons();
+    }
+
+    async function fetchCadEditState() {
+      try {
+        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/state?session_id=${cadEditSessionId}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        updateCadEditUI(data);
+      } catch (err) {
+        console.error("fetchCadEditState error:", err);
+      }
+    }
+
+    function updateCadEditUI(data) {
+      cadEditCurrentState = data;
+      document.getElementById('cadEditVersion').innerText = `v${data.version}`;
+      if (data.stats && data.stats.volume !== undefined) {
+        document.getElementById('cadEditVolume').innerText = Number(data.stats.volume).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+      }
+      if (data.stats && data.stats.valid) {
+        document.getElementById('cadEditSolidStatus').innerText = `[${data.stats.n_solids || 1} Valid Solid]`;
+        document.getElementById('cadEditSolidStatus').className = "text-emerald-400 font-semibold";
+      }
+
+      // Update Feature Tree
+      if (data.tree) {
+        const base = data.tree.base || {W: 40, D: 20, H: 10};
+        document.getElementById('cadTreeBaseDims').innerText = `${base.W} x ${base.D} x ${base.H} mm`;
+
+        const feats = data.tree.features || [];
+        document.getElementById('featureCountBadge').innerText = `${feats.length} feature${feats.length === 1 ? '' : 's'}`;
+        const featList = document.getElementById('cadTreeFeaturesList');
+        if (feats.length === 0) {
+          featList.innerHTML = '<div class="text-[#666666] italic text-[9.5px] py-1 text-center">No additional features added yet</div>';
+        } else {
+          featList.innerHTML = feats.map(f => `
+            <div class="bg-[#202020] px-2 py-1 rounded border border-[#2d2d2d] flex items-center justify-between">
+              <span class="text-white font-medium flex items-center gap-1.5">
+                <span class="text-[#3b82f6] font-bold text-[9px]">${f.id || f.kind}:</span>
+                <span class="text-[#cccccc]">${f.kind} on ${f.face || f.selector || ''}</span>
+              </span>
+              <span class="text-[#888888] text-[9px]">${f.d ? `d=${f.d}mm` : (f.radius ? `R=${f.radius}mm` : (f.pcd ? `pcd=${f.pcd}mm` : (f.thickness ? `t=${f.thickness}mm` : '')))}</span>
+            </div>
+          `).join('');
+        }
+      }
+
+      // Update 3D viewport if mesh provided
+      if (data.mesh && data.mesh.vertices && data.mesh.vertices.length > 0) {
+        renderCadMeshes({"cad_edit_solid": data.mesh});
+      }
+      lucide.createIcons();
+    }
+
+    async function cadEditInit() {
+      try {
+        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/init`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({session_id: cadEditSessionId, W: 40, D: 20, H: 10})
+        });
+        const data = await resp.json();
+        updateCadEditUI(data);
+        hideGateReport();
+      } catch (err) {
+        alert("Init failed: " + err.message);
+      }
+    }
+
+    async function cadEditUndo() {
+      try {
+        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/undo`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({session_id: cadEditSessionId})
+        });
+        const data = await resp.json();
+        updateCadEditUI(data);
+      } catch (err) {
+        alert("Undo failed: " + err.message);
+      }
+    }
+
+    async function cadEditRedo() {
+      try {
+        const resp = await fetch(`http://127.0.0.1:8085/api/v1/cad_edit/redo`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({session_id: cadEditSessionId})
+        });
+        const data = await resp.json();
+        updateCadEditUI(data);
+      } catch (err) {
+        alert("Redo failed: " + err.message);
+      }
+    }
+
+    function showGateReport(ok, messages, diff, warnings, errors) {
+      const card = document.getElementById('cadEditGateReportCard');
+      const badge = document.getElementById('cadEditGateBadge');
+      const disp = document.getElementById('cadEditDiffDisplay');
+      card.classList.remove('hidden');
+
+      if (ok) {
+        badge.innerText = "[GATE PASSED]";
+        badge.className = "text-emerald-400 font-bold";
+      } else {
+        badge.innerText = "[GATE REJECTED]";
+        badge.className = "text-rose-400 font-bold";
+      }
+
+      let html = "";
+      if (diff && diff.volume_before !== undefined) {
+        html += `<div class="text-[#aaaaaa] flex justify-between">
+          <span>Vol: ${diff.volume_before.toFixed(1)} -> ${diff.volume_after.toFixed(1)} mm³</span>
+          <span class="text-emerald-400 font-semibold">Diff: -${(diff.removed || 0).toFixed(1)} / +${(diff.added || 0).toFixed(1)} mm³</span>
+        </div>`;
+      }
+      if (messages && messages.length > 0) {
+        html += `<div class="border-t border-[#262626] pt-1 space-y-0.5">` + messages.map(m => `<div class="text-white">• ${m}</div>`).join('') + `</div>`;
+      }
+      if (warnings && warnings.length > 0) {
+        html += `<div class="border-t border-[#262626] pt-1 text-yellow-400 space-y-0.5">` + warnings.map(w => `<div>⚠ ${w}</div>`).join('') + `</div>`;
+      }
+      if (errors && errors.length > 0) {
+        html += `<div class="border-t border-[#262626] pt-1 text-rose-400 space-y-0.5">` + errors.map(e => `<div>✖ ${e}</div>`).join('') + `</div>`;
+      }
+      disp.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function hideGateReport() {
+      const card = document.getElementById('cadEditGateReportCard');
+      if (card) card.classList.add('hidden');
+    }
+
+    async function cadEditPropose() {
+      const raw = document.getElementById('cadEditJsonInput').value;
+      try {
+        const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/propose", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
+        });
+        const data = await resp.json();
+        showGateReport(data.ok, data.messages, data.diff, data.warnings, data.errors);
+      } catch (err) {
+        showGateReport(false, [], null, [], [err.message]);
+      }
+    }
+
+    async function cadEditApply() {
+      const raw = document.getElementById('cadEditJsonInput').value;
+      try {
+        const resp = await fetch("http://127.0.0.1:8085/api/v1/cad_edit/apply", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({session_id: cadEditSessionId, ops: raw})
+        });
+        const data = await resp.json();
+        showGateReport(data.ok, data.messages, data.diff, data.warnings, data.errors);
+        if (data.ok) {
+          updateCadEditUI(data);
+        }
+      } catch (err) {
+        showGateReport(false, [], null, [], [err.message]);
+      }
+    }
+
+    function setTestPreset(type) {
+      const input = document.getElementById('cadEditJsonInput');
+      if (type === 'hole') {
+        input.value = JSON.stringify([
+          {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6}}
+        ], null, 2);
+      } else if (type === 'fillet') {
+        input.value = JSON.stringify([
+          {"op": "add", "feature": {"kind": "fillet", "selector": "top_edges", "radius": 2}}
+        ], null, 2);
+      } else if (type === 'bolt_pattern') {
+        input.value = JSON.stringify([
+          {"op": "add", "feature": {"kind": "bolt_pattern", "face": "top", "n": 4, "pcd": 14, "d": 3}}
+        ], null, 2);
+      } else if (type === 'resize') {
+        input.value = JSON.stringify([
+          {"op": "resize", "W": 60}
+        ], null, 2);
+      } else if (type === 'shell') {
+        input.value = JSON.stringify([
+          {"op": "add", "feature": {"kind": "shell", "open_face": "top", "thickness": 2}}
+        ], null, 2);
+      } else if (type === 'gate_reject') {
+        input.value = JSON.stringify([
+          {"op": "add", "feature": {"kind": "hole", "face": "top", "d": 6, "at": {"u": {"ref": "min", "offset": 500}}}}
+        ], null, 2);
+      }
+    }
+
+    function downloadCadEditExport(type) {
+      window.location.href = `http://127.0.0.1:8085/api/v1/cad_edit/export/${type}?session_id=${cadEditSessionId}`;
+    }
+
+    // -----------------------------------------------------------------
+    // 4.11 INITIAL BOOTSTRAP
     // -----------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       loadSampleCase('case_0000_clean');

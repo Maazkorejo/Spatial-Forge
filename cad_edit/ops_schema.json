@@ -1,0 +1,865 @@
+{
+ "$defs": {
+  "AddOp": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "add",
+     "default": "add",
+     "title": "Op",
+     "type": "string"
+    },
+    "feature": {
+     "discriminator": {
+      "mapping": {
+       "bolt_pattern": "#/$defs/BoltPattern",
+       "boss": "#/$defs/Boss",
+       "chamfer": "#/$defs/Chamfer",
+       "fillet": "#/$defs/Fillet",
+       "hole": "#/$defs/Hole",
+       "pocket_rect": "#/$defs/PocketRect",
+       "shell": "#/$defs/Shell",
+       "slot": "#/$defs/Slot"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/Hole"
+      },
+      {
+       "$ref": "#/$defs/BoltPattern"
+      },
+      {
+       "$ref": "#/$defs/PocketRect"
+      },
+      {
+       "$ref": "#/$defs/Slot"
+      },
+      {
+       "$ref": "#/$defs/Boss"
+      },
+      {
+       "$ref": "#/$defs/Fillet"
+      },
+      {
+       "$ref": "#/$defs/Chamfer"
+      },
+      {
+       "$ref": "#/$defs/Shell"
+      }
+     ],
+     "title": "Feature"
+    }
+   },
+   "required": [
+    "feature"
+   ],
+   "title": "AddOp",
+   "type": "object"
+  },
+  "At": {
+   "additionalProperties": false,
+   "properties": {
+    "u": {
+     "$ref": "#/$defs/Ref"
+    },
+    "v": {
+     "$ref": "#/$defs/Ref"
+    }
+   },
+   "title": "At",
+   "type": "object"
+  },
+  "BoltPattern": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "bolt_pattern",
+     "default": "bolt_pattern",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Face",
+     "type": "string"
+    },
+    "center": {
+     "$ref": "#/$defs/At"
+    },
+    "n": {
+     "maximum": 24,
+     "minimum": 2,
+     "title": "N",
+     "type": "integer"
+    },
+    "pcd": {
+     "exclusiveMinimum": 0,
+     "maximum": 2000,
+     "title": "Pcd",
+     "type": "number"
+    },
+    "d": {
+     "exclusiveMinimum": 0.5,
+     "maximum": 200,
+     "title": "D",
+     "type": "number"
+    },
+    "depth": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "through",
+       "type": "string"
+      }
+     ],
+     "default": "through",
+     "title": "Depth"
+    },
+    "start_deg": {
+     "default": 0.0,
+     "maximum": 360,
+     "minimum": -360,
+     "title": "Start Deg",
+     "type": "number"
+    }
+   },
+   "required": [
+    "face",
+    "n",
+    "pcd",
+    "d"
+   ],
+   "title": "BoltPattern",
+   "type": "object"
+  },
+  "Boss": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "boss",
+     "default": "boss",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Face",
+     "type": "string"
+    },
+    "at": {
+     "$ref": "#/$defs/At"
+    },
+    "shape": {
+     "default": "circ",
+     "enum": [
+      "rect",
+      "circ"
+     ],
+     "title": "Shape",
+     "type": "string"
+    },
+    "d": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "D"
+    },
+    "size_u": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Size U"
+    },
+    "size_v": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Size V"
+    },
+    "height": {
+     "exclusiveMinimum": 0,
+     "maximum": 2000,
+     "title": "Height",
+     "type": "number"
+    }
+   },
+   "required": [
+    "face",
+    "height"
+   ],
+   "title": "Boss",
+   "type": "object"
+  },
+  "Chamfer": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "chamfer",
+     "default": "chamfer",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "selector": {
+     "enum": [
+      "top_edges",
+      "bottom_edges",
+      "vertical_edges",
+      "all_edges"
+     ],
+     "title": "Selector",
+     "type": "string"
+    },
+    "distance": {
+     "exclusiveMinimum": 0.1,
+     "maximum": 100,
+     "title": "Distance",
+     "type": "number"
+    }
+   },
+   "required": [
+    "selector",
+    "distance"
+   ],
+   "title": "Chamfer",
+   "type": "object"
+  },
+  "DeleteOp": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "delete",
+     "default": "delete",
+     "title": "Op",
+     "type": "string"
+    },
+    "id": {
+     "pattern": "^[a-z][a-z0-9_]{0,31}$",
+     "title": "Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ],
+   "title": "DeleteOp",
+   "type": "object"
+  },
+  "Fillet": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "fillet",
+     "default": "fillet",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "selector": {
+     "enum": [
+      "top_edges",
+      "bottom_edges",
+      "vertical_edges",
+      "all_edges"
+     ],
+     "title": "Selector",
+     "type": "string"
+    },
+    "radius": {
+     "exclusiveMinimum": 0.1,
+     "maximum": 100,
+     "title": "Radius",
+     "type": "number"
+    }
+   },
+   "required": [
+    "selector",
+    "radius"
+   ],
+   "title": "Fillet",
+   "type": "object"
+  },
+  "Hole": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "hole",
+     "default": "hole",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Face",
+     "type": "string"
+    },
+    "at": {
+     "$ref": "#/$defs/At"
+    },
+    "d": {
+     "exclusiveMinimum": 0.5,
+     "maximum": 500,
+     "title": "D",
+     "type": "number"
+    },
+    "depth": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "through",
+       "type": "string"
+      }
+     ],
+     "default": "through",
+     "title": "Depth"
+    },
+    "cbore_d": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cbore D"
+    },
+    "cbore_depth": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cbore Depth"
+    },
+    "csk_d": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Csk D"
+    }
+   },
+   "required": [
+    "face",
+    "d"
+   ],
+   "title": "Hole",
+   "type": "object"
+  },
+  "PocketRect": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "pocket_rect",
+     "default": "pocket_rect",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Face",
+     "type": "string"
+    },
+    "at": {
+     "$ref": "#/$defs/At"
+    },
+    "size_u": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "full",
+       "type": "string"
+      }
+     ],
+     "title": "Size U"
+    },
+    "size_v": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "full",
+       "type": "string"
+      }
+     ],
+     "title": "Size V"
+    },
+    "depth": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "through",
+       "type": "string"
+      }
+     ],
+     "title": "Depth"
+    },
+    "corner_radius": {
+     "default": 0.0,
+     "maximum": 200,
+     "minimum": 0,
+     "title": "Corner Radius",
+     "type": "number"
+    }
+   },
+   "required": [
+    "face",
+    "size_u",
+    "size_v",
+    "depth"
+   ],
+   "title": "PocketRect",
+   "type": "object"
+  },
+  "Ref": {
+   "additionalProperties": false,
+   "properties": {
+    "ref": {
+     "default": "center",
+     "enum": [
+      "min",
+      "center",
+      "max"
+     ],
+     "title": "Ref",
+     "type": "string"
+    },
+    "offset": {
+     "default": 0.0,
+     "maximum": 2000,
+     "minimum": -2000,
+     "title": "Offset",
+     "type": "number"
+    }
+   },
+   "title": "Ref",
+   "type": "object"
+  },
+  "ResizeOp": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "resize",
+     "default": "resize",
+     "title": "Op",
+     "type": "string"
+    },
+    "W": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "W"
+    },
+    "D": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "D"
+    },
+    "H": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "H"
+    }
+   },
+   "title": "ResizeOp",
+   "type": "object"
+  },
+  "SetOp": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "set",
+     "default": "set",
+     "title": "Op",
+     "type": "string"
+    },
+    "id": {
+     "pattern": "^[a-z][a-z0-9_]{0,31}$",
+     "title": "Id",
+     "type": "string"
+    },
+    "path": {
+     "description": "field of the feature, dotted for nested, e.g. 'd', 'depth', 'at.u.offset'",
+     "title": "Path",
+     "type": "string"
+    },
+    "value": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "string"
+      },
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Value"
+    }
+   },
+   "required": [
+    "id",
+    "path",
+    "value"
+   ],
+   "title": "SetOp",
+   "type": "object"
+  },
+  "Shell": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "shell",
+     "default": "shell",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "open_face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Open Face",
+     "type": "string"
+    },
+    "thickness": {
+     "exclusiveMinimum": 0.2,
+     "maximum": 100,
+     "title": "Thickness",
+     "type": "number"
+    }
+   },
+   "required": [
+    "open_face",
+    "thickness"
+   ],
+   "title": "Shell",
+   "type": "object"
+  },
+  "Slot": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "slot",
+     "default": "slot",
+     "title": "Kind",
+     "type": "string"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "pattern": "^[a-z][a-z0-9_]{0,31}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Id"
+    },
+    "face": {
+     "enum": [
+      "top",
+      "bottom",
+      "front",
+      "back",
+      "left",
+      "right"
+     ],
+     "title": "Face",
+     "type": "string"
+    },
+    "at": {
+     "$ref": "#/$defs/At"
+    },
+    "length": {
+     "exclusiveMinimum": 0,
+     "maximum": 2000,
+     "title": "Length",
+     "type": "number"
+    },
+    "width": {
+     "exclusiveMinimum": 0,
+     "maximum": 2000,
+     "title": "Width",
+     "type": "number"
+    },
+    "depth": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 2000,
+       "type": "number"
+      },
+      {
+       "const": "through",
+       "type": "string"
+      }
+     ],
+     "default": "through",
+     "title": "Depth"
+    }
+   },
+   "required": [
+    "face",
+    "length",
+    "width"
+   ],
+   "title": "Slot",
+   "type": "object"
+  }
+ },
+ "additionalProperties": false,
+ "properties": {
+  "ops": {
+   "items": {
+    "discriminator": {
+     "mapping": {
+      "add": "#/$defs/AddOp",
+      "delete": "#/$defs/DeleteOp",
+      "resize": "#/$defs/ResizeOp",
+      "set": "#/$defs/SetOp"
+     },
+     "propertyName": "op"
+    },
+    "oneOf": [
+     {
+      "$ref": "#/$defs/AddOp"
+     },
+     {
+      "$ref": "#/$defs/SetOp"
+     },
+     {
+      "$ref": "#/$defs/DeleteOp"
+     },
+     {
+      "$ref": "#/$defs/ResizeOp"
+     }
+    ]
+   },
+   "maxItems": 8,
+   "minItems": 1,
+   "title": "Ops",
+   "type": "array"
+  }
+ },
+ "required": [
+  "ops"
+ ],
+ "title": "OpList",
+ "type": "object"
+}

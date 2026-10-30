@@ -15,6 +15,16 @@ if V2_DIR not in sys.path:
     sys.path.insert(0, V2_DIR)
 from dxf_pipeline import process_dxf_bytes
 
+CAD_EDIT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "cad_edit"))
+if CAD_EDIT_DIR not in sys.path:
+    sys.path.insert(0, CAD_EDIT_DIR)
+import model as CM
+import session as CS
+import build as CB
+import gate as CG
+import cadquery as cq
+import tempfile
+
 from app.core.config import settings
 
 app = FastAPI(
@@ -246,6 +256,210 @@ def download_image(filename: str):
                 headers={"Content-Disposition": f'attachment; filename="{filename}"'}
             )
     return JSONResponse(status_code=404, content={"error": f"Drawing picture {filename} not found"})
+
+# ---------------------------------------------------------------------------
+# CAD Edit Engine (Parametric Feature Tree + Safety Gate + Version History)
+# ---------------------------------------------------------------------------
+active_cad_sessions: Dict[str, CS.Session] = {}
+
+def get_cad_session(session_id: str = "default") -> CS.Session:
+    if session_id not in active_cad_sessions:
+        active_cad_sessions[session_id] = CS.Session(CM.FeatureTree(base=CM.Block(W=40.0, D=20.0, H=10.0)))
+    return active_cad_sessions[session_id]
+
+def solid_to_mesh(solid: cq.Workplane) -> Dict[str, Any]:
+    verts, triangles = solid.val().tessellate(0.1, 0.2)
+    mesh_verts = [[round(float(v.x), 3), round(float(v.y), 3), round(float(v.z), 3)] for v in verts]
+    mesh_faces = [[int(tri[0]), int(tri[1]), int(tri[2])] for tri in triangles]
+    return {
+        "vertices": mesh_verts,
+        "faces": mesh_faces,
+        "n_vertices": len(mesh_verts),
+        "n_faces": len(mesh_faces)
+    }
+
+class CadEditInitRequest(BaseModel):
+    session_id: Optional[str] = "default"
+    W: Optional[float] = 40.0
+    D: Optional[float] = 20.0
+    H: Optional[float] = 10.0
+    tree: Optional[Dict[str, Any]] = None
+
+class CadEditOpsRequest(BaseModel):
+    session_id: Optional[str] = "default"
+    ops: Any
+
+class CadEditHistoryRequest(BaseModel):
+    session_id: Optional[str] = "default"
+    version: Optional[int] = None
+
+@app.post(f"{settings.API_V1_STR}/cad_edit/init")
+def cad_edit_init(req: CadEditInitRequest):
+    sid = req.session_id or "default"
+    if req.tree:
+        tree = CM.FeatureTree.model_validate(req.tree)
+    else:
+        tree = CM.FeatureTree(base=CM.Block(W=req.W or 40.0, D=req.D or 20.0, H=req.H or 10.0))
+    s = CS.Session(tree)
+    active_cad_sessions[sid] = s
+    solid = s.solid()
+    return {
+        "status": "ok",
+        "session_id": sid,
+        "version": s.current.version,
+        "stats": s.current.stats,
+        "tree": s.current.tree.model_dump(),
+        "mesh": solid_to_mesh(solid)
+    }
+
+@app.get(f"{settings.API_V1_STR}/cad_edit/state")
+def cad_edit_state(session_id: str = "default"):
+    s = get_cad_session(session_id)
+    solid = s.solid()
+    return {
+        "status": "ok",
+        "session_id": session_id,
+        "version": s.current.version,
+        "cursor": s.cursor,
+        "history_len": len(s.history),
+        "history": [{"version": h.version, "ops": h.ops, "warnings": h.warnings} for h in s.history],
+        "stats": s.current.stats,
+        "tree": s.current.tree.model_dump(),
+        "mesh": solid_to_mesh(solid)
+    }
+
+@app.post(f"{settings.API_V1_STR}/cad_edit/propose")
+def cad_edit_propose(req: CadEditOpsRequest):
+    s = get_cad_session(req.session_id or "default")
+    ops_input = req.ops
+    if isinstance(ops_input, str):
+        ops, parse_errs = CM.parse_ops(ops_input)
+        if parse_errs:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": parse_errs})
+    elif isinstance(ops_input, list):
+        try:
+            ops = CM.OpList.model_validate({"ops": ops_input}).ops
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": [str(e)]})
+    elif isinstance(ops_input, dict) and "ops" in ops_input:
+        try:
+            ops = CM.OpList.model_validate(ops_input).ops
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": [str(e)]})
+    else:
+        return JSONResponse(status_code=400, content={"ok": False, "errors": ["Invalid ops payload"]})
+
+    p = s.propose(ops)
+    return {
+        "ok": p.ok,
+        "messages": p.messages,
+        "errors": p.errors,
+        "warnings": p.warnings,
+        "stats": p.stats,
+        "diff": p.diff,
+        "failed_op": p.failed_op,
+        "proposed_tree": p.tree.model_dump() if p.tree else None
+    }
+
+@app.post(f"{settings.API_V1_STR}/cad_edit/apply")
+def cad_edit_apply(req: CadEditOpsRequest):
+    s = get_cad_session(req.session_id or "default")
+    ops_input = req.ops
+    if isinstance(ops_input, str):
+        ops, parse_errs = CM.parse_ops(ops_input)
+        if parse_errs:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": parse_errs})
+    elif isinstance(ops_input, list):
+        try:
+            ops = CM.OpList.model_validate({"ops": ops_input}).ops
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": [str(e)]})
+    elif isinstance(ops_input, dict) and "ops" in ops_input:
+        try:
+            ops = CM.OpList.model_validate(ops_input).ops
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"ok": False, "errors": [str(e)]})
+    else:
+        return JSONResponse(status_code=400, content={"ok": False, "errors": ["Invalid ops payload"]})
+
+    p = s.apply(ops)
+    if not p.ok:
+        return {
+            "ok": False,
+            "messages": p.messages,
+            "errors": p.errors,
+            "warnings": p.warnings,
+            "stats": p.stats
+        }
+
+    solid = s.solid()
+    return {
+        "ok": True,
+        "version": s.current.version,
+        "messages": p.messages,
+        "warnings": p.warnings,
+        "stats": p.stats,
+        "diff": p.diff,
+        "tree": s.current.tree.model_dump(),
+        "mesh": solid_to_mesh(solid),
+        "history": [{"version": h.version, "ops": h.ops} for h in s.history]
+    }
+
+@app.post(f"{settings.API_V1_STR}/cad_edit/undo")
+def cad_edit_undo(req: CadEditHistoryRequest):
+    s = get_cad_session(req.session_id or "default")
+    snap = s.undo()
+    solid = s.solid()
+    return {
+        "status": "ok",
+        "version": snap.version,
+        "cursor": s.cursor,
+        "stats": snap.stats,
+        "tree": snap.tree.model_dump(),
+        "mesh": solid_to_mesh(solid)
+    }
+
+@app.post(f"{settings.API_V1_STR}/cad_edit/redo")
+def cad_edit_redo(req: CadEditHistoryRequest):
+    s = get_cad_session(req.session_id or "default")
+    snap = s.redo()
+    solid = s.solid()
+    return {
+        "status": "ok",
+        "version": snap.version,
+        "cursor": s.cursor,
+        "stats": snap.stats,
+        "tree": snap.tree.model_dump(),
+        "mesh": solid_to_mesh(solid)
+    }
+
+@app.get(f"{settings.API_V1_STR}/cad_edit/export/step")
+def cad_edit_export_step(session_id: str = "default"):
+    s = get_cad_session(session_id)
+    solid = s.solid()
+    fd, path = tempfile.mkstemp(suffix=".step")
+    os.close(fd)
+    cq.exporters.export(solid, path)
+    return FileResponse(
+        path,
+        media_type="application/step",
+        filename=f"cad_edit_v{s.current.version}.step",
+        headers={"Content-Disposition": f'attachment; filename="cad_edit_v{s.current.version}.step"'}
+    )
+
+@app.get(f"{settings.API_V1_STR}/cad_edit/export/stl")
+def cad_edit_export_stl(session_id: str = "default"):
+    s = get_cad_session(session_id)
+    solid = s.solid()
+    fd, path = tempfile.mkstemp(suffix=".stl")
+    os.close(fd)
+    cq.exporters.export(solid, path)
+    return FileResponse(
+        path,
+        media_type="application/sla",
+        filename=f"cad_edit_v{s.current.version}.stl",
+        headers={"Content-Disposition": f'attachment; filename="cad_edit_v{s.current.version}.stl"'}
+    )
 
 @app.websocket("/ws/stream")
 async def websocket_telemetry_stream(websocket: WebSocket):
