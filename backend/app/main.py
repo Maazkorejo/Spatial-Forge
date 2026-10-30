@@ -16,7 +16,6 @@ if V2_DIR not in sys.path:
 from dxf_pipeline import process_dxf_bytes
 
 from app.core.config import settings
-from app.agent.relational_pipeline import RelationalPipelineEngine
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -46,8 +45,6 @@ def get_ui():
     if os.path.exists(index_path):
         return FileResponse(index_path, media_type="text/html")
     return {"error": "index.html not found"}
-
-relational_engine = RelationalPipelineEngine()
 
 @app.get("/")
 def root():
@@ -300,49 +297,12 @@ async def websocket_telemetry_stream(websocket: WebSocket):
                         "payload": result
                     })
                     continue
-
-                # Stage 1: Perception & Classification
-                await websocket.send_json({
-                    "stage": "PERCEPTION",
-                    "status": "Segmenting silhouette mask & classifying mechanical topology...",
-                    "progress": 20
-                })
-
-                # Stage 2: Camera & Draft Resolution
-                await websocket.send_json({
-                    "stage": "CAMERA_ESTIMATION",
-                    "status": "Searching viewpoint camera & resolving initial assembly...",
-                    "progress": 40
-                })
-
-                # Stage 3: Relational Differential Evolution
-                await websocket.send_json({
-                    "stage": "OPTIMIZATION",
-                    "status": "Optimizing dimensional parameters via render-and-compare...",
-                    "progress": 65
-                })
-
-                # Stage 4: Feature Ray-Casting & Multi-View Review
-                await websocket.send_json({
-                    "stage": "FEATURES_AND_VERIFICATION",
-                    "status": "Detecting OpenCV features & verifying multi-view plausibility...",
-                    "progress": 85
-                })
-
-                # Execute relational pipeline asynchronously
-                result = await asyncio.to_thread(
-                    relational_engine.process_image,
-                    img_bytes,
-                    requested_class=requested_class
-                )
-
-                # Stage 5: Complete
-                await websocket.send_json({
-                    "stage": "COMPLETE",
-                    "status": f"Relational synthesis completed ({result.status.upper()}) • Silhouette IoU: {round(result.iou * 100, 1)}%",
-                    "progress": 100,
-                    "payload": result.model_dump()
-                })
+                else:
+                    await websocket.send_json({
+                        "stage": "ERROR",
+                        "error": "SpatialForge operates exclusively on 2D CAD (.dxf) blueprints. Please upload a .dxf file."
+                    })
+                    continue
 
     except WebSocketDisconnect:
         pass
