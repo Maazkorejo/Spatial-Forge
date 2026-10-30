@@ -209,12 +209,15 @@ def get_sample_cad(case: str = "case_0000_clean"):
     Returns deterministic 2D CAD (DXF) sample reconstruction output
     including 2D drawing sheet preview, Three.js 3D meshes, STEP, STL, and reprojection metrics.
     """
-    dxf_sample = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen", "sample_cases", f"{case}.dxf")
-    )
-    if os.path.exists(dxf_sample):
-        with open(dxf_sample, "rb") as f:
-            return process_dxf_bytes(f.read(), f"{case}.dxf")
+    search_dirs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "test_dxf_drawings")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "drawing_gen", "drawing_gen", "sample_cases"))
+    ]
+    for s_dir in search_dirs:
+        candidate = os.path.join(s_dir, f"{case}.dxf")
+        if os.path.exists(candidate) and os.path.isfile(candidate):
+            with open(candidate, "rb") as f:
+                return process_dxf_bytes(f.read(), f"{case}.dxf")
     return {"error": f"Sample DXF {case} not found"}
 
 @app.get(settings.API_V1_STR + "/download_dxf/{filename}")
