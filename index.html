@@ -878,7 +878,8 @@
 
   function applySynthesisData(res, filename) {
     currentDxfFilename = filename || "drawing.dxf";
-    document.getElementById('topbarFilename').innerText = currentDxfFilename;
+    const topbarFile = document.getElementById('topbarFilename');
+    if (topbarFile) topbarFile.innerText = currentDxfFilename;
 
     // Update Floating 2D Drawing PiP Screen
     const pipTitle = document.getElementById('pipTitleText');
@@ -906,29 +907,39 @@
     }
 
     const f1Percent = ((res.iou || res.mean_vis_f1 || 1.0) * 100).toFixed(1);
-    document.getElementById('statF1').innerText = `${f1Percent}%`;
-    document.getElementById('confF1').innerText = (res.iou || res.mean_vis_f1 || 1.0).toFixed(2);
-    document.getElementById('barF1').style.width = `${f1Percent}%`;
+    const elF1 = document.getElementById('statF1');
+    if (elF1) elF1.innerText = `${f1Percent}%`;
+    const elConfF1 = document.getElementById('confF1');
+    if (elConfF1) elConfF1.innerText = (res.iou || res.mean_vis_f1 || 1.0).toFixed(2);
+    const elBarF1 = document.getElementById('barF1');
+    if (elBarF1) elBarF1.style.width = `${f1Percent}%`;
 
     const prec = (res.prec || res.visible_precision || 1.0).toFixed(3);
     const rec = (res.recall || res.visible_recall || 1.0).toFixed(3);
-    document.getElementById('statPrecision').innerText = prec;
-    document.getElementById('statRecall').innerText = rec;
-    document.getElementById('confPrec').innerText = prec;
-    document.getElementById('barPrec').style.width = `${(prec * 100).toFixed(0)}%`;
+    const elPrec = document.getElementById('statPrecision');
+    if (elPrec) elPrec.innerText = prec;
+    const elRec = document.getElementById('statRecall');
+    if (elRec) elRec.innerText = rec;
+    const elConfPrec = document.getElementById('confPrec');
+    if (elConfPrec) elConfPrec.innerText = prec;
+    const elBarPrec = document.getElementById('barPrec');
+    if (elBarPrec) elBarPrec.style.width = `${(prec * 100).toFixed(0)}%`;
 
     if (res.reconstruction_time_ms) {
-      document.getElementById('statLatency').innerText = `${Math.round(res.reconstruction_time_ms)} ms`;
+      const elLat = document.getElementById('statLatency');
+      if (elLat) elLat.innerText = `${Math.round(res.reconstruction_time_ms)} ms`;
     }
 
     // Status badge
     const badge = document.getElementById('topbarStatusBadge');
-    if (res.status === 'ok') {
-      badge.innerText = "converged";
-      badge.className = "badge converged";
-    } else {
-      badge.innerText = "needs_review";
-      badge.className = "badge warning";
+    if (badge) {
+      if (res.status === 'ok') {
+        badge.innerText = "converged";
+        badge.className = "badge converged";
+      } else {
+        badge.innerText = "needs_review";
+        badge.className = "badge warning";
+      }
     }
 
     // Dimensions & Parametric Init
@@ -937,15 +948,18 @@
       const dVal = Number(res.dimensions[1].value) || 20.0;
       const hVal = Number(res.dimensions[2].value) || 10.0;
       currentDimensions = { W: wVal, D: dVal, H: hVal };
-      document.getElementById('dimX').innerText = `${currentDimensions.W.toFixed(1)} mm`;
-      document.getElementById('dimY').innerText = `${currentDimensions.D.toFixed(1)} mm`;
-      document.getElementById('dimZ').innerText = `${currentDimensions.H.toFixed(1)} mm`;
+      const elDimX = document.getElementById('dimX');
+      const elDimY = document.getElementById('dimY');
+      const elDimZ = document.getElementById('dimZ');
+      if (elDimX) elDimX.innerText = `${currentDimensions.W.toFixed(1)} mm`;
+      if (elDimY) elDimY.innerText = `${currentDimensions.D.toFixed(1)} mm`;
+      if (elDimZ) elDimZ.innerText = `${currentDimensions.H.toFixed(1)} mm`;
 
       fetch("http://127.0.0.1:8085/api/v1/cad_edit/init", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({session_id: cadEditSessionId, W: currentDimensions.W, D: currentDimensions.D, H: currentDimensions.H})
-      }).then(r => r.json()).then(d => { if (d.ok || d.status === "ok") updateCadEditState(d); }).catch(console.error);
+      }).then(r => r.json()).then(d => { if (d && (d.ok || d.status === "ok")) updateCadEditState(d); }).catch(console.error);
     }
 
     if (res.volume) {
