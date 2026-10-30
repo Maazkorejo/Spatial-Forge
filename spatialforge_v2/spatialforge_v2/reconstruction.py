@@ -456,7 +456,7 @@ def reconstruct_wheel(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[st
 
     wheel = tire.union(rim).union(disk)
     bb = wheel.val().BoundingBox()
-    wheel = wheel.translate((-bb.xmin, -bb.ymin, -bb.zmin))
+    wheel = wheel.translate((-(bb.xmin + bb.xmax) / 2.0, -(bb.ymin + bb.ymax) / 2.0, -bb.zmin))
     return wheel, {
         "family": "wheel",
         "volume": float(wheel.val().Volume()),
@@ -493,7 +493,7 @@ def reconstruct_butterfly(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
 
     butterfly = body.union(head).union(wing_l).union(wing_r).union(hwing_l).union(hwing_r)
     bb = butterfly.val().BoundingBox()
-    butterfly = butterfly.translate((-bb.xmin, -bb.ymin, -bb.zmin))
+    butterfly = butterfly.translate((-(bb.xmin + bb.xmax) / 2.0, -(bb.ymin + bb.ymax) / 2.0, -bb.zmin))
     return butterfly, {
         "family": "butterfly",
         "volume": float(butterfly.val().Volume()),
@@ -533,7 +533,7 @@ def reconstruct_cat(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[str,
     tail = cq.Workplane("XZ").workplane(offset=thick * 0.3).polyline(tail_pts).close().extrude(thick * 0.4)
     cat = cat_body.union(tail)
     bb = cat.val().BoundingBox()
-    cat = cat.translate((-bb.xmin, -bb.ymin, -bb.zmin))
+    cat = cat.translate((-(bb.xmin + bb.xmax) / 2.0, -(bb.ymin + bb.ymax) / 2.0, -bb.zmin))
     return cat, {
         "family": "cat",
         "volume": float(cat.val().Volume()),
@@ -565,7 +565,7 @@ def reconstruct_engine(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[s
 
     engine = block.union(piston).union(rod).union(crank).union(head).union(v1).union(v2)
     bb = engine.val().BoundingBox()
-    engine = engine.translate((-bb.xmin, -bb.ymin, -bb.zmin))
+    engine = engine.translate((-(bb.xmin + bb.xmax) / 2.0, -(bb.ymin + bb.ymax) / 2.0, -bb.zmin))
     return engine, {
         "family": "engine",
         "volume": float(engine.val().Volume()),
@@ -603,9 +603,8 @@ def reconstruct_f35_jet(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dict[
     nozzle = cq.Workplane("XZ").circle(8.0*scale).extrude(15.0*scale).translate((0, -65.0*scale, 9.0*scale))
 
     jet = fuse.union(canopy).union(wing_l).union(wing_r).union(tail_l).union(tail_r).union(htail_l).union(htail_r).union(nozzle)
-    jet = jet.rotate((0, 0, 0), (1, 0, 0), 90.0)
     bb = jet.val().BoundingBox()
-    jet = jet.translate((-bb.xmin, -bb.ymin, -bb.zmin))
+    jet = jet.translate((-(bb.xmin + bb.xmax) / 2.0, -(bb.ymin + bb.ymax) / 2.0, -bb.zmin))
     return jet, {
         "family": "f35_jet",
         "volume": float(jet.val().Volume()),

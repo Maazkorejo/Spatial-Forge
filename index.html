@@ -147,9 +147,6 @@
   .vt-btn{font-size:11.5px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);color:var(--muted);background:var(--panel);cursor:pointer;font-weight:500;transition:all .15s ease;}
   .vt-btn:hover{color:var(--text);border-color:var(--muted);}
   .vt-btn.active{color:var(--text);border-color:var(--accent);background:var(--panel-2);font-weight:600;}
-  .viewer-status{position:absolute;bottom:14px;left:16px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
-    background:rgba(23,24,27,0.85);backdrop-filter:blur(8px);padding:6px 12px;border-radius:6px;border:1px solid var(--line);z-index:10;}
-  .pip{width:7px;height:7px;border-radius:50%;background:var(--emerald);flex:none;box-shadow:0 0 8px rgba(52,211,153,0.5);}
 
   /* Floating 2D Drawing PiP Screen */
   .pip-screen{
@@ -439,10 +436,6 @@
                 <div class="vt-btn" id="btnWire" onclick="setShadingMode('pure_wire')">Wireframe</div>
                 <div class="vt-btn" id="btnSolid" onclick="setShadingMode('solid')">Solid</div>
               </div>
-              <div class="viewer-status">
-                <span class="pip"></span>
-                <span id="viewerStatusText">Reprojection Edge F1: 100.0% · Watertight Manifold</span>
-              </div>
             </div>
           </div>
 
@@ -668,6 +661,8 @@
   }
 
   function clearSceneMeshes() {
+    cadRootGroup.rotation.set(0, 0, 0);
+    cadRootGroup.position.set(0, 0, 0);
     while (cadRootGroup.children.length > 0) {
       const obj = cadRootGroup.children[0];
       if (obj.geometry) obj.geometry.dispose();
@@ -704,18 +699,42 @@
       cadRootGroup.add(edgesLine);
     }
 
-    // Frame camera on model
-    const box = new THREE.Box3().setFromObject(cadRootGroup);
+    // AI Orientation & Viewport Middle-Centering
+    cadRootGroup.updateMatrixWorld(true);
+    let box = new THREE.Box3().setFromObject(cadRootGroup);
     if (!box.isEmpty()) {
+      let size = new THREE.Vector3();
+      box.getSize(size);
+
+      // Smart AI Orientation (Horizontal vs. Vertical):
+      // In 2D drawings/sketches, planar profiles, wings, aircraft, vehicles,
+      // and plates are typically drawn along the paper height.
+      // When standing tall on an edge/end, orient them horizontally flat on the ground plane.
+      const isStandingVertically = (size.y > size.z * 1.35 && size.y > size.x * 1.05) || (size.y > size.z * 2.2);
+      if (isStandingVertically) {
+        cadRootGroup.rotation.x = -Math.PI / 2;
+        cadRootGroup.updateMatrixWorld(true);
+        box.setFromObject(cadRootGroup);
+        box.getSize(size);
+      }
+
       const center = new THREE.Vector3();
       box.getCenter(center);
-      controls.target.copy(center);
-      const size = new THREE.Vector3();
-      box.getSize(size);
+
+      // Center model in the exact middle of the grid, flush on y = 0
+      cadRootGroup.position.x = -center.x;
+      cadRootGroup.position.z = -center.z;
+      cadRootGroup.position.y = -box.min.y;
+      cadRootGroup.updateMatrixWorld(true);
+
+      // Focus camera on the exact center of the model in the middle of the screen
+      const modelH = size.y;
+      controls.target.set(0, modelH * 0.45, 0);
       const maxDim = Math.max(size.x, size.y, size.z);
-      const dist = Math.max(maxDim * 2.2, 80);
-      camera.position.set(center.x + dist * 0.7, center.y + dist * 0.6, center.z + dist * 0.8);
-      camera.lookAt(center);
+      const dist = Math.max(maxDim * 1.85, 80);
+      camera.position.set(dist * 0.72, modelH * 0.5 + dist * 0.55, dist * 0.82);
+      camera.lookAt(0, modelH * 0.45, 0);
+      controls.update();
     }
   }
 
@@ -873,8 +892,10 @@
     currentStlBase64 = res.stl_base64 || "";
     currentGlbBase64 = res.glb_base64 || "";
 
-    document.getElementById('viewerStatusText').innerText = 
-      `Reprojection Edge F1: ${f1Percent}% · Watertight Manifold · ${filename}`;
+    const vStatus = document.getElementById('viewerStatusText');
+    if (vStatus) {
+      vStatus.innerText = `Reprojection Edge F1: ${f1Percent}% · Watertight Manifold · ${filename}`;
+    }
   }
 
   function triggerReconstruction() {
