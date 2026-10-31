@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { useEffect, useRef, useState } from "react";
-import { Download, Eye, EyeOff, FileText, Maximize2, Minus, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Box, Download, Eye, EyeOff, FileText, Maximize2, Minus, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { createPartGroup, disposePartGroup } from "./geometry";
 import type { DisplayMode, ModelState } from "./types";
 
@@ -12,7 +12,7 @@ const viewModes: Array<{ label: string; value: DisplayMode }> = [
 ];
 
 type CADViewportProps = {
-  model: ModelState;
+  model: ModelState | null;
   mode: DisplayMode;
   onModeChange: (mode: DisplayMode) => void;
   pictureUrl: string | null;
@@ -192,6 +192,11 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
     if (handle.partGroup) {
       handle.scene.remove(handle.partGroup);
       disposePartGroup(handle.partGroup);
+      handle.partGroup = null;
+    }
+    if (!model) {
+      modelTitleRef.current = null;
+      return;
     }
     const nextGroup = createPartGroup(model, mode);
     handle.partGroup = nextGroup;
@@ -208,6 +213,18 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
       <div className="viewport-tools-hint"><span className="hint-key">LMB</span> orbit <span className="hint-divider" /><span className="hint-key">RMB</span> pan <span className="hint-divider" /><span className="hint-key">⌘</span> zoom</div>
       <button className="viewport-reset icon-button" type="button" aria-label="Reset view" title="Reset view" onClick={() => resetRef.current()}><RotateCcw size={15} /></button>
 
+      {!model && (
+        <div className="viewport-empty-overlay">
+          <div className="viewport-empty-card">
+            <div className="viewport-empty-icon">
+              <Box size={26} strokeWidth={1.5} />
+            </div>
+            <h3>Awaiting 2D CAD Drawing</h3>
+            <p>Upload a DXF or technical drawing to construct 3D CAD model</p>
+          </div>
+        </div>
+      )}
+
       {pictureUrl && (
         <button
           className="full-2d-pill"
@@ -222,19 +239,21 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
         </button>
       )}
 
-      <button
-        className="orientation-pill"
-        type="button"
-        title="Toggle Horizontal / Vertical orientation (AI automatic default: Horizontal)"
-        aria-label="Toggle orientation"
-        onClick={onOrientationToggle}
-        style={{ position: "absolute", top: 10, left: pictureUrl ? 245 : 140, zIndex: 3 }}
-      >
-        <span className="orientation-dot" />
-        <span>{model.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
-      </button>
+      {model && (
+        <button
+          className="orientation-pill"
+          type="button"
+          title="Toggle Horizontal / Vertical orientation (AI automatic default: Horizontal)"
+          aria-label="Toggle orientation"
+          onClick={onOrientationToggle}
+          style={{ position: "absolute", top: 10, left: pictureUrl ? 245 : 140, zIndex: 3 }}
+        >
+          <span className="orientation-dot" />
+          <span>{model.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
+        </button>
+      )}
 
-      {sourceVisible ? (
+      {sourceVisible && (pictureUrl || model) ? (
         <section className="blueprint-pip" aria-label="Source drawing picture in picture">
           <header className="blueprint-pip-header">
             <span><span className="pip-status" />2D DRAWING</span>
@@ -257,16 +276,16 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
             title="Click to view full-resolution 2D CAD technical drawing"
             onClick={() => setFull2DOpen(true)}
           >
-            {pictureUrl ? <img className="pip-source-image" src={pictureUrl} alt={`Uploaded source drawing ${pictureName}`} /> : <BlueprintSketch model={model} />}
+            {pictureUrl ? <img className="pip-source-image" src={pictureUrl} alt={`Uploaded source drawing ${pictureName}`} /> : model ? <BlueprintSketch model={model} /> : null}
           </div>
           <footer className="blueprint-pip-footer">
             <span>{pictureName}</span>
             <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setFull2DOpen(true)}>View full</span>
           </footer>
         </section>
-      ) : (
+      ) : (pictureUrl || model) ? (
         <button className="show-drawing-pill" type="button" onClick={() => onSourceVisible(true)}><Eye size={14} /> Show 2D drawing</button>
-      )}
+      ) : null}
 
       {full2DOpen && (
         <div className="blueprint-modal-backdrop" onClick={() => setFull2DOpen(false)}>
@@ -275,8 +294,8 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
               <div className="blueprint-modal-title">
                 <FileText size={16} />
                 <span>2D CAD TECHNICAL DRAWING</span>
-                <span className="badge">{pictureName}</span>
-                <span className="badge">{Math.round(model.dimensions.length)} × {Math.round(model.dimensions.width)} mm</span>
+                <span className="badge">{pictureName || "Drawing"}</span>
+                {model && <span className="badge">{Math.round(model.dimensions.length)} × {Math.round(model.dimensions.width)} mm</span>}
               </div>
               <div className="blueprint-modal-tools">
                 <button
@@ -336,11 +355,11 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
                   alt={`Full technical drawing ${pictureName}`}
                   style={{ transform: `scale(${zoomLevel})` }}
                 />
-              ) : (
+              ) : model ? (
                 <div style={{ width: "90%", maxWidth: 880, transform: `scale(${zoomLevel})` }}>
                   <BlueprintSketch model={model} />
                 </div>
-              )}
+              ) : null}
             </div>
             <footer className="blueprint-modal-footer">
               <span>Zoom: {Math.round(zoomLevel * 100)}% · Use scrollbars or trackpad to pan</span>

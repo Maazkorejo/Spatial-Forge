@@ -840,3 +840,62 @@ body,
 .dropzone.is-dragging { background: #1c2737; }
 .applied-cut button:hover,
 .tree-child button:hover { background-color: #33242a; }
+
+/* Viewport Empty Overlay */
+.viewport-empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.viewport-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 32px;
+  background: rgba(22, 27, 34, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px dashed rgba(136, 155, 181, 0.35);
+  border-radius: 12px;
+  color: #c5d1e0;
+  text-align: center;
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.viewport-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: rgba(96, 127, 186, 0.14);
+  border: 1px solid rgba(96, 127, 186, 0.28);
+  color: #8dafe8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.viewport-empty-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.02em;
+  color: #e6edf5;
+}
+
+.viewport-empty-card p {
+  font-size: 12px;
+  color: #889bb5;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.status-awaiting i {
+  background-color: #7b889a;
+  box-shadow: 0 0 0 3px rgba(123, 136, 154, 0.18);
+}

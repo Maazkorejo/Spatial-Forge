@@ -85,7 +85,14 @@ function SectionHead({ title, trailing }: { title: string; trailing?: ReactNode 
   return <div className="section-head"><span>{title}</span>{trailing}</div>;
 }
 
-function FeatureTree({ model, onRemoveCut }: { model: ModelState; onRemoveCut: (cut: AppliedCut) => void }) {
+function FeatureTree({ model, onRemoveCut }: { model: ModelState | null; onRemoveCut: (cut: AppliedCut) => void }) {
+  if (!model) {
+    return (
+      <div className="feature-tree" style={{ padding: "18px 12px", textAlign: "center", color: "#8290a2", fontSize: "11px" }}>
+        <span>No 2D drawing loaded</span>
+      </div>
+    );
+  }
   const featureName = model.kind === "jet" ? "Airframe assembly" : model.kind === "imported" ? "Imported profile" : model.title;
   return (
     <div className="feature-tree">
@@ -125,7 +132,25 @@ function UploadStage({ onPickFile, onDropFile, isDragging }: { onPickFile: () =>
   );
 }
 
-function ExportStage({ model, onExport, pendingExport }: { model: ModelState; onExport: (format: ExportKind) => void; pendingExport: string | null }) {
+function ExportStage({ model, onExport, pendingExport }: { model: ModelState | null; onExport: (format: ExportKind) => void; pendingExport: string | null }) {
+  if (!model) {
+    return (
+      <main className="stage-page export-page">
+        <div className="stage-heading">
+          <div>
+            <span className="eyebrow">SPATIAL FORGE / DELIVERABLES</span>
+            <h1>Ready to export.</h1>
+          </div>
+        </div>
+        <div style={{ padding: "48px 24px", textAlign: "center", background: "#1c222b", borderRadius: 10, border: "1px dashed #343f50", color: "#8a96a7", margin: "20px 0" }}>
+          <FileText size={32} style={{ margin: "0 auto 12px", opacity: 0.6 }} />
+          <h3 style={{ color: "#d2dbe6", fontSize: 15, marginBottom: 6 }}>Awaiting 2D CAD Drawing</h3>
+          <p style={{ fontSize: 13, margin: 0 }}>Upload or drop a drawing to generate downloadable CAD deliverables.</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="stage-page export-page">
       <div className="stage-heading"><div><span className="eyebrow">SPATIAL FORGE / DELIVERABLES</span><h1>Ready to export.</h1></div><div className="model-export-summary"><span className="summary-model-icon">{getModelIcon(model.kind, 18)}</span><span><strong>{model.title}</strong><small>{formatNumber(volumeCm3(model))} cm³ · {model.cuts.length} edits</small></span></div></div>
@@ -149,32 +174,39 @@ function ExportStage({ model, onExport, pendingExport }: { model: ModelState; on
 }
 
 export default function Home() {
-  const [model, setModel] = useState<ModelState>(() => createSampleModel("jet"));
-  const [stage, setStage] = useState<Stage>("edit");
+  const [model, setModel] = useState<ModelState | null>(null);
+  const [stage, setStage] = useState<Stage>("upload");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("shaded");
   const [isDragging, setIsDragging] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
   const [reconstructMessage, setReconstructMessage] = useState("Ready to reconstruct");
   const [pendingExport, setPendingExport] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
-  const [sourceName, setSourceName] = useState("F-35A top view · DXF");
-  const [sourceVisible, setSourceVisible] = useState(true);
+  const [sourceName, setSourceName] = useState("");
+  const [sourceVisible, setSourceVisible] = useState(false);
   const [showRailLabels, setShowRailLabels] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const modelRef = useRef(model);
-  const originalModelRef = useRef(cloneModel(model));
+  const modelRef = useRef<ModelState | null>(model);
+  const originalModelRef = useRef<ModelState | null>(null);
   const undoStack = useRef<ModelState[]>([]);
   const redoStack = useRef<ModelState[]>([]);
   const [historyRevision, setHistoryRevision] = useState(0);
   const exportGroupRef = useRef<THREE.Group | null>(null);
   const progressTimers = useRef<number[]>([]);
 
-  const updateModel = useCallback((next: ModelState) => {
+  const updateModel = useCallback((next: ModelState | null) => {
     modelRef.current = next;
     setModel(next);
   }, []);
 
   useEffect(() => {
+    if (!model) {
+      if (exportGroupRef.current) {
+        disposePartGroup(exportGroupRef.current);
+        exportGroupRef.current = null;
+      }
+      return;
+    }
     const group = createPartGroup(model, "solid");
     exportGroupRef.current = group;
     return () => {
@@ -185,31 +217,6 @@ export default function Home() {
 
   useEffect(() => () => {
     progressTimers.current.forEach((timer) => window.clearTimeout(timer));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/v1/sample_cad?case=jet")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        const meshData = (data.meshes && data.meshes.body) || data.mesh;
-        if (meshData?.vertices?.length) {
-          setModel((curr) => {
-            if (curr.kind !== "jet") return curr;
-            const updated = {
-              ...curr,
-              meshData,
-              baseDimensions: { ...curr.dimensions },
-              stepBase64: data.step_base64 || curr.stepBase64,
-              stlBase64: data.stl_base64 || curr.stlBase64,
-            };
-            modelRef.current = updated;
-            originalModelRef.current = cloneModel(updated);
-            return updated;
-          });
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const setActiveModel = useCallback((next: ModelState) => {
@@ -223,6 +230,7 @@ export default function Home() {
 
   const recordEdit = useCallback((mutate: (current: ModelState) => ModelState) => {
     const current = modelRef.current;
+    if (!current) return;
     const next = mutate(cloneModel(current));
     undoStack.current = [...undoStack.current.slice(-39), cloneModel(current)];
     redoStack.current = [];
@@ -231,7 +239,7 @@ export default function Home() {
   }, [updateModel]);
 
   const undo = useCallback(() => {
-    if (!undoStack.current.length) return;
+    if (!undoStack.current.length || !modelRef.current) return;
     redoStack.current = [...redoStack.current, cloneModel(modelRef.current)];
     updateModel(undoStack.current.pop()!);
     setHistoryRevision((revision) => revision + 1);
@@ -239,7 +247,7 @@ export default function Home() {
   }, [updateModel]);
 
   const redo = useCallback(() => {
-    if (!redoStack.current.length) return;
+    if (!redoStack.current.length || !modelRef.current) return;
     undoStack.current = [...undoStack.current, cloneModel(modelRef.current)];
     updateModel(redoStack.current.pop()!);
     setHistoryRevision((revision) => revision + 1);
@@ -247,8 +255,10 @@ export default function Home() {
   }, [updateModel]);
 
   const resetModel = useCallback(() => {
-    setActiveModel(originalModelRef.current);
-    toast("Model restored to the reconstructed version");
+    if (originalModelRef.current) {
+      setActiveModel(originalModelRef.current);
+      toast("Model restored to the reconstructed version");
+    }
   }, [setActiveModel]);
 
   const [currentFile, setCurrentFile] = useState<File | null>(null);
@@ -358,11 +368,17 @@ export default function Home() {
     await new Promise((resolve) => { const timer = window.setTimeout(resolve, 600); progressTimers.current.push(timer); });
     setReconstructMessage("Segmenting views & solving features…");
     await new Promise((resolve) => { const timer = window.setTimeout(resolve, 600); progressTimers.current.push(timer); });
-    updateModel(cloneModel(modelRef.current));
-    setReconstructing(false);
-    setReconstructMessage("Preview ready");
-    setStage("edit");
-    toast.success("3D preview is ready", { description: modelRef.current.title });
+    if (modelRef.current) {
+      updateModel(cloneModel(modelRef.current));
+      setReconstructing(false);
+      setReconstructMessage("Preview ready");
+      setStage("edit");
+      toast.success("3D preview is ready", { description: modelRef.current.title });
+    } else {
+      setReconstructing(false);
+      setReconstructMessage("Ready to reconstruct");
+      toast.error("No drawing selected", { description: "Please upload a DXF or image file first." });
+    }
   }, [reconstructing, currentFile, setActiveModel, updateModel]);
 
   const acceptFile = useCallback((file: File) => {
@@ -441,6 +457,7 @@ export default function Home() {
   }, [setActiveModel]);
 
   const addCut = useCallback((label: string, glyph: string) => {
+    if (!modelRef.current) return;
     const count = modelRef.current.cuts.filter((cut) => cut.glyph === glyph).length + 1;
     const feature: AppliedCut = { id: `${glyph}_${count}`, label: `${label} · ${glyph === "hole" ? "Ø6" : count}`, glyph };
     recordEdit((current) => ({ ...current, cuts: [...current.cuts, feature] }));
@@ -448,25 +465,29 @@ export default function Home() {
   }, [recordEdit]);
 
   const removeCut = useCallback((cut: AppliedCut) => {
+    if (!modelRef.current) return;
     recordEdit((current) => ({ ...current, cuts: current.cuts.filter((item) => item.id !== cut.id) }));
     toast("Feature removed", { description: cut.label });
   }, [recordEdit]);
 
   const toggleOrientation = useCallback(() => {
+    if (!modelRef.current) return;
     recordEdit((current) => ({
       ...current,
       orientation: current.orientation === "vertical" ? "horizontal" : "vertical",
     }));
     toast("Orientation updated", {
-      description: modelRef.current.orientation === "vertical" ? "Oriented horizontal" : "Oriented vertical",
+      description: modelRef.current?.orientation === "vertical" ? "Oriented horizontal" : "Oriented vertical",
     });
   }, [recordEdit]);
 
   const changeDimension = useCallback((key: DimensionKey, delta: number) => {
+    if (!modelRef.current) return;
     recordEdit((current) => ({ ...current, dimensions: { ...current.dimensions, [key]: Math.max(2, current.dimensions[key] + delta) } }));
   }, [recordEdit]);
 
   const scaleModel = useCallback((factor: number) => {
+    if (!modelRef.current) return;
     recordEdit((current) => ({ ...current, dimensions: {
       length: Math.max(2, Math.round(current.dimensions.length * factor)),
       width: Math.max(2, Math.round(current.dimensions.width * factor)),
@@ -477,7 +498,11 @@ export default function Home() {
 
   const exportFile = useCallback(async (format: ExportKind) => {
     const root = exportGroupRef.current;
-    if (!root) return;
+    const currentModel = modelRef.current;
+    if (!root || !currentModel) {
+      toast.error("No model to export", { description: "Please upload and reconstruct a drawing first." });
+      return;
+    }
     setPendingExport(format);
     try {
       let sourceImageData: string | undefined;
@@ -490,10 +515,10 @@ export default function Home() {
           reader.readAsDataURL(sourceBlob);
         });
       }
-      const blob = await makeExport(format, root, modelRef.current, sourceImageData);
-      const stem = modelRef.current.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "spatial-forge-model";
+      const blob = await makeExport(format, root, currentModel, sourceImageData);
+      const stem = currentModel.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "spatial-forge-model";
       downloadBlob(blob, `${stem}.${format}`);
-      toast.success(`${format.toUpperCase()} ready`, { description: modelRef.current.title });
+      toast.success(`${format.toUpperCase()} ready`, { description: currentModel.title });
     } catch (error) {
       console.error("Export failed", error);
       toast.error("Export could not be prepared", { description: "Try again with a different view or format." });
@@ -509,17 +534,20 @@ export default function Home() {
     if (file) acceptFile(file);
   }, [acceptFile]);
 
-  const featureCount = useMemo(() => 1 + (model.kind === "jet" ? 3 : model.kind === "bracket" || model.kind === "wheel" || model.kind === "housing" ? 1 : 0) + model.cuts.length, [model]);
-  const volume = volumeCm3(model);
-  const topologicalStatus = model.needsReview || (model.isImported && !model.iou) ? "NEEDS REVIEW" : "WATERTIGHT";
+  const featureCount = useMemo(() => {
+    if (!model) return 0;
+    return 1 + (model.kind === "jet" ? 3 : model.kind === "bracket" || model.kind === "wheel" || model.kind === "housing" ? 1 : 0) + model.cuts.length;
+  }, [model]);
+  const volume = model ? volumeCm3(model) : 0;
+  const topologicalStatus = !model ? "AWAITING DRAWING" : (model.needsReview || (model.isImported && !model.iou) ? "NEEDS REVIEW" : "WATERTIGHT");
 
   return (
     <div className="app-shell" onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) setIsDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (event.currentTarget === event.target) setIsDragging(false); }} onDrop={onGlobalDrop}>
       <input ref={inputRef} className="visually-hidden" type="file" accept=".dxf,.png,.jpg,.jpeg,.webp" onChange={handleFileInput} />
       <header className="topbar">
-        <div className="topbar-brand"><AppLogo /><span className="topbar-divider" /><span className="breadcrumb-file"><FileText size={14} /><span>{model.fileName}</span><ChevronDown size={13} /></span></div>
+        <div className="topbar-brand"><AppLogo /><span className="topbar-divider" /><span className="breadcrumb-file"><FileText size={14} /><span>{model ? model.fileName : "No drawing loaded"}</span><ChevronDown size={13} /></span></div>
         <nav className="stage-tabs" aria-label="Workflow stages">{stages.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" className={`stage-tab${stage === item.id ? " is-active" : ""}`} onClick={() => setStage(item.id)} aria-current={stage === item.id ? "page" : undefined}><Icon size={14} /><span>{item.label}</span></button>; })}</nav>
-        <div className="topbar-actions"><span className={`status-pill ${topologicalStatus === "NEEDS REVIEW" ? "status-review" : "status-good"}`}><i />{topologicalStatus}</span><button className="button button-open" type="button" onClick={handlePickFile}><Upload size={14} /><span>Open file</span></button><button className="button button-primary button-reconstruct" type="button" onClick={() => void startReconstruction()} disabled={reconstructing}>{reconstructing ? <span className="mini-loader" /> : <WandSparkles size={14} />}<span>{reconstructing ? "Working" : "Reconstruct"}</span></button></div>
+        <div className="topbar-actions"><span className={`status-pill ${!model ? "status-awaiting" : topologicalStatus === "NEEDS REVIEW" ? "status-review" : "status-good"}`}><i />{topologicalStatus}</span><button className="button button-open" type="button" onClick={handlePickFile}><Upload size={14} /><span>Open file</span></button><button className="button button-primary button-reconstruct" type="button" onClick={() => void startReconstruction()} disabled={reconstructing || (!currentFile && !model)}>{reconstructing ? <span className="mini-loader" /> : <WandSparkles size={14} />}<span>{reconstructing ? "Working" : "Reconstruct"}</span></button></div>
       </header>
 
       <div className="application-body" id="workspace">
@@ -531,43 +559,43 @@ export default function Home() {
 
         <section className="main-panel">
           {stage === "edit" && <>
-            <div className="editor-toolbar"><div className="editor-heading"><span className="eyebrow">WORKSPACE / EDIT SOLID</span><span className="editor-active-title">{model.title}<span className="title-divider">/</span><small>{featureCount} features</small></span></div><DisplaySwitcher mode={displayMode} onChange={setDisplayMode} /><div className="toolbar-tools"><button className="icon-button" type="button" title="Fit model to view" aria-label="Fit model to view" onClick={() => window.dispatchEvent(new CustomEvent("spatialforge:reset-view"))}><Maximize size={15} /></button><button className="icon-button" type="button" title="Model information" aria-label="Model information" onClick={() => toast(model.title, { description: `${Math.round(model.dimensions.length)} × ${Math.round(model.dimensions.width)} × ${Math.round(model.dimensions.thickness)} mm` })}><MoreHorizontal size={16} /></button></div></div>
+            <div className="editor-toolbar"><div className="editor-heading"><span className="eyebrow">WORKSPACE / EDIT SOLID</span><span className="editor-active-title">{model ? model.title : "No drawing loaded"}<span className="title-divider">/</span><small>{featureCount} features</small></span></div><DisplaySwitcher mode={displayMode} onChange={setDisplayMode} /><div className="toolbar-tools"><button className="icon-button" type="button" title="Fit model to view" aria-label="Fit model to view" onClick={() => window.dispatchEvent(new CustomEvent("spatialforge:reset-view"))}><Maximize size={15} /></button><button className="icon-button" type="button" title="Model information" aria-label="Model information" onClick={() => model ? toast(model.title, { description: `${Math.round(model.dimensions.length)} × ${Math.round(model.dimensions.width)} × ${Math.round(model.dimensions.thickness)} mm` }) : toast("No drawing loaded")}><MoreHorizontal size={16} /></button></div></div>
             <div className="edit-layout">
               <aside className="feature-panel panel-surface">
                 <div className="panel-heading"><div><span className="eyebrow">MODEL TREE</span><h2>Features <span className="feature-counter">{featureCount.toString().padStart(2, "0")}</span></h2></div><button className="icon-button mini-icon" type="button" aria-label="Collapse feature panel" title="Feature tree"><PanelLeft size={15} /></button></div>
-                <div className="model-identity-card"><span className="identity-glyph">{getModelIcon(model.kind, 20)}</span><div className="identity-copy"><strong>{model.title}</strong><span>{model.isImported ? "Imported profile" : "Reconstructed part"}</span></div><button className="icon-button mini-icon" aria-label="Model options" type="button" onClick={() => toast("Model options", { description: model.fileName })}><MoreHorizontal size={15} /></button></div>
+                <div className="model-identity-card"><span className="identity-glyph">{model ? getModelIcon(model.kind, 20) : <Box size={20} />}</span><div className="identity-copy"><strong>{model ? model.title : "No drawing loaded"}</strong><span>{model ? (model.isImported ? "Imported profile" : "Reconstructed part") : "Upload DXF or image"}</span></div>{model && <button className="icon-button mini-icon" aria-label="Model options" type="button" onClick={() => toast("Model options", { description: model.fileName })}><MoreHorizontal size={15} /></button>}</div>
                 <SectionHead title="Feature tree" trailing={<button className="tree-filter" type="button" aria-label="Filter features" onClick={() => toast("Showing all features")}>⌘  F</button>} />
                 <FeatureTree model={model} onRemoveCut={removeCut} />
-                <SectionHead title="Measured specs" trailing={<button className="icon-button mini-icon" type="button" aria-label="Copy dimensions" onClick={() => { void navigator.clipboard?.writeText(`${model.dimensions.length} × ${model.dimensions.width} × ${model.dimensions.thickness} mm`); toast.success("Dimensions copied"); }}><Copy size={13} /></button>} />
+                <SectionHead title="Measured specs" trailing={<button className="icon-button mini-icon" type="button" aria-label="Copy dimensions" onClick={() => { if (!model) return; void navigator.clipboard?.writeText(`${model.dimensions.length} × ${model.dimensions.width} × ${model.dimensions.thickness} mm`); toast.success("Dimensions copied"); }}><Copy size={13} /></button>} />
                 <div className="measured-specs">
-                  <div><span>Length <i>X</i></span><strong>{Math.round(model.dimensions.length)}<small> mm</small></strong></div>
-                  <div><span>Width <i>Y</i></span><strong>{Math.round(model.dimensions.width)}<small> mm</small></strong></div>
-                  <div><span>Thickness <i>Z</i></span><strong>{Math.round(model.dimensions.thickness)}<small> mm</small></strong></div>
+                  <div><span>Length <i>X</i></span><strong>{model ? Math.round(model.dimensions.length) : 0}<small> mm</small></strong></div>
+                  <div><span>Width <i>Y</i></span><strong>{model ? Math.round(model.dimensions.width) : 0}<small> mm</small></strong></div>
+                  <div><span>Thickness <i>Z</i></span><strong>{model ? Math.round(model.dimensions.thickness) : 0}<small> mm</small></strong></div>
                 </div>
-                <div className="topology-status"><span className="topology-icon"><Check size={13} /></span><span><strong>{topologicalStatus}</strong><small>{model.isImported ? "Preview · verify profile" : "Closed preview surfaces"}</small></span><span className="topology-indicator" /></div>
-                <div className="feature-panel-footer"><span><History size={13} />{model.cuts.length} applied edits</span><span>v1.0</span></div>
+                <div className="topology-status"><span className="topology-icon"><Check size={13} /></span><span><strong>{topologicalStatus}</strong><small>{!model ? "Upload drawing to construct solid" : model.isImported ? "Preview · verify profile" : "Closed preview surfaces"}</small></span><span className="topology-indicator" /></div>
+                <div className="feature-panel-footer"><span><History size={13} />{model ? model.cuts.length : 0} applied edits</span><span>v1.0</span></div>
               </aside>
 
               <section className="viewport-column" aria-label="CAD viewport">
                 <div className="viewport-toolbar"><span className="viewport-label"><span className="viewport-live-dot" />3D VIEWPORT</span><div className="viewport-toolbar-center"><span className="unit-label">MM</span><span className="toolbar-zoom">100%</span></div><button className="view-settings" type="button" onClick={() => toast("Viewport controls", { description: "Drag to orbit · right-drag to pan · scroll to zoom" })}><SlidersHorizontal size={14} /></button></div>
                 <CADViewport model={model} mode={displayMode} onModeChange={setDisplayMode} pictureUrl={sourceUrl} pictureName={sourceName} sourceVisible={sourceVisible} onSourceVisible={setSourceVisible} onSourceClose={() => { setSourceVisible(false); setSourceUrl(null); }} onOrientationToggle={toggleOrientation} />
-                <div className="viewport-footer"><span><Axis3D size={14} /> WORLD AXIS</span><span className="footer-center"><span>VOLUME</span><strong>{formatNumber(volume)}<small> cm³</small></strong></span><span><span className="footer-status-dot" />{model.isImported ? "DRAFT PREVIEW" : "SOLID BODY"}</span></div>
+                <div className="viewport-footer"><span><Axis3D size={14} /> WORLD AXIS</span><span className="footer-center"><span>VOLUME</span><strong>{formatNumber(volume)}<small> cm³</small></strong></span><span><span className="footer-status-dot" />{!model ? "EMPTY" : model.isImported ? "DRAFT PREVIEW" : "SOLID BODY"}</span></div>
               </section>
 
               <aside className="controls-panel panel-surface">
                 <div className="panel-heading controls-heading"><div><span className="eyebrow">DIRECT EDIT</span><h2>Adjust solid</h2></div><span className="controls-mark"><SlidersHorizontal size={16} /></span></div>
                 <div className="control-scroll">
                   <SectionHead title="Scale size" trailing={<span className="step-label">20%</span>} />
-                  <div className="scale-buttons"><button type="button" className="scale-button" onClick={() => scaleModel(1.2)}><span className="scale-icon scale-up"><Plus size={14} /></span><span><strong>Make big</strong><small>Enlarge model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button><button type="button" className="scale-button" onClick={() => scaleModel(0.8)}><span className="scale-icon scale-down"><Minus size={14} /></span><span><strong>Make small</strong><small>Reduce model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button></div>
+                  <div className="scale-buttons"><button type="button" className="scale-button" disabled={!model} onClick={() => scaleModel(1.2)}><span className="scale-icon scale-up"><Plus size={14} /></span><span><strong>Make big</strong><small>Enlarge model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button><button type="button" className="scale-button" disabled={!model} onClick={() => scaleModel(0.8)}><span className="scale-icon scale-down"><Minus size={14} /></span><span><strong>Make small</strong><small>Reduce model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button></div>
                   <SectionHead title="Dimensions" trailing={<span className="units-chip">mm</span>} />
-                  <div className="stepper-list"><Stepper label="Length" axis="X" value={model.dimensions.length} step={5} onChange={(amount) => changeDimension("length", amount)} /><Stepper label="Width" axis="Y" value={model.dimensions.width} step={5} onChange={(amount) => changeDimension("width", amount)} /><Stepper label="Thickness" axis="Z" value={model.dimensions.thickness} step={2} onChange={(amount) => changeDimension("thickness", amount)} /></div>
+                  <div className="stepper-list"><Stepper label="Length" axis="X" value={model ? model.dimensions.length : 0} step={5} onChange={(amount) => changeDimension("length", amount)} /><Stepper label="Width" axis="Y" value={model ? model.dimensions.width : 0} step={5} onChange={(amount) => changeDimension("width", amount)} /><Stepper label="Thickness" axis="Z" value={model ? model.dimensions.thickness : 0} step={2} onChange={(amount) => changeDimension("thickness", amount)} /></div>
                   <div className="volume-readout"><span className="volume-icon"><Gauge size={16} /></span><span><small>SOLID VOLUME</small><strong>{formatNumber(volume)} <i>cm³</i></strong></span><span className="volume-live"><span />LIVE</span></div>
-                  <SectionHead title="Cut parts" trailing={<span className="edit-count">{model.cuts.length.toString().padStart(2, "0")}</span>} />
-                  <div className="cut-grid">{cutOptions.map((cut) => { const Icon = cut.icon; return <button className="cut-button" key={cut.glyph} type="button" onClick={() => addCut(cut.label, cut.glyph)}><Icon size={15} /><span>{cut.label}</span><small>{cut.detail}</small></button>; })}</div>
-                  {model.cuts.length > 0 && <div className="applied-list"><span className="applied-list-label">APPLIED FEATURES</span>{model.cuts.map((cut) => <div key={cut.id} className="applied-cut"><span className="cut-bullet" /><span>{cut.label}</span><button type="button" title={`Remove ${cut.label}`} aria-label={`Remove ${cut.label}`} onClick={() => removeCut(cut)}><X size={13} /></button></div>)}</div>}
-                  {model.cuts.length === 0 && <div className="empty-cuts"><span className="empty-cuts-mark"><Plus size={12} /></span>No cuts applied</div>}
+                  <SectionHead title="Cut parts" trailing={<span className="edit-count">{model ? model.cuts.length.toString().padStart(2, "0") : "00"}</span>} />
+                  <div className="cut-grid">{cutOptions.map((cut) => { const Icon = cut.icon; return <button className="cut-button" key={cut.glyph} type="button" disabled={!model} onClick={() => addCut(cut.label, cut.glyph)}><Icon size={15} /><span>{cut.label}</span><small>{cut.detail}</small></button>; })}</div>
+                  {model && model.cuts.length > 0 && <div className="applied-list"><span className="applied-list-label">APPLIED FEATURES</span>{model.cuts.map((cut) => <div key={cut.id} className="applied-cut"><span className="cut-bullet" /><span>{cut.label}</span><button type="button" title={`Remove ${cut.label}`} aria-label={`Remove ${cut.label}`} onClick={() => removeCut(cut)}><X size={13} /></button></div>)}</div>}
+                  {(!model || model.cuts.length === 0) && <div className="empty-cuts"><span className="empty-cuts-mark"><Plus size={12} /></span>No cuts applied</div>}
                   <div className="history-divider" />
-                  <div className="history-actions"><button type="button" disabled={!undoStack.current.length || historyRevision < 0} onClick={undo}><Undo2 size={15} /><span>Undo</span></button><button type="button" disabled={!redoStack.current.length} onClick={redo}><Redo2 size={15} /><span>Redo</span></button><button type="button" className="history-reset" onClick={resetModel}><RotateCcw size={14} /><span>Reset</span></button></div>
+                  <div className="history-actions"><button type="button" disabled={!undoStack.current.length || historyRevision < 0} onClick={undo}><Undo2 size={15} /><span>Undo</span></button><button type="button" disabled={!redoStack.current.length} onClick={redo}><Redo2 size={15} /><span>Redo</span></button><button type="button" className="history-reset" disabled={!model} onClick={resetModel}><RotateCcw size={14} /><span>Reset</span></button></div>
                 </div>
               </aside>
             </div>
