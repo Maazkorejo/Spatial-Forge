@@ -231,7 +231,7 @@ def process_dxf_bytes(
                 "scale": scale,
                 "dimensions": {"W": w, "D": d, "H": h},
                 "views": {
-                    "front": {"entities": norm_ents, "origin": (0.0, 0.0)},
+                    "front": {"entities": [], "origin": (0.0, 0.0)},
                     "top": {"entities": norm_ents, "origin": (0.0, 0.0)},
                     "right": {"entities": [], "origin": (0.0, 0.0)},
                 },
@@ -395,6 +395,7 @@ def process_dxf_bytes(
             "scale": scale,
             "units": ingested.get("units", "mm"),
             "dimensions": dims,
+            "volume": vol,
             "thickness_info": thickness_info,
             "reprojection": verify_res,
             "parts": parts_payload,

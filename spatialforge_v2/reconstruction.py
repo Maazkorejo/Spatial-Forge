@@ -63,6 +63,98 @@ def _detect_family(registered: Dict[str, Any]) -> str:
     return family
 
 
+def build_containment_profile(
+    loops: List[Polygon],
+    touch_epsilon: float = 0.08
+) -> List[Polygon]:
+    """
+    Constructs 2D solid boundary profiles with holes using a containment tree
+    and the even-odd CAD depth fill rule. Replaces area-ratio classification heuristics.
+    
+    1. Containment tree: for each loop, computes exact point-in-polygon nesting depth.
+    2. Depth parity: even depth (0, 2, ...) = solid material, odd depth (1, 3, ...) = holes.
+    3. Merges same-depth touching or tangent exterior loops using an epsilon-dilation buffer
+       trick to bridge drafting tolerances, then erosively undoes the dilation.
+    4. Differences odd-depth holes from their parent solid bodies.
+    5. Returns genuine disconnected solids as distinct bodies (MultiPolygon unpacked).
+    """
+    if not loops:
+        return []
+
+    # Filter invalid or degenerate zero-area loops
+    clean_loops = [l for l in loops if l is not None and l.is_valid and l.area > 1e-3]
+    if not clean_loops:
+        return []
+
+    # 1. Exact point-in-polygon containment depth
+    depths = []
+    for i, loop_i in enumerate(clean_loops):
+        pt = loop_i.representative_point()
+        depth = 0
+        for j, loop_j in enumerate(clean_loops):
+            if i != j and loop_j.area > loop_i.area:
+                if loop_j.buffer(1e-4).contains(pt):
+                    depth += 1
+        depths.append(depth)
+
+    by_depth: Dict[int, List[Polygon]] = {}
+    for loop, d in zip(clean_loops, depths):
+        by_depth.setdefault(d, []).append(loop)
+
+    def _merge_solids(solids: List[Polygon]) -> List[Polygon]:
+        if not solids:
+            return []
+        buffered = [p.buffer(touch_epsilon) for p in solids if p.is_valid and p.area > 1e-3]
+        if not buffered:
+            return []
+        merged = unary_union(buffered).buffer(-touch_epsilon)
+        if merged.is_empty:
+            return []
+        if merged.geom_type == 'MultiPolygon':
+            return [p for p in merged.geoms if p.is_valid and p.area > 1e-2]
+        elif merged.geom_type == 'Polygon':
+            return [merged] if merged.is_valid and merged.area > 1e-2 else []
+        return []
+
+    # Even depth 0: Outer solid boundary bodies
+    current_solids = _merge_solids(by_depth.get(0, []))
+
+    # Odd depth 1: Holes
+    holes_d1 = by_depth.get(1, [])
+    result_solids = []
+    for s in current_solids:
+        cur = s
+        for h in holes_d1:
+            if cur.intersects(h):
+                diff = cur.difference(h)
+                if not diff.is_empty:
+                    cur = diff
+        if not cur.is_empty:
+            if cur.geom_type == 'MultiPolygon':
+                result_solids.extend(list(cur.geoms))
+            elif cur.geom_type == 'Polygon':
+                result_solids.append(cur)
+
+    # Even depth 2: Islands inside holes
+    if 2 in by_depth:
+        islands = _merge_solids(by_depth[2])
+        holes_d3 = by_depth.get(3, [])
+        for isl in islands:
+            cur = isl
+            for h in holes_d3:
+                if cur.intersects(h):
+                    diff = cur.difference(h)
+                    if not diff.is_empty:
+                        cur = diff
+            if not cur.is_empty:
+                if cur.geom_type == 'MultiPolygon':
+                    result_solids.extend(list(cur.geoms))
+                elif cur.geom_type == 'Polygon':
+                    result_solids.append(cur)
+
+    return result_solids
+
+
 # ---------------------------------------------------------------------------
 # 1. Prismatic 2.5D Feature Reconstruction
 # ---------------------------------------------------------------------------
@@ -164,73 +256,63 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
                     if registered.get("thickness_info") is None:
                         registered["thickness_info"] = {"value_mm": thickness, "source": "measured", "confidence": 0.85}
 
-        circle_radii = []
+        # Collect all 2D closed loops from polylines and circles (no arbitrary classification thresholds)
+        all_loops: List[Polygon] = list(profile_polys)
         for c in circles:
             g = c.get("g", c)
             cx, cy = g["c"][0], g["c"][1]
             r = g["r"]
-            circle_radii.append((cx, cy, r))
-        circle_radii.sort(key=lambda item: item[2], reverse=True)
+            if r > 0.1:
+                c_poly = Point(cx, cy).buffer(r, resolution=32)
+                if c_poly.is_valid and c_poly.area > 0.1:
+                    all_loops.append(c_poly)
 
-        max_circle_area = math.pi * (circle_radii[0][2] ** 2) if circle_radii else 0.0
-        max_poly_area = max([p.area for p in profile_polys]) if profile_polys else 0.0
+        # Topological profile reconstruction using point-in-polygon containment tree & even-odd fill
+        solid_profiles = build_containment_profile(all_loops, touch_epsilon=0.08)
 
-        if circle_radii and (max_circle_area > max_poly_area * 1.5 or not profile_polys):
-            # Circular Flange / Rotor / Pulley / Disc
-            cx_main, cy_main, r_max = circle_radii[0]
-            body = cq.Workplane("XY").circle(r_max).extrude(thickness).translate((cx_main, cy_main, 0))
-            features_detected.append({"type": "disc", "r": round(r_max, 2), "thickness": round(thickness, 2)})
-            for cx, cy, r in circle_radii[1:]:
-                if r < r_max - 0.5:
-                    try:
-                        cyl = cq.Workplane("XY").circle(r).extrude(thickness + 4.0).translate((cx, cy, -2.0))
-                        body = body.cut(cyl)
-                        features_detected.append({"type": "hole_z", "cx": round(cx, 2), "cy": round(cy, 2), "d": round(r * 2.0, 2)})
-                    except Exception:
-                        pass
-        elif profile_polys:
-            unioned = unary_union(profile_polys)
-            if hasattr(unioned, "geom_type") and unioned.geom_type == "Polygon":
-                candidate = unioned
-            elif hasattr(unioned, "geoms"):
-                candidate = max(unioned.geoms, key=lambda p: p.area)
-            else:
-                candidate = max(profile_polys, key=lambda p: p.area)
-
-            ext_coords = list(candidate.exterior.coords)[:-1]
+        for sp in solid_profiles:
+            ext_coords = list(sp.exterior.coords)[:-1]
+            if len(ext_coords) < 3:
+                continue
             try:
-                body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
+                part_body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
             except Exception:
                 try:
-                    poly_clean = candidate.buffer(0)
-                    if hasattr(poly_clean, "exterior"):
-                        ext_coords = list(poly_clean.exterior.coords)[:-1]
-                        body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
+                    clean_sp = sp.buffer(0)
+                    if hasattr(clean_sp, "exterior"):
+                        ext_coords = list(clean_sp.exterior.coords)[:-1]
+                        part_body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
+                    else:
+                        continue
                 except Exception:
-                    body = None
+                    continue
 
-            if body is not None:
-                features_detected.append({"type": "profile_extrusion", "area": round(candidate.area, 2), "thickness": round(thickness, 2)})
+            # Cut interior loops (holes)
+            for interior in sp.interiors:
+                h_coords = list(interior.coords)[:-1]
+                if len(h_coords) < 3:
+                    continue
+                try:
+                    h_cut = cq.Workplane("XY").polyline(h_coords).close().extrude(thickness + 4.0).translate((0, 0, -2.0))
+                    part_body = part_body.cut(h_cut)
+                    features_detected.append({"type": "hole_cut"})
+                except Exception:
+                    pass
 
-                # Cut interior rings (inner loops)
-                for interior in candidate.interiors:
-                    hole_coords = list(interior.coords)[:-1]
-                    try:
-                        hole_cut = cq.Workplane("XY").polyline(hole_coords).close().extrude(thickness + 4.0).translate((0, 0, -2.0))
-                        body = body.cut(hole_cut)
-                        features_detected.append({"type": "inner_loop_cut"})
-                    except Exception:
-                        pass
+            if body is None:
+                body = part_body
+            else:
+                try:
+                    body = body.union(part_body)
+                except Exception:
+                    pass
 
-                # Cut circular through-holes
-                for cx, cy, r in circle_radii:
-                    if candidate.contains(Point(cx, cy)) or candidate.distance(Point(cx, cy)) < 1e-3:
-                        try:
-                            cyl = cq.Workplane("XY").circle(r).extrude(thickness + 4.0).translate((cx, cy, -2.0))
-                            body = body.cut(cyl)
-                            features_detected.append({"type": "hole_z", "cx": round(cx, 2), "cy": round(cy, 2), "d": round(r * 2.0, 2)})
-                        except Exception:
-                            pass
+        if body is not None:
+            features_detected.append({
+                "type": "containment_profile_extrusion",
+                "solids": len(solid_profiles),
+                "thickness": round(thickness, 2)
+            })
 
     if body is None:
         # Fallback to bounding box footprint

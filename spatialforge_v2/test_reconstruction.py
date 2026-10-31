@@ -13,7 +13,7 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 if CUR_DIR not in sys.path:
     sys.path.insert(0, CUR_DIR)
 
-BENCHMARK_DIR = os.path.abspath(os.path.join(CUR_DIR, "..", "..", "drawing_gen", "drawing_gen"))
+BENCHMARK_DIR = os.path.abspath(os.path.join(CUR_DIR, "..", "drawing_gen", "drawing_gen"))
 if BENCHMARK_DIR not in sys.path:
     sys.path.insert(0, BENCHMARK_DIR)
 
