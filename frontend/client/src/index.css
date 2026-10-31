@@ -495,9 +495,160 @@ body,
 .app-shell,
 .application-body,
 .main-panel { background-color: #bac3ce; }
-.topbar,
-.nav-rail { background-color: #c3cbd5; }
-.editor-toolbar { background-color: #c8d0da; }
+/* Full 2D CAD technical drawing sheet modal */
+.blueprint-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 24, 32, 0.88);
+  backdrop-filter: blur(8px);
+  animation: fade-in 0.18s ease-out;
+}
+.blueprint-modal {
+  position: relative;
+  width: min(94vw, 1380px);
+  height: min(92vh, 920px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #4a5a70;
+  border-radius: 14px;
+  background: #171d26;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.blueprint-modal-header {
+  height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #2b3646;
+  background: #1e2633;
+  color: #ccd6e4;
+}
+.blueprint-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2eaf5;
+}
+.blueprint-modal-title span.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid #405574;
+  border-radius: 4px;
+  color: #8da4ca;
+  background: #253347;
+  font-size: 9px;
+}
+.blueprint-modal-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.blueprint-modal-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #364457;
+  border-radius: 6px;
+  color: #a2b2c9;
+  background: #222b3a;
+  transition: all 0.15s ease;
+}
+.blueprint-modal-tool:hover {
+  color: #e8f0fe;
+  border-color: #55719d;
+  background: #2c384c;
+}
+.blueprint-modal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 24px;
+  background: #11151c;
+  background-image: radial-gradient(circle, #1a222d 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.blueprint-modal-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 1px solid #2e3a4b;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: #ffffff;
+  transition: transform 0.15s ease-out;
+}
+.blueprint-modal-footer {
+  height: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-top: 1px solid #283342;
+  background: #19202b;
+  color: #7b8c9f;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+.pip-expand-btn {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  color: #8794a5;
+  background: transparent;
+}
+.pip-expand-btn:hover {
+  color: #385fae;
+  background: #dce3eb;
+}
+.pip-source-clickable {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.pip-source-clickable:hover {
+  filter: brightness(1.04);
+}
+.full-2d-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 27px;
+  padding: 0 9px;
+  border: 1px solid #4a5a72;
+  border-radius: 6px;
+  color: #b9cadf;
+  background: rgba(30, 40, 54, 0.86);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  transition: all 0.16s ease;
+}
+.full-2d-pill:hover {
+  color: #f0f5fc;
+  border-color: #6d8bb9;
+  background: rgba(43, 58, 78, 0.95);
+}
 .panel-surface,
 .feature-panel.panel-surface,
 .controls-panel.panel-surface,

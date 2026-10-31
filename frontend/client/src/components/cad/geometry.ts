@@ -1,8 +1,55 @@
 import * as THREE from "three";
-import type { AppliedCut, DisplayMode, ModelKind, ModelState } from "./types";
+import type { AppliedCut, BackendMeshData, Dimensions, DisplayMode, ModelKind, ModelState } from "./types";
 
 const shellColor = new THREE.Color("#a9bdd8");
 const edgeColor = new THREE.Color("#566984");
+
+function geometryFromMeshData(meshData: BackendMeshData, targetDimensions: Dimensions, baseDimensions?: Dimensions): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  const verts = meshData.vertices;
+  const faces = meshData.faces;
+
+  const positions = new Float32Array(verts.length * 3);
+  for (let i = 0; i < verts.length; i++) {
+    positions[i * 3] = verts[i][0];
+    positions[i * 3 + 1] = verts[i][1];
+    positions[i * 3 + 2] = verts[i][2];
+  }
+
+  const indices = new Uint32Array(faces.length * 3);
+  for (let i = 0; i < faces.length; i++) {
+    indices[i * 3] = faces[i][0];
+    indices[i * 3 + 1] = faces[i][1];
+    indices[i * 3 + 2] = faces[i][2];
+  }
+
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+
+  const bb = geometry.boundingBox || new THREE.Box3();
+  const centerX = (bb.min.x + bb.max.x) / 2;
+  const centerY = bb.min.y;
+  const centerZ = (bb.min.z + bb.max.z) / 2;
+
+  geometry.translate(-centerX, -centerY, -centerZ);
+
+  const baseL = baseDimensions?.length || targetDimensions.length;
+  const baseW = baseDimensions?.width || targetDimensions.width;
+  const baseT = baseDimensions?.thickness || targetDimensions.thickness;
+
+  const scaleX = baseW > 0 ? targetDimensions.width / baseW : 1;
+  const scaleY = baseT > 0 ? targetDimensions.thickness / baseT : 1;
+  const scaleZ = baseL > 0 ? targetDimensions.length / baseL : 1;
+
+  if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001 || Math.abs(scaleZ - 1) > 0.001) {
+    geometry.scale(scaleX, scaleY, scaleZ);
+    geometry.computeVertexNormals();
+  }
+
+  return geometry;
+}
 
 function sheetGeometry(outline: Array<[number, number]>, height: number, holes: Array<[number, number, number]> = []) {
   const shape = new THREE.Shape();
@@ -170,6 +217,15 @@ export function createPartGroup(model: ModelState, mode: DisplayMode) {
   const group = new THREE.Group();
   group.name = model.title;
   const { length, width, thickness } = model.dimensions;
+
+  if (model.meshData && model.meshData.vertices?.length && model.meshData.faces?.length) {
+    const geom = geometryFromMeshData(model.meshData, model.dimensions, model.baseDimensions);
+    addMesh(group, geom, mode);
+    addCutMarkers(group, model, mode);
+    group.userData.dimensions = { length, width, thickness };
+    return group;
+  }
+
   const sheet = makeSheet(model);
   if (sheet) addMesh(group, sheet, mode);
   if (model.kind === "jet") addFins(group, model, mode);

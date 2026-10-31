@@ -105,7 +105,7 @@ function FeatureTree({ model, onRemoveCut }: { model: ModelState; onRemoveCut: (
   );
 }
 
-function UploadStage({ onPickFile, onSample, onDropFile, isDragging }: { onPickFile: () => void; onSample: (kind: ModelKind) => void; onDropFile: (file: File) => void; isDragging: boolean }) {
+function UploadStage({ onPickFile, onDropFile, isDragging }: { onPickFile: () => void; onDropFile: (file: File) => void; isDragging: boolean }) {
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
@@ -120,16 +120,7 @@ function UploadStage({ onPickFile, onSample, onDropFile, isDragging }: { onPickF
         <button className="button button-primary button-browse" type="button" onClick={onPickFile}><FileUp size={15} />Choose drawing</button>
         <div className="file-types"><span>DXF</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>
       </div>
-      <div className="library-header"><SectionHead title="Sample parts" trailing={<span className="library-count">07 READY</span>} /><span className="library-subhead">Open a model to explore the workspace</span></div>
-      <div className="sample-grid">
-        {sampleParts.map((sample, index) => (
-          <button key={sample.kind} type="button" className={`sample-card${index === 0 ? " sample-card-featured" : ""}`} onClick={() => onSample(sample.kind)}>
-            {index === 0 ? <img className="sample-image" src="/manus-storage/f35-at-edwards_55179e54.jpg" alt="F-35 Lightning II in flight" loading="lazy" onError={(event) => { if (!event.currentTarget.src.endsWith("f35-at-edwards.jpg")) event.currentTarget.src = "/f35-at-edwards.jpg"; }} /> : <span className={`sample-glyph sample-glyph-${sample.kind}`} style={{ "--sample-accent": sample.accent } as React.CSSProperties}>{getModelIcon(sample.kind, 25)}</span>}
-            <span className="sample-detail"><strong>{sample.title}</strong><small>{sample.detail}</small></span><ArrowUpRight size={15} className="sample-arrow" />
-          </button>
-        ))}
-      </div>
-      <div className="stage-footnote"><ShieldCheck size={15} /> Browser preview · no file leaves this workspace</div>
+      <div className="stage-footnote" style={{ marginTop: 32 }}><ShieldCheck size={15} /> Browser preview · no file leaves this workspace</div>
     </main>
   );
 }
@@ -196,9 +187,30 @@ export default function Home() {
     progressTimers.current.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
-  useEffect(() => () => {
-    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-  }, [sourceUrl]);
+  useEffect(() => {
+    fetch("/api/v1/sample_cad?case=jet")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const meshData = (data.meshes && data.meshes.body) || data.mesh;
+        if (meshData?.vertices?.length) {
+          setModel((curr) => {
+            if (curr.kind !== "jet") return curr;
+            const updated = {
+              ...curr,
+              meshData,
+              baseDimensions: { ...curr.dimensions },
+              stepBase64: data.step_base64 || curr.stepBase64,
+              stlBase64: data.stl_base64 || curr.stlBase64,
+            };
+            modelRef.current = updated;
+            originalModelRef.current = cloneModel(updated);
+            return updated;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const setActiveModel = useCallback((next: ModelState) => {
     const copy = cloneModel(next);
@@ -281,24 +293,30 @@ export default function Home() {
           targetKind = "butterfly";
         }
 
+        const meshData = (data.meshes && data.meshes.body) || data.mesh || (data.meshes && Object.values(data.meshes)[0]);
         const dims = data.dimensions || {};
+        const parsedDimensions = {
+          length: Math.max(5, Math.round(Number(dims.length || dims.H || (dims.W && dims.H ? dims.H : 120)))),
+          width: Math.max(5, Math.round(Number(dims.width || dims.W || 80))),
+          thickness: Math.max(2, Math.round(Number(dims.thickness || dims.D || 16))),
+        };
+
         const newModel: ModelState = {
           kind: targetKind,
           title: data.object_class || data.name || file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Reconstructed Solid",
           fileName: file.name,
-          dimensions: {
-            length: Math.max(5, Math.round(Number(dims.length || dims.H || 120))),
-            width: Math.max(5, Math.round(Number(dims.width || dims.W || 80))),
-            thickness: Math.max(2, Math.round(Number(dims.thickness || dims.D || 16))),
-          },
+          dimensions: parsedDimensions,
+          baseDimensions: { ...parsedDimensions },
           cuts: [],
           isImported: Boolean(data.needs_review || targetKind === "imported"),
           stepBase64: data.step_base64,
           stlBase64: data.stl_base64,
+          glbBase64: data.glb_base64,
           iou: data.iou,
           confidence: data.confidence,
           fidelity: data.fidelity,
           needsReview: data.needs_review,
+          meshData: meshData?.vertices?.length ? meshData : undefined,
         };
 
         setActiveModel(newModel);
@@ -393,8 +411,15 @@ export default function Home() {
       const res = await fetch(`/api/v1/sample_cad?case=${kind}`);
       if (res.ok) {
         const data = await res.json();
+        const meshData = (data.meshes && data.meshes.body) || data.mesh || (data.meshes && Object.values(data.meshes)[0]);
         setActiveModel((current) => ({
           ...current,
+          meshData: meshData?.vertices?.length ? meshData : current.meshData,
+          baseDimensions: data.dimensions ? {
+            length: Math.max(5, Math.round(Number(data.dimensions.length || current.dimensions.length))),
+            width: Math.max(5, Math.round(Number(data.dimensions.width || current.dimensions.width))),
+            thickness: Math.max(2, Math.round(Number(data.dimensions.thickness || current.dimensions.thickness))),
+          } : current.baseDimensions,
           stepBase64: data.step_base64 || current.stepBase64,
           stlBase64: data.stl_base64 || current.stlBase64,
           iou: data.iou,
@@ -537,7 +562,7 @@ export default function Home() {
             </div>
           </>}
 
-          {stage === "upload" && <UploadStage onPickFile={handlePickFile} onSample={pickSample} onDropFile={acceptFile} isDragging={isDragging} />}
+          {stage === "upload" && <UploadStage onPickFile={handlePickFile} onDropFile={acceptFile} isDragging={isDragging} />}
           {stage === "export" && <ExportStage model={model} onExport={exportFile} pendingExport={pendingExport} />}
         </section>
       </div>

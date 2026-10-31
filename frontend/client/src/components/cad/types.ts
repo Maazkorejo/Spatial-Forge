@@ -14,6 +14,11 @@ export type AppliedCut = {
   glyph: string;
 };
 
+export type BackendMeshData = {
+  vertices: number[][]; // [x, y, z]
+  faces: number[][];    // [a, b, c]
+};
+
 export type ModelState = {
   kind: ModelKind;
   title: string;
@@ -23,10 +28,13 @@ export type ModelState = {
   isImported?: boolean;
   stepBase64?: string;
   stlBase64?: string;
+  glbBase64?: string;
   iou?: number;
   confidence?: number;
   fidelity?: string;
   needsReview?: boolean;
+  meshData?: BackendMeshData;
+  baseDimensions?: Dimensions;
 };
 
 export type SamplePart = {
@@ -94,5 +102,10 @@ export function createImportedModel(fileName: string, byteLength: number): Model
 }
 
 export function cloneModel(model: ModelState): ModelState {
-  return { ...model, dimensions: { ...model.dimensions }, cuts: model.cuts.map((cut) => ({ ...cut })) };
+  return {
+    ...model,
+    dimensions: { ...model.dimensions },
+    baseDimensions: model.baseDimensions ? { ...model.baseDimensions } : undefined,
+    cuts: model.cuts.map((cut) => ({ ...cut })),
+  };
 }

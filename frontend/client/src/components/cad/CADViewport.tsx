@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { useEffect, useRef } from "react";
-import { Eye, EyeOff, Maximize2, Minus, RotateCcw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Eye, EyeOff, FileText, Maximize2, Minus, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { createPartGroup, disposePartGroup } from "./geometry";
 import type { DisplayMode, ModelState } from "./types";
 
@@ -67,6 +67,18 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
   const sceneHandleRef = useRef<SceneHandle | null>(null);
   const resetRef = useRef<() => void>(() => undefined);
   const modelTitleRef = useRef<string | null>(null);
+  const [full2DOpen, setFull2DOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && full2DOpen) {
+        setFull2DOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [full2DOpen]);
 
   useEffect(() => {
     const resetFromToolbar = () => resetRef.current();
@@ -195,15 +207,136 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
       <div className="viewport-tools-hint"><span className="hint-key">LMB</span> orbit <span className="hint-divider" /><span className="hint-key">RMB</span> pan <span className="hint-divider" /><span className="hint-key">⌘</span> zoom</div>
       <button className="viewport-reset icon-button" type="button" aria-label="Reset view" title="Reset view" onClick={() => resetRef.current()}><RotateCcw size={15} /></button>
 
+      {pictureUrl && (
+        <button
+          className="full-2d-pill"
+          type="button"
+          title="Open full 2D CAD technical drawing sheet"
+          aria-label="Open full 2D CAD technical drawing sheet"
+          onClick={() => setFull2DOpen(true)}
+          style={{ position: "absolute", top: 10, left: 140, zIndex: 3 }}
+        >
+          <FileText size={12} />
+          <span>Full 2D CAD</span>
+        </button>
+      )}
+
       {sourceVisible ? (
         <section className="blueprint-pip" aria-label="Source drawing picture in picture">
-          <header className="blueprint-pip-header"><span><span className="pip-status" />2D DRAWING</span><div><button className="pip-tool" type="button" title="Minimize drawing" aria-label="Minimize drawing" onClick={() => onSourceVisible(false)}><Minus size={13} /></button><button className="pip-tool" type="button" title="Close drawing" aria-label="Close drawing" onClick={onSourceClose}><X size={13} /></button></div></header>
-          {pictureUrl ? <img className="pip-source-image" src={pictureUrl} alt={`Uploaded source drawing ${pictureName}`} /> : <BlueprintSketch model={model} />}
-          <footer className="blueprint-pip-footer"><span>{pictureName}</span><span>{model.dimensions.length} × {model.dimensions.width} mm</span></footer>
+          <header className="blueprint-pip-header">
+            <span><span className="pip-status" />2D DRAWING</span>
+            <div>
+              <button
+                className="pip-expand-btn"
+                type="button"
+                title="View full 2D CAD drawing"
+                aria-label="View full 2D CAD drawing"
+                onClick={() => setFull2DOpen(true)}
+              >
+                <Maximize2 size={13} />
+              </button>
+              <button className="pip-tool" type="button" title="Minimize drawing" aria-label="Minimize drawing" onClick={() => onSourceVisible(false)}><Minus size={13} /></button>
+              <button className="pip-tool" type="button" title="Close drawing" aria-label="Close drawing" onClick={onSourceClose}><X size={13} /></button>
+            </div>
+          </header>
+          <div
+            className="pip-source-clickable"
+            title="Click to view full-resolution 2D CAD technical drawing"
+            onClick={() => setFull2DOpen(true)}
+          >
+            {pictureUrl ? <img className="pip-source-image" src={pictureUrl} alt={`Uploaded source drawing ${pictureName}`} /> : <BlueprintSketch model={model} />}
+          </div>
+          <footer className="blueprint-pip-footer">
+            <span>{pictureName}</span>
+            <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => setFull2DOpen(true)}>View full</span>
+          </footer>
         </section>
       ) : (
         <button className="show-drawing-pill" type="button" onClick={() => onSourceVisible(true)}><Eye size={14} /> Show 2D drawing</button>
       )}
+
+      {full2DOpen && (
+        <div className="blueprint-modal-backdrop" onClick={() => setFull2DOpen(false)}>
+          <div className="blueprint-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="blueprint-modal-header">
+              <div className="blueprint-modal-title">
+                <FileText size={16} />
+                <span>2D CAD TECHNICAL DRAWING</span>
+                <span className="badge">{pictureName}</span>
+                <span className="badge">{Math.round(model.dimensions.length)} × {Math.round(model.dimensions.width)} mm</span>
+              </div>
+              <div className="blueprint-modal-tools">
+                <button
+                  type="button"
+                  className="blueprint-modal-tool"
+                  title="Zoom in (+)"
+                  aria-label="Zoom in"
+                  onClick={() => setZoomLevel((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))))}
+                >
+                  <ZoomIn size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="blueprint-modal-tool"
+                  title="Zoom out (-)"
+                  aria-label="Zoom out"
+                  onClick={() => setZoomLevel((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                >
+                  <ZoomOut size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="blueprint-modal-tool"
+                  title="Reset zoom (1:1)"
+                  aria-label="Reset zoom"
+                  onClick={() => setZoomLevel(1)}
+                >
+                  <RotateCcw size={14} />
+                </button>
+                {pictureUrl && (
+                  <a
+                    className="blueprint-modal-tool"
+                    title="Download 2D CAD image"
+                    aria-label="Download 2D CAD image"
+                    href={pictureUrl}
+                    download={pictureName || "technical-drawing.png"}
+                  >
+                    <Download size={14} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="blueprint-modal-tool"
+                  title="Close (Esc)"
+                  aria-label="Close modal"
+                  onClick={() => setFull2DOpen(false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </header>
+            <div className="blueprint-modal-body">
+              {pictureUrl ? (
+                <img
+                  className="blueprint-modal-image"
+                  src={pictureUrl}
+                  alt={`Full technical drawing ${pictureName}`}
+                  style={{ transform: `scale(${zoomLevel})` }}
+                />
+              ) : (
+                <div style={{ width: "90%", maxWidth: 880, transform: `scale(${zoomLevel})` }}>
+                  <BlueprintSketch model={model} />
+                </div>
+              )}
+            </div>
+            <footer className="blueprint-modal-footer">
+              <span>Zoom: {Math.round(zoomLevel * 100)}% · Use scrollbars or trackpad to pan</span>
+              <span>SpatialForge Blueprint Inspector · 1st / 3rd Angle Orthographic</span>
+            </footer>
+          </div>
+        </div>
+      )}
+
       <button className="viewport-fullscreen icon-button" type="button" title="Focus viewport" aria-label="Focus viewport" onClick={() => containerRef.current?.requestFullscreen?.()}><Maximize2 size={15} /></button>
       {pictureUrl && <span className="viewport-source-indicator"><EyeOff size={12} /> Local source</span>}
     </div>
