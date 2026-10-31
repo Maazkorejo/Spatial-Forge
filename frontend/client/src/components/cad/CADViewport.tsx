@@ -87,6 +87,9 @@ export function CADViewport({
   const [internalAutoRotate, setInternalAutoRotate] = useState(false);
 
   const isAutoRotate = propAutoRotate !== undefined ? propAutoRotate : internalAutoRotate;
+  const autoRotateRef = useRef(isAutoRotate);
+  autoRotateRef.current = isAutoRotate;
+
   const toggleAutoRotate = () => {
     if (onAutoRotateToggle) {
       onAutoRotateToggle();
@@ -99,14 +102,7 @@ export function CADViewport({
     const handleToggle = () => toggleAutoRotate();
     window.addEventListener("spatialforge:toggle-auto-rotate", handleToggle);
     return () => window.removeEventListener("spatialforge:toggle-auto-rotate", handleToggle);
-  }, [toggleAutoRotate]);
-
-  useEffect(() => {
-    if (sceneHandleRef.current) {
-      sceneHandleRef.current.controls.autoRotate = isAutoRotate;
-      sceneHandleRef.current.controls.autoRotateSpeed = 2.2;
-    }
-  }, [isAutoRotate]);
+  }, [onAutoRotateToggle]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -175,11 +171,13 @@ export function CADViewport({
     controls.minDistance = 30;
     controls.maxDistance = 1100;
     controls.maxPolarAngle = Math.PI * 0.49;
-    controls.autoRotate = isAutoRotate;
-    controls.autoRotateSpeed = 2.2;
+    controls.autoRotate = false;
     const resetView = () => {
       const state = sceneHandleRef.current;
       if (!state) return;
+      if (state.partGroup) {
+        state.partGroup.rotation.y = 0;
+      }
       const dims = state.partGroup?.userData.dimensions ?? { length: 120, width: 80, thickness: 24 };
       const span = Math.max(dims.length, dims.width, dims.thickness);
       state.camera.position.set(span * 1.25, span * 1.45, span * 1.5);
@@ -204,6 +202,16 @@ export function CADViewport({
 
     let frameId = 0;
     const renderFrame = () => {
+      if (autoRotateRef.current) {
+        if (handle.partGroup) {
+          handle.partGroup.rotation.y += 0.012;
+        } else {
+          const offset = camera.position.clone().sub(controls.target);
+          offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.012);
+          camera.position.copy(controls.target).add(offset);
+          camera.lookAt(controls.target);
+        }
+      }
       controls.update();
       renderer.render(scene, camera);
       frameId = window.requestAnimationFrame(renderFrame);
@@ -228,6 +236,7 @@ export function CADViewport({
   useEffect(() => {
     const handle = sceneHandleRef.current;
     if (!handle) return;
+    const prevRotationY = handle.partGroup ? handle.partGroup.rotation.y : 0;
     if (handle.partGroup) {
       handle.scene.remove(handle.partGroup);
       disposePartGroup(handle.partGroup);
@@ -238,6 +247,7 @@ export function CADViewport({
       return;
     }
     const nextGroup = createPartGroup(model, mode);
+    nextGroup.rotation.y = prevRotationY;
     handle.partGroup = nextGroup;
     handle.scene.add(nextGroup);
     if (modelTitleRef.current !== model.title) handle.resetView();
