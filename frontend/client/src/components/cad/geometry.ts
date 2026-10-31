@@ -4,7 +4,14 @@ import type { AppliedCut, BackendMeshData, Dimensions, DisplayMode, ModelKind, M
 const shellColor = new THREE.Color("#a9bdd8");
 const edgeColor = new THREE.Color("#566984");
 
-function geometryFromMeshData(meshData: BackendMeshData, targetDimensions: Dimensions, baseDimensions?: Dimensions): THREE.BufferGeometry {
+function geometryFromMeshData(
+  meshData: BackendMeshData,
+  targetDimensions: Dimensions,
+  baseDimensions?: Dimensions,
+  modelKind?: ModelKind,
+  title?: string,
+  orientation: "horizontal" | "vertical" | "auto" = "auto"
+): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   const verts = meshData.vertices;
   const faces = meshData.faces;
@@ -28,24 +35,68 @@ function geometryFromMeshData(meshData: BackendMeshData, targetDimensions: Dimen
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
 
+  const bbRaw = geometry.boundingBox || new THREE.Box3();
+  const rawX = bbRaw.max.x - bbRaw.min.x;
+  const rawY = bbRaw.max.y - bbRaw.min.y;
+  const rawZ = bbRaw.max.z - bbRaw.min.z;
+
+  const isAerodynamicOrHorizontal =
+    modelKind === "jet" ||
+    modelKind === "wing" ||
+    modelKind === "butterfly" ||
+    modelKind === "bracket" ||
+    /jet|plane|fighter|f35|f-35|wing|airfoil|plate|bracket|butterfly|chassis|aerodynamic/i.test(title || "");
+
+  // AI Orientation Logic:
+  // In 2D CAD technical drawings, views are commonly drawn in portrait (length along Y, thickness along Z).
+  // If the object is aerodynamic/planar or standing upright (rawY > rawZ * 1.25),
+  // it is meant to be horizontal on the ground plane (XZ), NOT standing on its tail!
+  const isStandingUpright = rawY > rawZ * 1.25 && (rawY >= rawX * 0.7 || isAerodynamicOrHorizontal);
+  const shouldBeHorizontal =
+    orientation === "horizontal" ||
+    (orientation !== "vertical" && (isAerodynamicOrHorizontal || isStandingUpright));
+
+  if (shouldBeHorizontal && isStandingUpright) {
+    geometry.rotateX(-Math.PI / 2);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+  } else if (orientation === "vertical" && !isStandingUpright && isAerodynamicOrHorizontal) {
+    geometry.rotateX(Math.PI / 2);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+  }
+
+  // Centering rule: everything must be centered in the very middle, not left or right!
+  geometry.computeBoundingBox();
   const bb = geometry.boundingBox || new THREE.Box3();
   const centerX = (bb.min.x + bb.max.x) / 2;
-  const centerY = bb.min.y;
   const centerZ = (bb.min.z + bb.max.z) / 2;
+  const minY = bb.min.y;
 
-  geometry.translate(-centerX, -centerY, -centerZ);
+  // Center horizontally on X and Z; ground base cleanly on Y = 0
+  geometry.translate(-centerX, -minY, -centerZ);
+  geometry.computeBoundingBox();
 
-  const baseL = baseDimensions?.length || targetDimensions.length;
-  const baseW = baseDimensions?.width || targetDimensions.width;
-  const baseT = baseDimensions?.thickness || targetDimensions.thickness;
+  const postBB = geometry.boundingBox || new THREE.Box3();
+  const curW = postBB.max.x - postBB.min.x || 1;
+  const curT = postBB.max.y - postBB.min.y || 1;
+  const curL = postBB.max.z - postBB.min.z || 1;
+
+  const baseL = baseDimensions?.length || curL;
+  const baseW = baseDimensions?.width || curW;
+  const baseT = baseDimensions?.thickness || curT;
 
   const scaleX = baseW > 0 ? targetDimensions.width / baseW : 1;
   const scaleY = baseT > 0 ? targetDimensions.thickness / baseT : 1;
   const scaleZ = baseL > 0 ? targetDimensions.length / baseL : 1;
 
+  // Parametric scaling varies symmetrically outwards from the center origin (0, 0, 0)
   if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001 || Math.abs(scaleZ - 1) > 0.001) {
     geometry.scale(scaleX, scaleY, scaleZ);
     geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    const scaledBB = geometry.boundingBox || new THREE.Box3();
+    geometry.translate(0, -scaledBB.min.y, 0);
   }
 
   return geometry;
@@ -219,7 +270,14 @@ export function createPartGroup(model: ModelState, mode: DisplayMode) {
   const { length, width, thickness } = model.dimensions;
 
   if (model.meshData && model.meshData.vertices?.length && model.meshData.faces?.length) {
-    const geom = geometryFromMeshData(model.meshData, model.dimensions, model.baseDimensions);
+    const geom = geometryFromMeshData(
+      model.meshData,
+      model.dimensions,
+      model.baseDimensions,
+      model.kind,
+      model.title,
+      model.orientation
+    );
     addMesh(group, geom, mode);
     addCutMarkers(group, model, mode);
     group.userData.dimensions = { length, width, thickness };
@@ -227,7 +285,12 @@ export function createPartGroup(model: ModelState, mode: DisplayMode) {
   }
 
   const sheet = makeSheet(model);
-  if (sheet) addMesh(group, sheet, mode);
+  if (sheet) {
+    sheet.computeBoundingBox();
+    const sbb = sheet.boundingBox || new THREE.Box3();
+    sheet.translate(-(sbb.min.x + sbb.max.x) / 2, -sbb.min.y, -(sbb.min.z + sbb.max.z) / 2);
+    addMesh(group, sheet, mode);
+  }
   if (model.kind === "jet") addFins(group, model, mode);
   if (model.kind === "shaft") addShaft(group, model, mode);
   if (model.kind === "wheel") addWheel(group, model, mode);

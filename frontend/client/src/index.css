@@ -649,6 +649,33 @@ body,
   border-color: #6d8bb9;
   background: rgba(43, 58, 78, 0.95);
 }
+.orientation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 9px;
+  border: 1px solid #4a5a72;
+  border-radius: 6px;
+  color: #b9cadf;
+  background: rgba(30, 40, 54, 0.86);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  transition: all 0.16s ease;
+  cursor: pointer;
+}
+.orientation-pill:hover {
+  color: #f0f5fc;
+  border-color: #6d8bb9;
+  background: rgba(43, 58, 78, 0.95);
+}
+.orientation-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #5da0e8;
+}
 .panel-surface,
 .feature-panel.panel-surface,
 .controls-panel.panel-surface,

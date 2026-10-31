@@ -20,6 +20,7 @@ type CADViewportProps = {
   sourceVisible: boolean;
   onSourceVisible: (visible: boolean) => void;
   onSourceClose: () => void;
+  onOrientationToggle?: () => void;
 };
 
 type SceneHandle = {
@@ -62,7 +63,7 @@ function disposeScene(handle: SceneHandle) {
   handle.renderer.domElement.remove();
 }
 
-export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName, sourceVisible, onSourceVisible, onSourceClose }: CADViewportProps) {
+export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName, sourceVisible, onSourceVisible, onSourceClose, onOrientationToggle }: CADViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneHandleRef = useRef<SceneHandle | null>(null);
   const resetRef = useRef<() => void>(() => undefined);
@@ -220,6 +221,18 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
           <span>Full 2D CAD</span>
         </button>
       )}
+
+      <button
+        className="orientation-pill"
+        type="button"
+        title="Toggle Horizontal / Vertical orientation (AI automatic default: Horizontal)"
+        aria-label="Toggle orientation"
+        onClick={onOrientationToggle}
+        style={{ position: "absolute", top: 10, left: pictureUrl ? 245 : 140, zIndex: 3 }}
+      >
+        <span className="orientation-dot" />
+        <span>{model.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
+      </button>
 
       {sourceVisible ? (
         <section className="blueprint-pip" aria-label="Source drawing picture in picture">

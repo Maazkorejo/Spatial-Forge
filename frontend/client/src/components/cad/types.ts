@@ -35,6 +35,7 @@ export type ModelState = {
   needsReview?: boolean;
   meshData?: BackendMeshData;
   baseDimensions?: Dimensions;
+  orientation?: "horizontal" | "vertical" | "auto";
 };
 
 export type SamplePart = {

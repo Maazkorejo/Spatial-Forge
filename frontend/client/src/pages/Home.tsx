@@ -317,6 +317,7 @@ export default function Home() {
           fidelity: data.fidelity,
           needsReview: data.needs_review,
           meshData: meshData?.vertices?.length ? meshData : undefined,
+          orientation: "horizontal",
         };
 
         setActiveModel(newModel);
@@ -451,6 +452,16 @@ export default function Home() {
     toast("Feature removed", { description: cut.label });
   }, [recordEdit]);
 
+  const toggleOrientation = useCallback(() => {
+    recordEdit((current) => ({
+      ...current,
+      orientation: current.orientation === "vertical" ? "horizontal" : "vertical",
+    }));
+    toast("Orientation updated", {
+      description: modelRef.current.orientation === "vertical" ? "Oriented horizontal" : "Oriented vertical",
+    });
+  }, [recordEdit]);
+
   const changeDimension = useCallback((key: DimensionKey, delta: number) => {
     recordEdit((current) => ({ ...current, dimensions: { ...current.dimensions, [key]: Math.max(2, current.dimensions[key] + delta) } }));
   }, [recordEdit]);
@@ -539,7 +550,7 @@ export default function Home() {
 
               <section className="viewport-column" aria-label="CAD viewport">
                 <div className="viewport-toolbar"><span className="viewport-label"><span className="viewport-live-dot" />3D VIEWPORT</span><div className="viewport-toolbar-center"><span className="unit-label">MM</span><span className="toolbar-zoom">100%</span></div><button className="view-settings" type="button" onClick={() => toast("Viewport controls", { description: "Drag to orbit · right-drag to pan · scroll to zoom" })}><SlidersHorizontal size={14} /></button></div>
-                <CADViewport model={model} mode={displayMode} onModeChange={setDisplayMode} pictureUrl={sourceUrl} pictureName={sourceName} sourceVisible={sourceVisible} onSourceVisible={setSourceVisible} onSourceClose={() => { setSourceVisible(false); setSourceUrl(null); }} />
+                <CADViewport model={model} mode={displayMode} onModeChange={setDisplayMode} pictureUrl={sourceUrl} pictureName={sourceName} sourceVisible={sourceVisible} onSourceVisible={setSourceVisible} onSourceClose={() => { setSourceVisible(false); setSourceUrl(null); }} onOrientationToggle={toggleOrientation} />
                 <div className="viewport-footer"><span><Axis3D size={14} /> WORLD AXIS</span><span className="footer-center"><span>VOLUME</span><strong>{formatNumber(volume)}<small> cm³</small></strong></span><span><span className="footer-status-dot" />{model.isImported ? "DRAFT PREVIEW" : "SOLID BODY"}</span></div>
               </section>
 
