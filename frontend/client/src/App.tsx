@@ -7,13 +7,15 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
+      <Route path={"/ui"} component={Home} />
+      <Route path={"/app"} component={Home} />
+      <Route path={"/workspace"} component={Home} />
+      <Route path={"/showcase"} component={Home} />
+      {/* Fallback route - always render the CAD workspace */}
+      <Route component={Home} />
     </Switch>
   );
 }

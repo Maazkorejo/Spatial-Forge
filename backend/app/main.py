@@ -80,6 +80,8 @@ api_platform_dir = os.path.join(frontend_dist, "api", "platform")
 if os.path.exists(api_platform_dir):
     app.mount("/api/platform", StaticFiles(directory=api_platform_dir), name="api_platform")
 
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 @app.get("/spatialforge-logo.webp")
 def get_logo_webp():
     for p in [os.path.join(frontend_dist, "spatialforge-logo.webp"), os.path.join(frontend_public, "spatialforge-logo.webp")]:
@@ -108,9 +110,7 @@ def get_icon():
             return FileResponse(p, media_type="image/png")
     return Response(status_code=404)
 
-@app.get("/ui")
-@app.get("/app")
-def get_ui():
+def resolve_index_file():
     candidates = [
         os.path.join(frontend_dist, "index.html"),
         os.path.join(repo_root, "frontend", "dist", "public", "index.html"),
@@ -119,10 +119,22 @@ def get_ui():
     ]
     for dist_index in candidates:
         if os.path.exists(dist_index):
-            return FileResponse(dist_index, media_type="text/html")
-    return {"error": "index.html not found"}
+            return dist_index
+    return None
 
 @app.get("/")
+@app.get("/ui")
+@app.get("/app")
+@app.get("/workspace")
+@app.get("/showcase")
+def get_ui():
+    idx = resolve_index_file()
+    if idx:
+        return FileResponse(idx, media_type="text/html")
+    return {"error": "index.html not found"}
+
+@app.get("/api")
+@app.get("/api/info")
 def root():
     return {
         "status": "online",
@@ -138,6 +150,14 @@ def root():
             "Watertight Solid Kernel & CadQuery STEP Exporter"
         ]
     }
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_spa_exception_handler(request, exc):
+    if exc.status_code == 404 and not request.url.path.startswith("/api/") and not request.url.path.startswith("/ws"):
+        idx = resolve_index_file()
+        if idx:
+            return FileResponse(idx, media_type="text/html")
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 @app.get("/health")
 def health():
