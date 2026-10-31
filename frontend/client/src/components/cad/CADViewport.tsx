@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { useEffect, useRef, useState } from "react";
-import { Box, Download, Eye, EyeOff, FileText, Maximize2, Minus, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Box, Download, Eye, EyeOff, FileText, Maximize2, Minus, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { createPartGroup, disposePartGroup } from "./geometry";
 import type { DisplayMode, ModelState } from "./types";
 
@@ -21,6 +21,8 @@ type CADViewportProps = {
   onSourceVisible: (visible: boolean) => void;
   onSourceClose: () => void;
   onOrientationToggle?: () => void;
+  autoRotate?: boolean;
+  onAutoRotateToggle?: () => void;
 };
 
 type SceneHandle = {
@@ -63,13 +65,48 @@ function disposeScene(handle: SceneHandle) {
   handle.renderer.domElement.remove();
 }
 
-export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName, sourceVisible, onSourceVisible, onSourceClose, onOrientationToggle }: CADViewportProps) {
+export function CADViewport({
+  model,
+  mode,
+  onModeChange,
+  pictureUrl,
+  pictureName,
+  sourceVisible,
+  onSourceVisible,
+  onSourceClose,
+  onOrientationToggle,
+  autoRotate: propAutoRotate,
+  onAutoRotateToggle,
+}: CADViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneHandleRef = useRef<SceneHandle | null>(null);
   const resetRef = useRef<() => void>(() => undefined);
   const modelTitleRef = useRef<string | null>(null);
   const [full2DOpen, setFull2DOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [internalAutoRotate, setInternalAutoRotate] = useState(false);
+
+  const isAutoRotate = propAutoRotate !== undefined ? propAutoRotate : internalAutoRotate;
+  const toggleAutoRotate = () => {
+    if (onAutoRotateToggle) {
+      onAutoRotateToggle();
+    } else {
+      setInternalAutoRotate((prev) => !prev);
+    }
+  };
+
+  useEffect(() => {
+    const handleToggle = () => toggleAutoRotate();
+    window.addEventListener("spatialforge:toggle-auto-rotate", handleToggle);
+    return () => window.removeEventListener("spatialforge:toggle-auto-rotate", handleToggle);
+  }, [toggleAutoRotate]);
+
+  useEffect(() => {
+    if (sceneHandleRef.current) {
+      sceneHandleRef.current.controls.autoRotate = isAutoRotate;
+      sceneHandleRef.current.controls.autoRotateSpeed = 2.2;
+    }
+  }, [isAutoRotate]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -138,6 +175,8 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
     controls.minDistance = 30;
     controls.maxDistance = 1100;
     controls.maxPolarAngle = Math.PI * 0.49;
+    controls.autoRotate = isAutoRotate;
+    controls.autoRotateSpeed = 2.2;
     const resetView = () => {
       const state = sceneHandleRef.current;
       if (!state) return;
@@ -211,6 +250,15 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
       <div className="viewport-corner viewport-corner-tl"><span className="corner-label">PERSPECTIVE</span><span className="corner-dot" /> <span>1 : 1</span></div>
       <div className="viewport-axis" aria-hidden="true"><span className="axis-y">Y</span><span className="axis-x">X</span><span className="axis-z">Z</span><i /></div>
       <div className="viewport-tools-hint"><span className="hint-key">LMB</span> orbit <span className="hint-divider" /><span className="hint-key">RMB</span> pan <span className="hint-divider" /><span className="hint-key">⌘</span> zoom</div>
+      <button
+        className={`viewport-autorotate icon-button ${isAutoRotate ? "is-active" : ""}`}
+        type="button"
+        aria-label="Toggle turntable auto rotation"
+        title={isAutoRotate ? "Pause 360° turntable auto-rotation" : "Auto-rotate 3D model (Turntable)"}
+        onClick={toggleAutoRotate}
+      >
+        <RotateCw size={15} className={isAutoRotate ? "spin-slow" : ""} />
+      </button>
       <button className="viewport-reset icon-button" type="button" aria-label="Reset view" title="Reset view" onClick={() => resetRef.current()}><RotateCcw size={15} /></button>
 
       {!model && (
@@ -250,6 +298,26 @@ export function CADViewport({ model, mode, onModeChange, pictureUrl, pictureName
         >
           <span className="orientation-dot" />
           <span>{model.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
+        </button>
+      )}
+
+      {model && (
+        <button
+          className={`auto-rotate-pill ${isAutoRotate ? "is-active" : ""}`}
+          type="button"
+          title={isAutoRotate ? "Pause 360° turntable auto-rotation" : "Start 360° turntable auto-rotation"}
+          aria-label="Toggle auto rotation"
+          onClick={toggleAutoRotate}
+          style={{
+            position: "absolute",
+            top: 10,
+            left: pictureUrl ? 350 : 245,
+            zIndex: 3,
+          }}
+        >
+          <span className="auto-rotate-dot" />
+          <RotateCw size={11} className={isAutoRotate ? "spin-slow" : ""} />
+          <span>{isAutoRotate ? "Rotating" : "Auto Rotate"}</span>
         </button>
       )}
 

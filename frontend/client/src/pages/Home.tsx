@@ -5,7 +5,7 @@ import {
   ChevronDown, Circle, CircleDot, CloudUpload, Copy, Cuboid, Download, FileBox,
   FileCode2, FileImage, FileText, FileUp, Gauge, Grid2X2, History, Layers3,
   Maximize, Minus, MoreHorizontal, Move3D, PanelLeft, Plane, Plus, Redo2,
-  RotateCcw, Ruler, Scissors, Settings2, ShieldCheck, SlidersHorizontal,
+  RotateCcw, RotateCw, Ruler, Scissors, Settings2, ShieldCheck, SlidersHorizontal,
   Sparkles, Square, Undo2, Upload, WandSparkles, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -177,6 +177,7 @@ export default function Home() {
   const [model, setModel] = useState<ModelState | null>(null);
   const [stage, setStage] = useState<Stage>("upload");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("shaded");
+  const [autoRotate, setAutoRotate] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
   const [reconstructMessage, setReconstructMessage] = useState("Ready to reconstruct");
@@ -559,7 +560,7 @@ export default function Home() {
 
         <section className="main-panel">
           {stage === "edit" && <>
-            <div className="editor-toolbar"><div className="editor-heading"><span className="eyebrow">WORKSPACE / EDIT SOLID</span><span className="editor-active-title">{model ? model.title : "No drawing loaded"}<span className="title-divider">/</span><small>{featureCount} features</small></span></div><DisplaySwitcher mode={displayMode} onChange={setDisplayMode} /><div className="toolbar-tools"><button className="icon-button" type="button" title="Fit model to view" aria-label="Fit model to view" onClick={() => window.dispatchEvent(new CustomEvent("spatialforge:reset-view"))}><Maximize size={15} /></button><button className="icon-button" type="button" title="Model information" aria-label="Model information" onClick={() => model ? toast(model.title, { description: `${Math.round(model.dimensions.length)} × ${Math.round(model.dimensions.width)} × ${Math.round(model.dimensions.thickness)} mm` }) : toast("No drawing loaded")}><MoreHorizontal size={16} /></button></div></div>
+            <div className="editor-toolbar"><div className="editor-heading"><span className="eyebrow">WORKSPACE / EDIT SOLID</span><span className="editor-active-title">{model ? model.title : "No drawing loaded"}<span className="title-divider">/</span><small>{featureCount} features</small></span></div><DisplaySwitcher mode={displayMode} onChange={setDisplayMode} /><div className="toolbar-tools"><button className={`icon-button ${autoRotate ? "is-active" : ""}`} type="button" title={autoRotate ? "Pause 360° turntable auto-rotation" : "Auto-rotate 3D model (Turntable)"} aria-label="Auto-rotate model" onClick={() => setAutoRotate((v) => !v)}><RotateCw size={15} className={autoRotate ? "spin-slow" : ""} /></button><button className="icon-button" type="button" title="Fit model to view" aria-label="Fit model to view" onClick={() => window.dispatchEvent(new CustomEvent("spatialforge:reset-view"))}><Maximize size={15} /></button><button className="icon-button" type="button" title="Model information" aria-label="Model information" onClick={() => model ? toast(model.title, { description: `${Math.round(model.dimensions.length)} × ${Math.round(model.dimensions.width)} × ${Math.round(model.dimensions.thickness)} mm` }) : toast("No drawing loaded")}><MoreHorizontal size={16} /></button></div></div>
             <div className="edit-layout">
               <aside className="feature-panel panel-surface">
                 <div className="panel-heading"><div><span className="eyebrow">MODEL TREE</span><h2>Features <span className="feature-counter">{featureCount.toString().padStart(2, "0")}</span></h2></div><button className="icon-button mini-icon" type="button" aria-label="Collapse feature panel" title="Feature tree"><PanelLeft size={15} /></button></div>
@@ -578,7 +579,7 @@ export default function Home() {
 
               <section className="viewport-column" aria-label="CAD viewport">
                 <div className="viewport-toolbar"><span className="viewport-label"><span className="viewport-live-dot" />3D VIEWPORT</span><div className="viewport-toolbar-center"><span className="unit-label">MM</span><span className="toolbar-zoom">100%</span></div><button className="view-settings" type="button" onClick={() => toast("Viewport controls", { description: "Drag to orbit · right-drag to pan · scroll to zoom" })}><SlidersHorizontal size={14} /></button></div>
-                <CADViewport model={model} mode={displayMode} onModeChange={setDisplayMode} pictureUrl={sourceUrl} pictureName={sourceName} sourceVisible={sourceVisible} onSourceVisible={setSourceVisible} onSourceClose={() => { setSourceVisible(false); setSourceUrl(null); }} onOrientationToggle={toggleOrientation} />
+                <CADViewport model={model} mode={displayMode} onModeChange={setDisplayMode} pictureUrl={sourceUrl} pictureName={sourceName} sourceVisible={sourceVisible} onSourceVisible={setSourceVisible} onSourceClose={() => { setSourceVisible(false); setSourceUrl(null); }} onOrientationToggle={toggleOrientation} autoRotate={autoRotate} onAutoRotateToggle={() => setAutoRotate((v) => !v)} />
                 <div className="viewport-footer"><span><Axis3D size={14} /> WORLD AXIS</span><span className="footer-center"><span>VOLUME</span><strong>{formatNumber(volume)}<small> cm³</small></strong></span><span><span className="footer-status-dot" />{!model ? "EMPTY" : model.isImported ? "DRAFT PREVIEW" : "SOLID BODY"}</span></div>
               </section>
 

@@ -676,6 +676,69 @@ body,
   border-radius: 50%;
   background: #5da0e8;
 }
+.auto-rotate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 9px;
+  border: 1px solid #4a5a72;
+  border-radius: 6px;
+  color: #b9cadf;
+  background: rgba(30, 40, 54, 0.86);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  transition: all 0.16s ease;
+  cursor: pointer;
+}
+.auto-rotate-pill:hover {
+  color: #f0f5fc;
+  border-color: #6d8bb9;
+  background: rgba(43, 58, 78, 0.95);
+}
+.auto-rotate-pill.is-active {
+  color: #38bdf8;
+  border-color: #0284c7;
+  background: rgba(14, 116, 144, 0.35);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.22);
+}
+.auto-rotate-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #64748b;
+  transition: all 0.2s ease;
+}
+.auto-rotate-pill.is-active .auto-rotate-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+.viewport-autorotate {
+  position: absolute;
+  top: 10px;
+  right: 44px;
+  border-color: #c1cad5;
+  color: #738198;
+  background: rgba(223, 228, 235, .84);
+}
+.viewport-autorotate.is-active,
+.icon-button.is-active {
+  color: #0284c7;
+  border-color: #38bdf8;
+  background: rgba(224, 242, 254, 0.95);
+}
+.viewport-autorotate:hover {
+  color: #385fae;
+  background: #e7ebf0;
+}
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-slow {
+  animation: spinSlow 3.5s linear infinite;
+}
 .panel-surface,
 .feature-panel.panel-surface,
 .controls-panel.panel-surface,
