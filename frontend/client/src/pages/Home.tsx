@@ -68,10 +68,30 @@ function AppLogo() {
   );
 }
 
-function Stepper({ label, axis, value, step, onChange }: { label: string; axis: string; value: number; step: number; onChange: (value: number) => void }) {
+function Stepper({
+  label,
+  axis,
+  value,
+  step,
+  onChange,
+  badge,
+  isWarning,
+}: {
+  label: string;
+  axis: string;
+  value: number;
+  step: number;
+  onChange: (value: number) => void;
+  badge?: ReactNode;
+  isWarning?: boolean;
+}) {
   return (
-    <div className="dimension-row">
-      <div className="dimension-name"><span className={`axis-tag axis-tag-${axis.toLowerCase()}`}>{axis}</span><span>{label}</span></div>
+    <div className={`dimension-row ${isWarning ? "dimension-row-warning" : ""}`}>
+      <div className="dimension-name">
+        <span className={`axis-tag axis-tag-${axis.toLowerCase()}`}>{axis}</span>
+        <span>{label}</span>
+        {badge}
+      </div>
       <div className="dimension-stepper">
         <button type="button" aria-label={`Decrease ${label}`} onClick={() => onChange(-step)}><Minus size={13} /></button>
         <span className="dimension-number">{Math.round(value)}<small>mm</small></span>
@@ -309,7 +329,7 @@ export default function Home() {
         const parsedDimensions = {
           length: Math.max(5, Math.round(Number(dims.length || dims.H || (dims.W && dims.H ? dims.H : 120)))),
           width: Math.max(5, Math.round(Number(dims.width || dims.W || 80))),
-          thickness: Math.max(2, Math.round(Number(dims.thickness || dims.D || 16))),
+          thickness: Math.max(2, Math.round(Number(data.thickness_info?.value_mm || dims.thickness || dims.D || 16))),
         };
 
         const newModel: ModelState = {
@@ -326,9 +346,10 @@ export default function Home() {
           iou: data.iou,
           confidence: data.confidence,
           fidelity: data.fidelity,
-          needsReview: data.needs_review,
+          needsReview: data.needs_review || data.thickness_info?.source === "estimated",
           meshData: meshData?.vertices?.length ? meshData : undefined,
           orientation: "horizontal",
+          thicknessInfo: data.thickness_info,
         };
 
         setActiveModel(newModel);
@@ -571,7 +592,29 @@ export default function Home() {
                 <div className="measured-specs">
                   <div><span>Length <i>X</i></span><strong>{model ? Math.round(model.dimensions.length) : 0}<small> mm</small></strong></div>
                   <div><span>Width <i>Y</i></span><strong>{model ? Math.round(model.dimensions.width) : 0}<small> mm</small></strong></div>
-                  <div><span>Thickness <i>Z</i></span><strong>{model ? Math.round(model.dimensions.thickness) : 0}<small> mm</small></strong></div>
+                  <div>
+                    <span>Thickness <i>Z</i></span>
+                    <strong>{model ? Math.round(model.dimensions.thickness) : 0}<small> mm</small></strong>
+                    {model?.thicknessInfo && (
+                      <span
+                        className={`thickness-source-badge thickness-${model.thicknessInfo.source}`}
+                        style={{ marginTop: "3px" }}
+                        title={
+                          model.thicknessInfo.source === "callout"
+                            ? `Extracted from drawing text callout: "${model.thicknessInfo.raw_text}" (95% confidence)`
+                            : model.thicknessInfo.source === "measured"
+                            ? "Measured directly from multi-view orthographic geometry (95% confidence)"
+                            : `Single-view estimate based on ${model.thicknessInfo.category || "part"} proportions (≤50% confidence) — click + / - to adjust`
+                        }
+                      >
+                        {model.thicknessInfo.source === "callout"
+                          ? "CALLOUT"
+                          : model.thicknessInfo.source === "measured"
+                          ? "MEASURED"
+                          : "ESTIMATED"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="topology-status"><span className="topology-icon"><Check size={13} /></span><span><strong>{topologicalStatus}</strong><small>{!model ? "Upload drawing to construct solid" : model.isImported ? "Preview · verify profile" : "Closed preview surfaces"}</small></span><span className="topology-indicator" /></div>
                 <div className="feature-panel-footer"><span><History size={13} />{model ? model.cuts.length : 0} applied edits</span><span>v1.0</span></div>
@@ -589,7 +632,38 @@ export default function Home() {
                   <SectionHead title="Scale size" trailing={<span className="step-label">20%</span>} />
                   <div className="scale-buttons"><button type="button" className="scale-button" disabled={!model} onClick={() => scaleModel(1.2)}><span className="scale-icon scale-up"><Plus size={14} /></span><span><strong>Make big</strong><small>Enlarge model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button><button type="button" className="scale-button" disabled={!model} onClick={() => scaleModel(0.8)}><span className="scale-icon scale-down"><Minus size={14} /></span><span><strong>Make small</strong><small>Reduce model</small></span><ArrowUpRight size={14} className="scale-arrow" /></button></div>
                   <SectionHead title="Dimensions" trailing={<span className="units-chip">mm</span>} />
-                  <div className="stepper-list"><Stepper label="Length" axis="X" value={model ? model.dimensions.length : 0} step={5} onChange={(amount) => changeDimension("length", amount)} /><Stepper label="Width" axis="Y" value={model ? model.dimensions.width : 0} step={5} onChange={(amount) => changeDimension("width", amount)} /><Stepper label="Thickness" axis="Z" value={model ? model.dimensions.thickness : 0} step={2} onChange={(amount) => changeDimension("thickness", amount)} /></div>
+                  <div className="stepper-list">
+                    <Stepper label="Length" axis="X" value={model ? model.dimensions.length : 0} step={5} onChange={(amount) => changeDimension("length", amount)} />
+                    <Stepper label="Width" axis="Y" value={model ? model.dimensions.width : 0} step={5} onChange={(amount) => changeDimension("width", amount)} />
+                    <Stepper
+                      label="Thickness"
+                      axis="Z"
+                      value={model ? model.dimensions.thickness : 0}
+                      step={2}
+                      onChange={(amount) => changeDimension("thickness", amount)}
+                      badge={
+                        model?.thicknessInfo ? (
+                          <span
+                            className={`thickness-source-badge thickness-${model.thicknessInfo.source}`}
+                            title={
+                              model.thicknessInfo.source === "callout"
+                                ? `Direct from 2D CAD callout: "${model.thicknessInfo.raw_text}" (95% confidence)`
+                                : model.thicknessInfo.source === "measured"
+                                ? "Measured from multi-view orthographic geometry (95% confidence)"
+                                : `Single-view estimate for ${model.thicknessInfo.category || "part"} (≤50% confidence) — click + / - to adjust`
+                            }
+                          >
+                            {model.thicknessInfo.source === "callout"
+                              ? "CALLOUT"
+                              : model.thicknessInfo.source === "measured"
+                              ? "MEASURED"
+                              : "ESTIMATED"}
+                          </span>
+                        ) : null
+                      }
+                      isWarning={model?.thicknessInfo?.source === "estimated"}
+                    />
+                  </div>
                   <div className="volume-readout"><span className="volume-icon"><Gauge size={16} /></span><span><small>SOLID VOLUME</small><strong>{formatNumber(volume)} <i>cm³</i></strong></span><span className="volume-live"><span />LIVE</span></div>
                   <SectionHead title="Cut parts" trailing={<span className="edit-count">{model ? model.cuts.length.toString().padStart(2, "0") : "00"}</span>} />
                   <div className="cut-grid">{cutOptions.map((cut) => { const Icon = cut.icon; return <button className="cut-button" key={cut.glyph} type="button" disabled={!model} onClick={() => addCut(cut.label, cut.glyph)}><Icon size={15} /><span>{cut.label}</span><small>{cut.detail}</small></button>; })}</div>

@@ -241,9 +241,15 @@ button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href] { cu
 .scale-button small { color: #8a95a4; font-size: 7px; font-weight: 550; white-space: nowrap; }
 .scale-arrow { flex: 0 0 auto; color: #9aa4b0; }
 .stepper-list { margin: 3px 0 9px; border: 1px solid #c7cfd8; border-radius: 8px; background: #dce2e8; }
-.dimension-row { min-height: 39px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 8px; }
+.dimension-row { min-height: 39px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 8px; transition: background 0.2s ease, border-color 0.2s ease; }
+.dimension-row.dimension-row-warning { background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; }
 .dimension-row + .dimension-row { border-top: 1px solid #cbd2da; }
-.dimension-name { display: flex; align-items: center; gap: 7px; color: #69778b; font-size: 9px; font-weight: 650; }
+.dimension-name { display: flex; align-items: center; gap: 6px; color: #69778b; font-size: 9px; font-weight: 650; }
+.thickness-source-badge { display: inline-flex; align-items: center; padding: 1px 5px; border-radius: 4px; font-family: var(--font-mono); font-size: 7px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1.2; }
+.thickness-source-badge.thickness-callout { color: #059669; background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); }
+.thickness-source-badge.thickness-measured { color: #0284c7; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); }
+.thickness-source-badge.thickness-estimated { color: #d97706; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.5); animation: pulse-border 2.5s infinite ease-in-out; }
+@keyframes pulse-border { 0%, 100% { border-color: rgba(245, 158, 11, 0.4); } 50% { border-color: rgba(245, 158, 11, 0.9); } }
 .axis-tag { width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: #6480aa; background: #cbd6e4; font-family: var(--font-mono); font-size: 8px; font-weight: 600; }
 .dimension-stepper { height: 25px; display: flex; align-items: center; overflow: hidden; border: 1px solid #c2cad4; border-radius: 6px; background: #e0e5ea; }
 .dimension-stepper button { width: 24px; height: 23px; display: flex; align-items: center; justify-content: center; border: 0; color: #8290a2; background: transparent; }

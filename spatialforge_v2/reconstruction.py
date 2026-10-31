@@ -137,7 +137,11 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
             circles = top_circles
 
         # Check if drawing forms a single connected polygon or has disconnected side strips
-        thickness = D if D > 1.0 else 10.0
+        thk_meta = registered.get("thickness_info")
+        if thk_meta and thk_meta.get("source") == "callout":
+            thickness = thk_meta["value_mm"]
+        else:
+            thickness = D if D > 1.0 else 10.0
         profile_polys = polys
 
         if polys:
@@ -151,12 +155,14 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
                     and min(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]) <= 14.0
                     and (max(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]) / max(0.1, min(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]))) >= 3.5
                 ]
-                if side_strips:
+                if side_strips and not (thk_meta and thk_meta.get("source") == "callout"):
                     strip = side_strips[0]
                     thickness = round(min(strip.bounds[2] - strip.bounds[0], strip.bounds[3] - strip.bounds[1]), 2)
                     if thickness < 2.0:
                         thickness = 6.0
                     profile_polys = [p for p in unioned_all.geoms if p not in side_strips]
+                    if registered.get("thickness_info") is None:
+                        registered["thickness_info"] = {"value_mm": thickness, "source": "measured", "confidence": 0.85}
 
         circle_radii = []
         for c in circles:

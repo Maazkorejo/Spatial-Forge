@@ -243,6 +243,7 @@ def classify_and_filter_entities(ingested: Dict[str, Any]) -> Dict[str, Any]:
     texts = list(ingested["texts"])
     dims = list(ingested["dims"])
     
+    DIM_LAYER_PAT = re.compile(r'DIM|LEADER|ANNO|EXTENSION|DEFPOINTS|NOTATION', re.IGNORECASE)
     # 3.1 Initial classification from explicit layers/linetypes
     for l in lines:
         lay = l.get("layer", "").upper()
@@ -251,7 +252,7 @@ def classify_and_filter_entities(ingested: Dict[str, Any]) -> Dict[str, Any]:
             l["role"] = "hidden"
         elif "CENTER" in lay or "CENTER" in lt:
             l["role"] = "center"
-        elif "DIM" in lay:
+        elif DIM_LAYER_PAT.search(lay):
             l["role"] = "dim"
         elif any(k in lay for k in ("TITLE", "BORDER", "FRAME", "SHEET", "MARGIN")):
             l["role"] = "title"
@@ -562,6 +563,9 @@ def regress_drawing_scale(
             inferred_scale = median_ratio
     elif scale_from_title is not None:
         inferred_scale = scale_from_title
+    elif ingested.get("insunits") == 1:
+        # Inches drawing without explicit text scale: 1 drawing unit = 25.4 mm
+        inferred_scale = 1.0 / 25.4
     else:
         inferred_scale = 1.0
         

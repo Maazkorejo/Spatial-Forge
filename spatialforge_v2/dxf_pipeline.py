@@ -35,6 +35,12 @@ from dxf_ingest import (
     regress_drawing_scale,
     stitch_endpoints,
 )
+from thickness import (
+    extract_thickness_callout,
+    filter_geometry_entities,
+    estimate_thickness_single_view,
+    map_family_to_thickness_category,
+)
 from preview import render_dxf
 from reconstruction import reconstruct
 from reproject_verify import (
@@ -132,8 +138,18 @@ def process_dxf_bytes(
         geom_lines = [l for l in stitched_lines if l.get("role", "visible") in ("visible", "hidden")]
         all_geom = (geom_lines if geom_lines else stitched_lines) + classified["circles"] + classified["arcs"]
 
+        # Collect all raw text notes, dimensions, and drawing metadata for callout extraction
+        raw_text_strings = (
+            [t.get("text", "") for t in classified.get("texts", [])] +
+            [d.get("text", "") for d in classified.get("dims", [])] +
+            [filename]
+        )
+        thickness_callout = extract_thickness_callout(raw_text_strings, scale_hint=scale)
+
         # 2. View Clustering, Standard Identification, and Registration
-        clusters = cluster_drawing_entities(all_geom)
+        # Exclude dimension lines, leaders, and annotations before clustering to prevent bounding-box inflation
+        clustering_geom = filter_geometry_entities(all_geom)
+        clusters = cluster_drawing_entities(clustering_geom if clustering_geom else all_geom)
         if not clusters:
             raise ValueError("No valid geometric entities found in DXF drawing.")
 
@@ -141,18 +157,43 @@ def process_dxf_bytes(
             identified = identify_views(clusters, classified["texts"])
             inferred_std = identified["standard"]
             registered = register_views(identified, scale=scale)
+            if thickness_callout:
+                thickness_info = thickness_callout
+                registered["dimensions"]["D"] = thickness_callout["value_mm"]
+            else:
+                thickness_info = {
+                    "value_mm": registered["dimensions"]["D"],
+                    "source": "measured",
+                    "confidence": 0.95,
+                }
         else:
             # Single-view sketch / 2D contour profile mode (1 or 2 clusters)
             primary = max(clusters, key=lambda c: len(c["entities"]))
             w = round(primary["width"] / scale, 3)
             h = round(primary["height"] / scale, 3)
             
-            d = max(10.0, round(min(w, h) * 0.15, 1))
-            if len(clusters) == 2:
+            # Priority order: 1. Text Callout -> 2. Measured Secondary Strip -> 3. Category Estimate
+            if thickness_callout:
+                d = thickness_callout["value_mm"]
+                thickness_info = thickness_callout
+            elif len(clusters) == 2:
                 secondary = [c for c in clusters if c is not primary][0]
                 min_sec = min(secondary["width"], secondary["height"]) / scale
                 if 2.0 <= min_sec <= 60.0:
                     d = round(min_sec, 2)
+                    thickness_info = {
+                        "value_mm": d,
+                        "source": "measured",
+                        "confidence": 0.85,
+                    }
+                else:
+                    cat = map_family_to_thickness_category(filename, " ".join(raw_text_strings))
+                    thickness_info = estimate_thickness_single_view(w, h, category=cat, category_confidence=0.6)
+                    d = thickness_info["value_mm"]
+            else:
+                cat = map_family_to_thickness_category(filename, " ".join(raw_text_strings))
+                thickness_info = estimate_thickness_single_view(w, h, category=cat, category_confidence=0.6)
+                d = thickness_info["value_mm"]
 
             f_bx = primary["bbox"]
             u0, v0 = f_bx[0], f_bx[1]
@@ -197,6 +238,7 @@ def process_dxf_bytes(
             }
             inferred_std = "third"
 
+        registered["thickness_info"] = thickness_info
         registered["texts"] = classified["texts"]
         registered["filename"] = filename
         dims = registered["dimensions"]
@@ -353,6 +395,7 @@ def process_dxf_bytes(
             "scale": scale,
             "units": ingested.get("units", "mm"),
             "dimensions": dims,
+            "thickness_info": thickness_info,
             "reprojection": verify_res,
             "parts": parts_payload,
             "features": features_payload,

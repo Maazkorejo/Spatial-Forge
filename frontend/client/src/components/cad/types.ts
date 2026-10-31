@@ -19,6 +19,14 @@ export type BackendMeshData = {
   faces: number[][];    // [a, b, c]
 };
 
+export type ThicknessInfo = {
+  value_mm: number;
+  source: "callout" | "measured" | "estimated";
+  category?: string;
+  confidence?: number;
+  raw_text?: string;
+};
+
 export type ModelState = {
   kind: ModelKind;
   title: string;
@@ -36,6 +44,7 @@ export type ModelState = {
   meshData?: BackendMeshData;
   baseDimensions?: Dimensions;
   orientation?: "horizontal" | "vertical" | "auto";
+  thicknessInfo?: ThicknessInfo;
 };
 
 export type SamplePart = {

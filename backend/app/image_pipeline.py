@@ -1,4 +1,5 @@
 import os
+import sys
 import io
 import time
 import base64
@@ -9,6 +10,15 @@ import cv2
 from PIL import Image
 import cadquery as cq
 import trimesh
+
+V2_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "spatialforge_v2"))
+if V2_DIR not in sys.path:
+    sys.path.insert(0, V2_DIR)
+from thickness import (
+    extract_thickness_callout,
+    estimate_thickness_single_view,
+    map_family_to_thickness_category,
+)
 
 def solid_to_mesh(solid: cq.Workplane) -> Dict[str, Any]:
     """Convert CadQuery solid to indexed triangular mesh."""
@@ -53,6 +63,16 @@ def process_image_bytes(
     """
     t0 = time.time()
     preview_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    # Priority 1: Check filename/metadata for explicit thickness callouts (THK, T=, PL)
+    callout = extract_thickness_callout([filename])
+    if callout:
+        thickness = callout["value_mm"]
+        thickness_info = callout
+    else:
+        cat = map_family_to_thickness_category(filename, filename)
+        thickness_info = estimate_thickness_single_view(target_size, target_size * 0.6, category=cat, category_confidence=0.45)
+        thickness = thickness_info["value_mm"]
 
     # 1. Load image via PIL
     pil_img = Image.open(io.BytesIO(image_bytes))
@@ -256,6 +276,7 @@ def process_image_bytes(
             {"name": "Depth", "value": D, "units": "mm"},
             {"name": "Height", "value": H, "units": "mm"}
         ],
+        "thickness_info": thickness_info,
         "iou": 1.0,
         "mean_vis_f1": 1.0,
         "visible_precision": 1.0,
