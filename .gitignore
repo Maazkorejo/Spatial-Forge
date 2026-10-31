@@ -29,6 +29,7 @@ dist/
 !samples/**
 !**/sample_output/**
 !**/sample_cases/**
+!test_cad_models/**
 
 # OS & IDE
 .DS_Store
