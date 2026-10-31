@@ -80,26 +80,33 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
 
     features_detected = []
 
-    # 1.1 Base Extrusion from Top View Footprint
-    # Extract visible lines and arcs from top view
+    from dxf_ingest import stitch_endpoints
+
+    # Extract lines, arcs, circles from top and front views
     top_vis_lines = [e for e in top_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
     top_vis_arcs = [e for e in top_ents if (e.get("kind") == "arc" or ("c" in e.get("g", e) and "a0" in e.get("g", e))) and e.get("role", "visible") == "visible"]
+    top_circles = [e for e in top_ents if e.get("kind") == "circle" or ("c" in e.get("g", e) and "a0" not in e.get("g", e))]
 
-    # View-local stitching closes remaining noise gaps on the view perimeter
-    from dxf_ingest import stitch_endpoints
-    st_top_lines, _ = stitch_endpoints(top_vis_lines, user_tolerance=1.5)
+    front_vis_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
+    front_vis_arcs = [e for e in front_ents if (e.get("kind") == "arc" or ("c" in e.get("g", e) and "a0" in e.get("g", e))) and e.get("role", "visible") == "visible"]
+    front_circles = [e for e in front_ents if e.get("kind") == "circle" or ("c" in e.get("g", e) and "a0" not in e.get("g", e))]
 
-    polys, _ = build_closed_loops(st_top_lines, top_vis_arcs)
+    st_top_lines, _ = stitch_endpoints(top_vis_lines, user_tolerance=2.0)
+    polys_top, _ = build_closed_loops(st_top_lines, top_vis_arcs)
 
-    nominal_area = W * D
+    st_front_lines, _ = stitch_endpoints(front_vis_lines, user_tolerance=2.0)
+    polys_front, _ = build_closed_loops(st_front_lines, front_vis_arcs)
+
+    has_right_view = len(right_ents) > 0
+    is_3view_prismatic = has_right_view and len(polys_top) > 0 and len(front_vis_lines) > 2
+
     body = None
 
-    if polys:
-        # Find the outer footprint: union adjacent coplanar faces (e.g. step dividers)
-        max_single = max(polys, key=lambda p: p.area)
-        unioned = unary_union(polys)
-        
-        # If union forms a single outer polygon larger than individual partitions
+    if is_3view_prismatic:
+        # Standard 3-View Orthographic Extrusion from Top View Footprint
+        nominal_area = W * D
+        max_single = max(polys_top, key=lambda p: p.area)
+        unioned = unary_union(polys_top)
         if hasattr(unioned, "geom_type") and unioned.geom_type == "Polygon":
             candidate = unioned
         elif hasattr(unioned, "geoms"):
@@ -107,159 +114,262 @@ def reconstruct_prismatic(registered: Dict[str, Any]) -> Tuple[cq.Workplane, Dic
         else:
             candidate = max_single
 
-        # Verify candidate polygon has substantial area (> 50% of W*D)
-        if candidate.area >= 0.5 * nominal_area:
+        ext_coords = list(candidate.exterior.coords)[:-1]
+        try:
+            body = cq.Workplane("XY").polyline(ext_coords).close().extrude(H)
+            if nominal_area - candidate.area > 50.0:
+                features_detected.append({"type": "notch", "area_removed": round(nominal_area - candidate.area, 2)})
+        except Exception:
+            body = cq.Workplane("XY").box(W, D, H, centered=False)
+    else:
+        # Single-view, 2-view, or profile-driven mechanical CAD (tools, objects, complex contours)
+        if polys_front:
+            polys = polys_front
+            circles = front_circles
+        elif polys_top:
+            polys = polys_top
+            circles = top_circles
+        elif front_circles:
+            polys = []
+            circles = front_circles
+        else:
+            polys = []
+            circles = top_circles
+
+        # Check if drawing forms a single connected polygon or has disconnected side strips
+        thickness = D if D > 1.0 else 10.0
+        profile_polys = polys
+
+        if polys:
+            unioned_all = unary_union(polys)
+            if hasattr(unioned_all, "geoms") and len(unioned_all.geoms) > 1:
+                # Disconnected components present: check if one component is a side elevation strip
+                max_area_comp = max(unioned_all.geoms, key=lambda g: g.area).area
+                side_strips = [
+                    p for p in unioned_all.geoms
+                    if p.area < max_area_comp * 0.45
+                    and min(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]) <= 14.0
+                    and (max(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]) / max(0.1, min(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1]))) >= 3.5
+                ]
+                if side_strips:
+                    strip = side_strips[0]
+                    thickness = round(min(strip.bounds[2] - strip.bounds[0], strip.bounds[3] - strip.bounds[1]), 2)
+                    if thickness < 2.0:
+                        thickness = 6.0
+                    profile_polys = [p for p in unioned_all.geoms if p not in side_strips]
+
+        circle_radii = []
+        for c in circles:
+            g = c.get("g", c)
+            cx, cy = g["c"][0], g["c"][1]
+            r = g["r"]
+            circle_radii.append((cx, cy, r))
+        circle_radii.sort(key=lambda item: item[2], reverse=True)
+
+        max_circle_area = math.pi * (circle_radii[0][2] ** 2) if circle_radii else 0.0
+        max_poly_area = max([p.area for p in profile_polys]) if profile_polys else 0.0
+
+        if circle_radii and (max_circle_area > max_poly_area * 1.5 or not profile_polys):
+            # Circular Flange / Rotor / Pulley / Disc
+            cx_main, cy_main, r_max = circle_radii[0]
+            body = cq.Workplane("XY").circle(r_max).extrude(thickness).translate((cx_main, cy_main, 0))
+            features_detected.append({"type": "disc", "r": round(r_max, 2), "thickness": round(thickness, 2)})
+            for cx, cy, r in circle_radii[1:]:
+                if r < r_max - 0.5:
+                    try:
+                        cyl = cq.Workplane("XY").circle(r).extrude(thickness + 4.0).translate((cx, cy, -2.0))
+                        body = body.cut(cyl)
+                        features_detected.append({"type": "hole_z", "cx": round(cx, 2), "cy": round(cy, 2), "d": round(r * 2.0, 2)})
+                    except Exception:
+                        pass
+        elif profile_polys:
+            unioned = unary_union(profile_polys)
+            if hasattr(unioned, "geom_type") and unioned.geom_type == "Polygon":
+                candidate = unioned
+            elif hasattr(unioned, "geoms"):
+                candidate = max(unioned.geoms, key=lambda p: p.area)
+            else:
+                candidate = max(profile_polys, key=lambda p: p.area)
+
             ext_coords = list(candidate.exterior.coords)[:-1]
             try:
-                body = cq.Workplane("XY").polyline(ext_coords).close().extrude(H)
-                if nominal_area - candidate.area > 50.0:
-                    features_detected.append({"type": "notch", "area_removed": round(nominal_area - candidate.area, 2)})
+                body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
             except Exception:
-                body = None
+                try:
+                    poly_clean = candidate.buffer(0)
+                    if hasattr(poly_clean, "exterior"):
+                        ext_coords = list(poly_clean.exterior.coords)[:-1]
+                        body = cq.Workplane("XY").polyline(ext_coords).close().extrude(thickness)
+                except Exception:
+                    body = None
+
+            if body is not None:
+                features_detected.append({"type": "profile_extrusion", "area": round(candidate.area, 2), "thickness": round(thickness, 2)})
+
+                # Cut interior rings (inner loops)
+                for interior in candidate.interiors:
+                    hole_coords = list(interior.coords)[:-1]
+                    try:
+                        hole_cut = cq.Workplane("XY").polyline(hole_coords).close().extrude(thickness + 4.0).translate((0, 0, -2.0))
+                        body = body.cut(hole_cut)
+                        features_detected.append({"type": "inner_loop_cut"})
+                    except Exception:
+                        pass
+
+                # Cut circular through-holes
+                for cx, cy, r in circle_radii:
+                    if candidate.contains(Point(cx, cy)) or candidate.distance(Point(cx, cy)) < 1e-3:
+                        try:
+                            cyl = cq.Workplane("XY").circle(r).extrude(thickness + 4.0).translate((cx, cy, -2.0))
+                            body = body.cut(cyl)
+                            features_detected.append({"type": "hole_z", "cx": round(cx, 2), "cy": round(cy, 2), "d": round(r * 2.0, 2)})
+                        except Exception:
+                            pass
 
     if body is None:
         # Fallback to bounding box footprint
         body = cq.Workplane("XY").box(W, D, H, centered=False)
 
-    # 1.2 Step Cut on Top (from Front View)
-    front_vis_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
-    # Look for step in top-left or top-right: e.g. horizontal line at H - sz
-    for l in front_vis_lines:
-        g = l.get("g", l)
-        x0, z0, x1, z1 = g["p"]
-        if abs(z0 - z1) < 0.5:  # horizontal line
-            z_step = (z0 + z1) / 2.0
-            if 3.0 < z_step < H - 3.0:
-                min_x, max_x = min(x0, x1), max(x0, x1)
-                sx = max_x - min_x
-                sz = H - z_step
-                # Step at top-left
-                if min_x < 2.0 and sx > 5.0:
-                    body = body.cut(cq.Workplane("XY").box(sx, D + 2.0, sz, centered=False).translate((0.0, -1.0, z_step)))
-                    features_detected.append({"type": "step", "sx": round(sx, 2), "sz": round(sz, 2)})
-                    break
-                # Step at top-right
-                elif max_x > W - 2.0 and sx > 5.0:
-                    body = body.cut(cq.Workplane("XY").box(sx, D + 2.0, sz, centered=False).translate((W - sx, -1.0, z_step)))
-                    features_detected.append({"type": "step", "sx": round(sx, 2), "sz": round(sz, 2)})
-                    break
-
-    # 1.3 Vertical Holes & Counterbores (from Top View Circles)
-    top_circles = [e for e in top_ents if e.get("kind") == "circle" or ("c" in e.get("g", e) and "a0" not in e.get("g", e))]
-    
-    # Group concentric circles
-    circle_groups = []
-    used_circles = set()
-    for i, c1 in enumerate(top_circles):
-        if i in used_circles:
-            continue
-        g1 = c1.get("g", c1)
-        cx1, cy1, r1 = g1["c"][0], g1["c"][1], g1["r"]
-        group = [(cx1, cy1, r1 * 2.0)]
-        used_circles.add(i)
-        for j, c2 in enumerate(top_circles):
-            if j in used_circles:
-                continue
-            g2 = c2.get("g", c2)
-            cx2, cy2, r2 = g2["c"][0], g2["c"][1], g2["r"]
-            if math.hypot(cx2 - cx1, cy2 - cy1) < 1.0:
-                group.append((cx2, cy2, r2 * 2.0))
-                used_circles.add(j)
-        circle_groups.append(group)
-
-    # Hidden horizontal lines in front/right views (for counterbore/pocket depths)
-    front_hidden_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role") == "hidden"]
-    front_hidden_z = []
-    for l in front_hidden_lines:
-        g = l.get("g", l)
-        x0, z0, x1, z1 = g["p"]
-        if abs(z0 - z1) < 0.5:
-            front_hidden_z.append((min(x0, x1), max(x0, x1), (z0 + z1) / 2.0))
-
-    for grp in circle_groups:
-        if len(grp) == 1:
-            # Simple through hole
-            cx, cy, d = grp[0]
-            body = body.cut(_cyl_z(d, H + 4.0, cx, cy, -2.0))
-            features_detected.append({"type": "hole_z", "x": round(cx, 2), "y": round(cy, 2), "d": round(d, 2)})
-        else:
-            # Concentric: through hole + counterbore
-            grp.sort(key=lambda c: c[2])  # sort by diameter
-            cx, cy, d_hole = grp[0]
-            _, _, d_cb = grp[1]
-            # Cut through hole
-            body = body.cut(_cyl_z(d_hole, H + 4.0, cx, cy, -2.0))
-            # Find counterbore depth from hidden lines near cx
-            cb_depth = round(H * 0.35, 2)  # default
-            for min_x, max_x, z_floor in front_hidden_z:
-                if min_x - 1.0 <= cx <= max_x + 1.0:
-                    cb_depth = round(H - z_floor, 2)
-                    break
-            body = body.cut(_cyl_z(d_cb, cb_depth + 1.0, cx, cy, H - cb_depth))
-            features_detected.append({"type": "hole_z", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_hole, 2)})
-            features_detected.append({"type": "counterbore", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_cb, 2), "depth": cb_depth})
-
-    # 1.4 Chamfer Detection
-    chamfer_c = None
-    for l in front_vis_lines:
-        g = l.get("g", l)
-        x0, z0, x1, z1 = g["p"]
-        dx, dz = abs(x1 - x0), abs(z1 - z0)
-        if 0.8 <= dx <= 3.5 and 0.8 <= dz <= 3.5 and abs(dx - dz) < 0.5:
-            if max(z0, z1) >= H - 1.0:  # touches top face
-                chamfer_c = round(float((dx + dz) / 2.0), 1)
-                break
-
-    # 1.5 Rectangular Pockets (Inner loops in Top View)
-    if polys and len(polys) > 1:
-        outer_poly = max(polys, key=lambda p: p.area)
-        for poly in polys:
-            if poly is outer_poly:
-                continue
-            min_x, min_y, max_x, max_y = poly.bounds
-            sx = max_x - min_x
-            sy = max_y - min_y
-            cx, cy = (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
-
-            # Ignore thin chamfer strips (must be true pocket >= 5.0mm)
-            if sx < 5.0 or sy < 5.0:
-                continue
-            
-            # Find pocket depth from hidden lines in Front view
-            depth = round(H * 0.4, 2)
-            for hx0, hx1, z_floor in front_hidden_z:
-                if abs(hx0 - min_x) < 2.0 or abs(hx1 - max_x) < 2.0 or (hx0 <= cx <= hx1):
-                    depth = round(H - z_floor, 2)
-                    break
-
-            body = body.cut(cq.Workplane("XY").box(sx, sy, depth + 1.0, centered=False).translate((min_x, min_y, H - depth)))
-            features_detected.append({"type": "pocket_top", "x": round(min_x, 2), "y": round(min_y, 2), "sx": round(sx, 2), "sy": round(sy, 2), "depth": depth})
-
-    # 1.6 Bottom Pockets (from Top View Hidden Lines)
-    top_hid_lines = [e for e in top_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role") == "hidden"]
-    if top_hid_lines:
-        hid_polys, _ = build_closed_loops(top_hid_lines)
-        for hpoly in hid_polys:
-            h_min_x, h_min_y, h_max_x, h_max_y = hpoly.bounds
-            h_sx = h_max_x - h_min_x
-            h_sy = h_max_y - h_min_y
-            if h_sx >= 5.0 and h_sy >= 5.0:
-                # Find floor height from front hidden lines
-                b_depth = round(H * 0.3, 2)
-                for hx0, hx1, z_floor in front_hidden_z:
-                    if (hx0 - 1.0 <= (h_min_x + h_max_x) / 2.0 <= hx1 + 1.0) and z_floor < H / 2.0:
-                        b_depth = round(z_floor, 2)
+    if is_3view_prismatic:
+        # 1.2 Step Cut on Top (from Front View)
+        front_vis_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role", "visible") == "visible"]
+        # Look for step in top-left or top-right: e.g. horizontal line at H - sz
+        for l in front_vis_lines:
+            g = l.get("g", l)
+            x0, z0, x1, z1 = g["p"]
+            if abs(z0 - z1) < 0.5:  # horizontal line
+                z_step = (z0 + z1) / 2.0
+                if 3.0 < z_step < H - 3.0:
+                    min_x, max_x = min(x0, x1), max(x0, x1)
+                    sx = max_x - min_x
+                    sz = H - z_step
+                    # Step at top-left
+                    if min_x < 2.0 and sx > 5.0:
+                        body = body.cut(cq.Workplane("XY").box(sx, D + 2.0, sz, centered=False).translate((0.0, -1.0, z_step)))
+                        features_detected.append({"type": "step", "sx": round(sx, 2), "sz": round(sz, 2)})
                         break
-                body = body.cut(cq.Workplane("XY").box(h_sx, h_sy, b_depth + 1.0, centered=False).translate((h_min_x, h_min_y, -1.0)))
-                features_detected.append({"type": "pocket_bottom", "x": round(h_min_x, 2), "y": round(h_min_y, 2), "sx": round(h_sx, 2), "sy": round(h_sy, 2), "depth": b_depth})
+                    # Step at top-right
+                    elif max_x > W - 2.0 and sx > 5.0:
+                        body = body.cut(cq.Workplane("XY").box(sx, D + 2.0, sz, centered=False).translate((W - sx, -1.0, z_step)))
+                        features_detected.append({"type": "step", "sx": round(sx, 2), "sz": round(sz, 2)})
+                        break
 
-    # 1.7 Apply Top Chamfer
-    if chamfer_c is not None:
-        try:
-            body = body.faces(">Z").edges().chamfer(chamfer_c)
-            features_detected.append({"type": "chamfer", "c": chamfer_c})
-        except Exception:
-            pass
+        # 1.3 Vertical Holes & Counterbores (from Top View Circles)
+        top_circles = [e for e in top_ents if e.get("kind") == "circle" or ("c" in e.get("g", e) and "a0" not in e.get("g", e))]
+        
+        # Group concentric circles
+        circle_groups = []
+        used_circles = set()
+        for i, c1 in enumerate(top_circles):
+            if i in used_circles:
+                continue
+            g1 = c1.get("g", c1)
+            cx1, cy1, r1 = g1["c"][0], g1["c"][1], g1["r"]
+            group = [(cx1, cy1, r1 * 2.0)]
+            used_circles.add(i)
+            for j, c2 in enumerate(top_circles):
+                if j in used_circles:
+                    continue
+                g2 = c2.get("g", c2)
+                cx2, cy2, r2 = g2["c"][0], g2["c"][1], g2["r"]
+                if math.hypot(cx2 - cx1, cy2 - cy1) < 1.0:
+                    group.append((cx2, cy2, r2 * 2.0))
+                    used_circles.add(j)
+            circle_groups.append(group)
+
+        # Hidden horizontal lines in front/right views (for counterbore/pocket depths)
+        front_hidden_lines = [e for e in front_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role") == "hidden"]
+        front_hidden_z = []
+        for l in front_hidden_lines:
+            g = l.get("g", l)
+            x0, z0, x1, z1 = g["p"]
+            if abs(z0 - z1) < 0.5:
+                front_hidden_z.append((min(x0, x1), max(x0, x1), (z0 + z1) / 2.0))
+
+        for grp in circle_groups:
+            if len(grp) == 1:
+                # Simple through hole
+                cx, cy, d = grp[0]
+                body = body.cut(_cyl_z(d, H + 4.0, cx, cy, -2.0))
+                features_detected.append({"type": "hole_z", "x": round(cx, 2), "y": round(cy, 2), "d": round(d, 2)})
+            else:
+                # Concentric: through hole + counterbore
+                grp.sort(key=lambda c: c[2])  # sort by diameter
+                cx, cy, d_hole = grp[0]
+                _, _, d_cb = grp[1]
+                # Cut through hole
+                body = body.cut(_cyl_z(d_hole, H + 4.0, cx, cy, -2.0))
+                # Find counterbore depth from hidden lines near cx
+                cb_depth = round(H * 0.35, 2)  # default
+                for min_x, max_x, z_floor in front_hidden_z:
+                    if min_x - 1.0 <= cx <= max_x + 1.0:
+                        cb_depth = round(H - z_floor, 2)
+                        break
+                body = body.cut(_cyl_z(d_cb, cb_depth + 1.0, cx, cy, H - cb_depth))
+                features_detected.append({"type": "hole_z", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_hole, 2)})
+                features_detected.append({"type": "counterbore", "x": round(cx, 2), "y": round(cy, 2), "d": round(d_cb, 2), "depth": cb_depth})
+
+        # 1.4 Chamfer Detection
+        chamfer_c = None
+        for l in front_vis_lines:
+            g = l.get("g", l)
+            x0, z0, x1, z1 = g["p"]
+            dx, dz = abs(x1 - x0), abs(z1 - z0)
+            if 0.8 <= dx <= 3.5 and 0.8 <= dz <= 3.5 and abs(dx - dz) < 0.5:
+                if max(z0, z1) >= H - 1.0:  # touches top face
+                    chamfer_c = round(float((dx + dz) / 2.0), 1)
+                    break
+
+        # 1.5 Rectangular Pockets (Inner loops in Top View)
+        if polys_top and len(polys_top) > 1:
+            outer_poly = max(polys_top, key=lambda p: p.area)
+            for poly in polys_top:
+                if poly is outer_poly:
+                    continue
+                min_x, min_y, max_x, max_y = poly.bounds
+                sx = max_x - min_x
+                sy = max_y - min_y
+                cx, cy = (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
+
+                # Ignore thin chamfer strips (must be true pocket >= 5.0mm)
+                if sx < 5.0 or sy < 5.0:
+                    continue
+                
+                # Find pocket depth from hidden lines in Front view
+                depth = round(H * 0.4, 2)
+                for hx0, hx1, z_floor in front_hidden_z:
+                    if abs(hx0 - min_x) < 2.0 or abs(hx1 - max_x) < 2.0 or (hx0 <= cx <= hx1):
+                        depth = round(H - z_floor, 2)
+                        break
+
+                body = body.cut(cq.Workplane("XY").box(sx, sy, depth + 1.0, centered=False).translate((min_x, min_y, H - depth)))
+                features_detected.append({"type": "pocket_top", "x": round(min_x, 2), "y": round(min_y, 2), "sx": round(sx, 2), "sy": round(sy, 2), "depth": depth})
+
+        # 1.6 Bottom Pockets (from Top View Hidden Lines)
+        top_hid_lines = [e for e in top_ents if (e.get("kind") == "line" or "p" in e.get("g", e)) and e.get("role") == "hidden"]
+        if top_hid_lines:
+            hid_polys, _ = build_closed_loops(top_hid_lines)
+            for hpoly in hid_polys:
+                h_min_x, h_min_y, h_max_x, h_max_y = hpoly.bounds
+                h_sx = h_max_x - h_min_x
+                h_sy = h_max_y - h_min_y
+                if h_sx >= 5.0 and h_sy >= 5.0:
+                    # Find floor height from front hidden lines
+                    b_depth = round(H * 0.3, 2)
+                    for hx0, hx1, z_floor in front_hidden_z:
+                        if (hx0 - 1.0 <= (h_min_x + h_max_x) / 2.0 <= hx1 + 1.0) and z_floor < H / 2.0:
+                            b_depth = round(z_floor, 2)
+                            break
+                    body = body.cut(cq.Workplane("XY").box(h_sx, h_sy, b_depth + 1.0, centered=False).translate((h_min_x, h_min_y, -1.0)))
+                    features_detected.append({"type": "pocket_bottom", "x": round(h_min_x, 2), "y": round(h_min_y, 2), "sx": round(h_sx, 2), "sy": round(h_sy, 2), "depth": b_depth})
+
+        # 1.7 Apply Top Chamfer
+        if chamfer_c is not None:
+            try:
+                body = body.faces(">Z").edges().chamfer(chamfer_c)
+                features_detected.append({"type": "chamfer", "c": chamfer_c})
+            except Exception:
+                pass
 
     return body, {
         "family": "prismatic",

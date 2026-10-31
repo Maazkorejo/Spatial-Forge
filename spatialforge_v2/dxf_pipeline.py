@@ -143,10 +143,17 @@ def process_dxf_bytes(
             registered = register_views(identified, scale=scale)
         else:
             # Single-view sketch / 2D contour profile mode (1 or 2 clusters)
-            primary = clusters[0]
+            primary = max(clusters, key=lambda c: len(c["entities"]))
             w = round(primary["width"] / scale, 3)
             h = round(primary["height"] / scale, 3)
-            d = max(16.0, round(min(w, h) * 0.15, 1))
+            
+            d = max(10.0, round(min(w, h) * 0.15, 1))
+            if len(clusters) == 2:
+                secondary = [c for c in clusters if c is not primary][0]
+                min_sec = min(secondary["width"], secondary["height"]) / scale
+                if 2.0 <= min_sec <= 60.0:
+                    d = round(min_sec, 2)
+
             f_bx = primary["bbox"]
             u0, v0 = f_bx[0], f_bx[1]
             norm_ents = []
@@ -184,7 +191,7 @@ def process_dxf_bytes(
                 "dimensions": {"W": w, "D": d, "H": h},
                 "views": {
                     "front": {"entities": norm_ents, "origin": (0.0, 0.0)},
-                    "top": {"entities": [], "origin": (0.0, 0.0)},
+                    "top": {"entities": norm_ents, "origin": (0.0, 0.0)},
                     "right": {"entities": [], "origin": (0.0, 0.0)},
                 },
             }
@@ -210,6 +217,21 @@ def process_dxf_bytes(
         status = verify_res["status"]
         mean_vis_f1 = verify_res["mean_vis_f1"]
         flagged = verify_res["flagged"]
+
+        # Ensure model is oriented horizontally on Three.js ground plane (XZ) and centered at origin (0, 0, 0)
+        bb_raw = body.val().BoundingBox()
+        raw_dy = bb_raw.ymax - bb_raw.ymin
+        raw_dz = bb_raw.zmax - bb_raw.zmin
+        if raw_dy > raw_dz * 1.5:
+            # Planar profile is standing upright on XY: rotate -90 deg around X to lay horizontally flat on XZ ground grid
+            body = body.rotate((0, 0, 0), (1, 0, 0), -90.0)
+
+        # Center symmetrically on X and Z, and ground on Y=0
+        bb_final = body.val().BoundingBox()
+        cx = (bb_final.xmin + bb_final.xmax) / 2.0
+        cz = (bb_final.zmin + bb_final.zmax) / 2.0
+        miny = bb_final.ymin
+        body = body.translate((-cx, -miny, -cz))
 
         # 5. Tessellation & Mesh Export for Three.js
         verts, triangles = body.val().tessellate(0.1, 0.2)

@@ -187,7 +187,20 @@ def process_image_bytes(
                     except Exception:
                         pass
 
-    # 4. Tessellate into 3D mesh
+    # 4. Orient horizontally on ground plane and center symmetrically at origin (0, 0, 0)
+    bb_raw = solid.val().BoundingBox()
+    raw_dy = bb_raw.ymax - bb_raw.ymin
+    raw_dz = bb_raw.zmax - bb_raw.zmin
+    if raw_dy > raw_dz * 1.5:
+        solid = solid.rotate((0, 0, 0), (1, 0, 0), -90.0)
+
+    bb_final = solid.val().BoundingBox()
+    cx = (bb_final.xmin + bb_final.xmax) / 2.0
+    cz = (bb_final.zmin + bb_final.zmax) / 2.0
+    miny = bb_final.ymin
+    solid = solid.translate((-cx, -miny, -cz))
+
+    # 5. Tessellate into 3D mesh
     mesh_data = solid_to_mesh(solid)
 
     # 5. Measure Bounding Box & Dimensions
