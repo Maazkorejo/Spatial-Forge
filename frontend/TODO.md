@@ -1,24 +1,8 @@
-# Spatial Forge Frontend Outcomes
+# Spatial Forge frontend outcomes
 
-## 1. Persistent shell and stage navigation
-- Single-page shell has a left navigation rail and top header.
-- Header shows the active source filename, current stage, Upload/Edit/Export stage buttons, concise status, Open File, and Reconstruct actions.
-- Active model state remains available while switching between stages.
-- Visual system uses a grey background, light surfaces, modern fonts, icons, buttons, and compact widgets; no orange or green colors are used.
-
-## 2. Upload stage
-- Full-width drag-and-drop zone accepts `.dxf`, `.png`, `.jpg`, and `.webp` files.
-- File selection and drop provide concise validation and a processing-loader state.
-- Sample engineering case library provides compact one-click cards that load a reconstruction into the workspace.
-
-## 3. Edit workspace
-- Three-column layout includes feature tree/measured specs, dominant 3D-style viewport, and compact edit controls.
-- Viewport includes engineering ground grid, model-focused view, shading controls, and concise factual statuses such as Converged, Needs review, and Watertight.
-- Floating 2D blueprint PiP supports minimize, restore, and close interactions.
-- Precision controls support make bigger/smaller, Length/Width/Thickness steppers, and live volume updates.
-- Cut workflow provides selectable cut actions, applied-cut list, individual removal actions, and immediate visual/model updates.
-- Undo, redo, and reset preserve consistent dimensions, cuts, volume, and viewport state.
-
-## 4. Export stage
-- Deliverable grid provides working download actions for STEP, STL, HTML, GLB, and DXF.
-- Export UI stays clean, concise, and focused on file type, size/status, and action.
+- [x] **Workspace shell and brand.** Deliver a single-page architecture with a left navigation rail and top header showing the active filename and current page. Provide three primary workflow stages—Upload, Edit, Export—plus file-open and Reconstruct actions, and a concise factual status badge. Use the supplied Spatial Forge logo. Keep the interface modern, simple, light-toned on a grey background, with modern type and icon-led buttons/widgets instead of verbose text. Do not use orange or green, and do not use a white page background.
+- [x] **Upload drawings and sample models.** Provide a global drag-and-drop uploader for `.dxf`, `.png`, `.jpg`, and `.webp`, plus an Open File picker. Show concise animated reconstruction progress (“Synthesizing 3D B-Rep from 2D CAD…” and “Segmenting views & solving features…” or equivalent concise states) and move to Edit on completion. Provide one-click sample cases for an F-35 jet, aircraft-wing profiles, turned shafts, mechanical brackets, butterflies, wheels, and engine housings. Preserve the selected active model through edits; never substitute a generic block.
+- [x] **Edit viewport and feature inspection.** Use a three-column Edit workspace with a feature tree and measured specs, an interactive model viewport, and edit controls. Show the active model identity, dimensions, base solid/features, and a WATERTIGHT status indicator only when supported by the preview. Center and ground the preview on a floor grid. Support orbit, pan, and zoom interaction, plus Shaded, Wireframe, and Solid modes. Add a floating source-drawing picture-in-picture with minimize/show and close actions.
+- [x] **Model adjustment, cuts, and history.** Provide Make Big (+20%) and Make Small (-20%) controls; Length X and Width Y steppers in ±5 mm increments; Thickness Z steppers in ±2 mm increments; and a live volume readout. Provide direct controls for Cut Hole Ø6, Cut Pocket, Cut Slot, Round Edges, Chamfer 1.5, and Hollow Shell. List applied cuts dynamically and let users remove each entry. Support Undo, Redo, and Reset, with brief contextual feedback. Keep direct model edits and metadata aligned with the selected preview.
+- [x] **Engineering-format export choices.** Offer downloadable deliverable actions for STEP, STL, standalone interactive HTML, GLB, and DXF. The standalone HTML viewer should bundle its preview geometry, show model title/dimensions/volume, expose shading/wireframe and auto-rotate toggles, reset-view, and provide a floating blueprint overlay with minimize and close actions. Do not overstate geometry or manufacturing validation that a browser-only preview has not performed.
+- [x] **Responsive and packaged delivery.** Make the single-page workspace usable at desktop and narrow widths without losing the primary task controls. Include a route manifest for `/`. Once the frontend is complete, create a ZIP of the source project, excluding `node_modules`, build output, and other transient caches; include the lockfile, supplied logo asset, and project instructions.

@@ -60,10 +60,39 @@ js_dir = os.path.join(repo_root, "js")
 os.makedirs(js_dir, exist_ok=True)
 app.mount("/js", StaticFiles(directory=js_dir), name="js")
 
-frontend_dist = os.path.join(repo_root, "frontend", "dist")
-frontend_public = os.path.join(repo_root, "frontend", "public")
-if os.path.exists(os.path.join(frontend_dist, "assets")):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+frontend_dist = os.path.join(repo_root, "frontend", "dist", "public")
+if not os.path.exists(frontend_dist):
+    frontend_dist = os.path.join(repo_root, "frontend", "dist")
+
+frontend_public = os.path.join(repo_root, "frontend", "client", "public")
+if not os.path.exists(frontend_public):
+    frontend_public = os.path.join(repo_root, "frontend", "public")
+
+assets_dir = os.path.join(frontend_dist, "assets")
+if os.path.exists(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+manus_dir = os.path.join(frontend_dist, "__manus__")
+if os.path.exists(manus_dir):
+    app.mount("/__manus__", StaticFiles(directory=manus_dir), name="manus")
+
+api_platform_dir = os.path.join(frontend_dist, "api", "platform")
+if os.path.exists(api_platform_dir):
+    app.mount("/api/platform", StaticFiles(directory=api_platform_dir), name="api_platform")
+
+@app.get("/spatialforge-logo.webp")
+def get_logo_webp():
+    for p in [os.path.join(frontend_dist, "spatialforge-logo.webp"), os.path.join(frontend_public, "spatialforge-logo.webp")]:
+        if os.path.exists(p):
+            return FileResponse(p, media_type="image/webp")
+    return Response(status_code=404)
+
+@app.get("/f35-at-edwards.jpg")
+def get_f35_jpg():
+    for p in [os.path.join(frontend_dist, "f35-at-edwards.jpg"), os.path.join(frontend_public, "f35-at-edwards.jpg")]:
+        if os.path.exists(p):
+            return FileResponse(p, media_type="image/jpeg")
+    return Response(status_code=404)
 
 @app.get("/spatialforge-logo.png")
 def get_logo():
@@ -82,12 +111,15 @@ def get_icon():
 @app.get("/ui")
 @app.get("/app")
 def get_ui():
-    dist_index = os.path.join(repo_root, "frontend", "dist", "index.html")
-    if os.path.exists(dist_index):
-        return FileResponse(dist_index, media_type="text/html")
-    index_path = os.path.join(repo_root, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path, media_type="text/html")
+    candidates = [
+        os.path.join(frontend_dist, "index.html"),
+        os.path.join(repo_root, "frontend", "dist", "public", "index.html"),
+        os.path.join(repo_root, "frontend", "dist", "index.html"),
+        os.path.join(repo_root, "index.html"),
+    ]
+    for dist_index in candidates:
+        if os.path.exists(dist_index):
+            return FileResponse(dist_index, media_type="text/html")
     return {"error": "index.html not found"}
 
 @app.get("/")
